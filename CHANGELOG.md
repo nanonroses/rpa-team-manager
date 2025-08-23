@@ -6,6 +6,89 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 
 ## [Unreleased]
 
+## [2.9.0] - 2025-08-23
+
+### ✅ Sistema Multi-Usuario y ROI Avanzado - Revolución en Gestión de Proyectos
+**CARACTERÍSTICAS REVOLUCIONARIAS IMPLEMENTADAS:**
+
+#### 🏗️ Sistema de Asignaciones Multi-Usuario Profesional
+**Base de Datos y Migración:**
+- ✅ **Nueva Tabla `project_assignments`**: Relación many-to-many Users ↔ Projects
+- ✅ **Migración Automática**: Conversión transparente desde sistema single-user
+- ✅ **Preservación de Datos**: Todos los proyectos existentes migrados automáticamente
+- ✅ **Schema Profesional**: Campos user_id, project_id, role, allocation_percentage
+- ✅ **Backward Compatibility**: Sistema anterior funciona sin interrupciones
+
+**APIs de Gestión de Asignaciones:**
+- ✅ **GET `/api/projects/:id/assignments`**: Obtener todas las asignaciones de un proyecto
+- ✅ **POST `/api/projects/:id/assignments`**: Crear nuevas asignaciones con validaciones
+- ✅ **DELETE `/api/projects/:id/assignments/:assignmentId`**: Eliminar asignaciones específicas
+- ✅ **Error Handling Robusto**: Validaciones de existencia de usuarios y proyectos
+- ✅ **Response Enriquecido**: Datos completos de usuario con nombres y roles
+
+**Frontend Moderno Multi-Select:**
+- ✅ **CreateProjectModal Mejorado**: Interface multi-select para asignación de equipos
+- ✅ **Roles Visuales**: Tags diferenciados "Lead" (azul) y "Member" (gris)
+- ✅ **Porcentajes de Dedicación**: Input para % de tiempo dedicado (default 100%)
+- ✅ **UX Intuitiva**: Selección múltiple con feedback visual inmediato
+- ✅ **Validaciones Frontend**: Prevención de asignaciones duplicadas
+
+#### 💰 Sistema ROI Revolucionario - Costos Multi-Usuario Realistas
+**Cálculo de Costos Avanzado:**
+- ✅ **Multi-User Cost Calculation**: ROI suma costos de TODOS los usuarios asignados
+- ✅ **Allocation-Based Costing**: Considera % de dedicación de cada usuario
+- ✅ **Fórmula Empresarial**: `Total Cost = Σ (User_Salary ÷ Monthly_Hours × Allocation_% × Project_Hours)`
+- ✅ **Real-Time Updates**: Recálculo automático al cambiar asignaciones
+- ✅ **Enhanced API Response**: Incluye breakdown detallado de costos por usuario
+
+**Ejemplo de Cálculo Real:**
+```
+Proyecto "Automatización RPA" (100 horas):
+├─ Team Lead (50% dedicación): $426,136 CLP
+├─ RPA Developer 1 (100% dedicación): $681,818 CLP  
+├─ RPA Developer 2 (75% dedicación): $511,364 CLP
+└─ COSTO TOTAL PROYECTO: $1,619,318 CLP
+```
+
+**Settings Financieros Completos:**
+- ✅ **All Roles Configuration**: Agregada configuración de salario Team Lead
+- ✅ **Realistic Salary Ranges**: Placeholders actualizados para mercado chileno
+- ✅ **Auto-Calculation Display**: Visualización en tiempo real del costo por hora
+- ✅ **Full Integration**: Conectado directamente con sistema ROI multi-usuario
+
+#### 🎯 Casos de Uso Empresariales Reales
+**Escenarios Profesionales Soportados:**
+- ✅ **Team Lead + Developers**: Líder técnico (50%) + Desarrolladores (100%)
+- ✅ **Proyectos Complejos**: Múltiples especialistas con diferentes niveles de participación
+- ✅ **Resource Management**: Visibilidad completa de asignación de equipo
+- ✅ **Realistic Pricing**: Cotizaciones precisas basadas en costos reales del equipo
+
+#### 🔧 Mejoras Técnicas Profesionales
+**Backend Architecture:**
+- ✅ **3 New Endpoints**: APIs completas para gestión de asignaciones
+- ✅ **Database Migrations**: Sistema profesional de migración preservando datos
+- ✅ **Query Optimization**: JOINs eficientes para consultas multi-usuario
+- ✅ **Validation Layer**: Validaciones robustas con error handling descriptivo
+
+**Frontend UX Enhancements:**
+- ✅ **Modern Multi-Select**: Interface intuitiva para selección de usuarios
+- ✅ **Visual Feedback**: Tags por rol con colores distintivos
+- ✅ **Real-Time ROI**: Cálculos actualizados instantáneamente
+- ✅ **Responsive Design**: Adaptación a diferentes resoluciones
+
+#### 📈 Impacto Empresarial y ROI
+**Beneficios Operacionales:**
+- ✅ **Realistic Project Costing**: Costos reales considerando todo el equipo
+- ✅ **Accurate ROI Calculations**: Rentabilidad precisa para toma de decisiones
+- ✅ **Resource Visibility**: Gestión eficiente de carga de trabajo del equipo
+- ✅ **Strategic Planning**: Datos confiables para planificación de recursos
+
+**Business Value:**
+- ✅ **Better Project Pricing**: Cotizaciones basadas en costos reales
+- ✅ **Resource Optimization**: Visibilidad de asignación y disponibilidad
+- ✅ **Profitability Analysis**: ROI confiable para evaluación de proyectos
+- ✅ **Team Management**: Control profesional de asignaciones y roles
+
 ### ✅ Agosto 23, 2025 - Security Hardening Empresarial Completo
 **Sistema de Seguridad de Nivel Empresarial:**
 - ✅ **Rate Limiting Multinivel**: Protección DDoS con 3 capas (API general, Auth, Analytics)

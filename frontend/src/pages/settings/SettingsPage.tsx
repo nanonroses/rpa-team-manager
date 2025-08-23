@@ -26,6 +26,7 @@ interface GlobalSettings {
 }
 
 interface TeamSalarySettings {
+  team_lead_salary: number;
   rpa_developer_salary: number;
   it_support_salary: number;
   rpa_operations_salary: number;
@@ -43,6 +44,7 @@ export const SettingsPage: React.FC = () => {
     weekly_hours: 44
   });
   const [teamSalaries, setTeamSalaries] = useState<TeamSalarySettings>({
+    team_lead_salary: 0,
     rpa_developer_salary: 0,
     it_support_salary: 0,
     rpa_operations_salary: 0
@@ -77,6 +79,7 @@ export const SettingsPage: React.FC = () => {
       
       // Mapear los costos por rol
       const salaryData = {
+        team_lead_salary: userCosts.find(u => u.role === 'team_lead')?.monthly_cost || 0,
         rpa_developer_salary: userCosts.find(u => u.role === 'rpa_developer')?.monthly_cost || 0,
         it_support_salary: userCosts.find(u => u.role === 'it_support')?.monthly_cost || 0,
         rpa_operations_salary: userCosts.find(u => u.role === 'rpa_operations')?.monthly_cost || 0
@@ -112,6 +115,16 @@ export const SettingsPage: React.FC = () => {
       
       // Actualizar cada rol por separado
       const userCosts = await apiService.getUserCosts();
+      
+      // Team Lead
+      const teamLead = userCosts.find(u => u.role === 'team_lead');
+      if (teamLead && values.team_lead_salary > 0) {
+        await apiService.createUserCost({
+          user_id: teamLead.user_id,
+          monthly_cost: values.team_lead_salary,
+          effective_from: new Date().toISOString().split('T')[0]
+        });
+      }
       
       // RPA Developer
       const rpaDev = userCosts.find(u => u.role === 'rpa_developer');
@@ -316,7 +329,27 @@ export const SettingsPage: React.FC = () => {
               />
               
               <Row gutter={16}>
-                <Col xs={24} sm={8}>
+                <Col xs={24} sm={12} lg={6}>
+                  <Form.Item
+                    label="Team Lead"
+                    name="team_lead_salary"
+                    rules={[
+                      { type: 'number', min: 0, message: 'Debe ser mayor o igual a 0' }
+                    ]}
+                  >
+                    <InputNumber
+                      placeholder="2,500,000"
+                      prefix="$"
+                      suffix="CLP"
+                      style={{ width: '100%' }}
+                      precision={0}
+                      step={50000}
+                      formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                      parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} sm={12} lg={6}>
                   <Form.Item
                     label="RPA Developer"
                     name="rpa_developer_salary"
@@ -325,38 +358,18 @@ export const SettingsPage: React.FC = () => {
                     ]}
                   >
                     <InputNumber
-                      placeholder="600,000"
+                      placeholder="1,200,000"
                       prefix="$"
                       suffix="CLP"
                       style={{ width: '100%' }}
                       precision={0}
-                      step={10000}
+                      step={50000}
                       formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                       parser={value => value!.replace(/\$\s?|(,*)/g, '')}
                     />
                   </Form.Item>
                 </Col>
-                <Col xs={24} sm={8}>
-                  <Form.Item
-                    label="Soporte TI"
-                    name="it_support_salary"
-                    rules={[
-                      { type: 'number', min: 0, message: 'Debe ser mayor o igual a 0' }
-                    ]}
-                  >
-                    <InputNumber
-                      placeholder="400,000"
-                      prefix="$"
-                      suffix="CLP"
-                      style={{ width: '100%' }}
-                      precision={0}
-                      step={10000}
-                      formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                      parser={value => value!.replace(/\$\s?|(,*)/g, '')}
-                    />
-                  </Form.Item>
-                </Col>
-                <Col xs={24} sm={8}>
+                <Col xs={24} sm={12} lg={6}>
                   <Form.Item
                     label="RPA Operations"
                     name="rpa_operations_salary"
@@ -365,12 +378,32 @@ export const SettingsPage: React.FC = () => {
                     ]}
                   >
                     <InputNumber
-                      placeholder="500,000"
+                      placeholder="900,000"
                       prefix="$"
                       suffix="CLP"
                       style={{ width: '100%' }}
                       precision={0}
-                      step={10000}
+                      step={50000}
+                      formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                      parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+                    />
+                  </Form.Item>
+                </Col>
+                <Col xs={24} sm={12} lg={6}>
+                  <Form.Item
+                    label="Soporte TI"
+                    name="it_support_salary"
+                    rules={[
+                      { type: 'number', min: 0, message: 'Debe ser mayor o igual a 0' }
+                    ]}
+                  >
+                    <InputNumber
+                      placeholder="700,000"
+                      prefix="$"
+                      suffix="CLP"
+                      style={{ width: '100%' }}
+                      precision={0}
+                      step={50000}
                       formatter={value => `${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                       parser={value => value!.replace(/\$\s?|(,*)/g, '')}
                     />
@@ -382,15 +415,19 @@ export const SettingsPage: React.FC = () => {
                 <Text strong>Cálculo automático de costo por hora:</Text>
                 <br />
                 <Text type="secondary">
+                  • Team Lead: ${Math.round(teamSalaries.team_lead_salary / settings.monthly_hours).toLocaleString()}/hora
+                </Text>
+                <br />
+                <Text type="secondary">
                   • RPA Developer: ${Math.round(teamSalaries.rpa_developer_salary / settings.monthly_hours).toLocaleString()}/hora
                 </Text>
                 <br />
                 <Text type="secondary">
-                  • Soporte TI: ${Math.round(teamSalaries.it_support_salary / settings.monthly_hours).toLocaleString()}/hora
+                  • RPA Operations: ${Math.round(teamSalaries.rpa_operations_salary / settings.monthly_hours).toLocaleString()}/hora
                 </Text>
                 <br />
                 <Text type="secondary">
-                  • RPA Operations: ${Math.round(teamSalaries.rpa_operations_salary / settings.monthly_hours).toLocaleString()}/hora
+                  • Soporte TI: ${Math.round(teamSalaries.it_support_salary / settings.monthly_hours).toLocaleString()}/hora
                 </Text>
               </div>
             </Card>

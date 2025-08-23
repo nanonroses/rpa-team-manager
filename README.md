@@ -1,6 +1,6 @@
 # RPA Team Manager
 
-[![Version](https://img.shields.io/badge/version-2.8.0-blue.svg)](https://github.com/nanon/rpa-team-manager)
+[![Version](https://img.shields.io/badge/version-2.9.0-blue.svg)](https://github.com/nanon/rpa-team-manager)
 [![Status](https://img.shields.io/badge/status-production-success.svg)](https://github.com/nanon/rpa-team-manager)
 [![Build Status](https://img.shields.io/badge/build-passing-success.svg)](https://github.com/nanon/rpa-team-manager)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](#license)
@@ -61,6 +61,8 @@ curl -X POST http://localhost:5001/api/auth/setup-test-users
 - **Gestión de Tareas**: Tableros tipo Planner con drag & drop ✅
 - **Time Tracking**: Seguimiento de horas por desarrollador y proyecto ✅
 - **Gestión de Proyectos**: Control de cronogramas y presupuestos ✅
+- **🆕 Sistema Multi-Usuario**: Asignación de múltiples usuarios por proyecto con roles y porcentajes ✅
+- **🆕 ROI Avanzado**: Cálculos automáticos considerando costos de TODO el equipo asignado ✅
 - **Sistema ROI**: Cálculos automáticos de rentabilidad por proyecto ✅
 - **Settings Financieros**: Configuración de salarios y tipos de cambio ✅
 - **Integración Módulos**: Navegación fluida Projects ↔ Tasks ↔ Time ✅
@@ -79,6 +81,8 @@ curl -X POST http://localhost:5001/api/auth/setup-test-users
 - **🆕 Team Management**: Administración completa de usuarios y roles ✅
 - **🆕 Profile Management**: Gestión de perfil personal y cambio de contraseñas ✅
 - **🆕 Security Hardening**: Sistema de seguridad empresarial con rate limiting, validación de entrada y manejo de errores estandarizado ✅
+- **🆕 Asignaciones Proyecto**: Sistema profesional de múltiples usuarios por proyecto con roles lead/member ✅
+- **🆕 Cálculo Costos Real**: ROI considera salarios de TODOS los usuarios asignados con porcentajes de dedicación ✅
 
 ---
 
@@ -129,9 +133,11 @@ taskkill /F /PID <numero-pid> # Matar proceso específico
 - ✅ **Gestión de Roles**: Asignar roles y permisos por usuario
 - ✅ **Reset Passwords**: Cambiar contraseñas de cualquier usuario
 - ✅ Creación y eliminación de proyectos
+- ✅ **🆕 Asignación Multi-Usuario**: Asignar múltiples usuarios por proyecto con roles y porcentajes
+- ✅ **🆕 ROI Avanzado**: Métricas financieras considerando costos de todo el equipo asignado
 - ✅ **ROI Dashboard**: Métricas financieras exclusivas
-- ✅ **Settings**: Configuración salarios USD/UF/CLP
-- ✅ **Rentabilidad**: Indicadores visuales por proyecto
+- ✅ **Settings**: Configuración salarios USD/UF/CLP (incluyendo Team Lead)
+- ✅ **Rentabilidad**: Indicadores visuales por proyecto con cálculos realistas
 - ✅ **🆕 Gestión de Soporte**: Control empresas clientes y facturación
 - ✅ **🆕 PMO Dashboard**: Vista ejecutiva con gestión de hitos
 - ✅ **🆕 Gantt Chart**: Cronograma visual con timeline interactivo y gestión de duraciones
@@ -325,11 +331,13 @@ curl -X POST http://localhost:5001/api/auth/setup-test-users
 ## 🚀 Estado Actual del Sistema (AGO 2025)
 - **✅ Backend**: http://localhost:5001 - Operativo con Security Hardening
 - **✅ Frontend**: http://localhost:3000 - Operativo  
-- **✅ Database**: SQLite con 25+ tablas - Healthy
+- **✅ Database**: SQLite con 26+ tablas - Healthy
 - **✅ Módulos**: 9/9 principales funcionando (Dashboard, Projects, Tasks, Time, Ideas, Files, Soporte, PMO, Profile, Admin)
 - **✅ Security**: Rate limiting, input validation, XSS protection, error handling estandarizado
 - **✅ Gantt Chart**: Timeline visual interactivo con gestión profesional de duraciones
 - **✅ Vista General PMO**: Dashboard ejecutivo con alertas críticas y centro de control operacional
+- **✅ 🆕 Multi-User Assignments**: Sistema profesional de asignación múltiple con roles y porcentajes
+- **✅ 🆕 Enhanced ROI**: Cálculos realistas considerando costos de todo el equipo asignado
 - **✅ ROI**: Cálculos timeline automáticos
 - **✅ Integraciones**: Projects ↔ Tasks ↔ Time ↔ Support
 - **✅ Drag & Drop**: Tasks Kanban completamente funcional
@@ -491,4 +499,93 @@ AUTH_RATE_LIMIT_MAX=5
 **Desarrollado específicamente para equipos RPA pequeños con despliegue on-premise.**
 
 **Última actualización:** Agosto 23, 2025  
-**Estado:** Sistema completo con 9 módulos operativos + Security Hardening + Selector Mensual + Facturación Fija + Team Management + Gantt Chart Profesional ✅
+**Estado:** Sistema completo con 9 módulos operativos + Security Hardening + Selector Mensual + Facturación Fija + Team Management + Gantt Chart Profesional + Multi-User Assignments + Enhanced ROI ✅
+
+---
+
+## 🆕 Nuevas Características Principales (v2.9.0)
+
+### 💼 Sistema de Asignaciones Multi-Usuario
+
+**Gestión Profesional de Equipos por Proyecto:**
+- ✅ **Múltiples Usuarios**: Asignar varios miembros del equipo a un mismo proyecto
+- ✅ **Roles Definidos**: Diferenciación entre "Lead" (líder) y "Member" (miembro)
+- ✅ **Porcentajes de Dedicación**: Configurar % de tiempo que cada usuario dedica al proyecto (default 100%)
+- ✅ **Interface Moderna**: Multi-select con tags visuales por rol en CreateProjectModal
+- ✅ **Backward Compatibility**: Migración automática desde sistema single-user anterior
+
+**Casos de Uso Reales:**
+```
+Proyecto "Automatización Contabilidad":
+- Team Lead (Juan Pérez) - 50% dedicación - Rol: Lead
+- RPA Developer (María García) - 100% dedicación - Rol: Member  
+- RPA Developer (Carlos López) - 75% dedicación - Rol: Member
+```
+
+**APIs de Gestión de Asignaciones:**
+- `GET /api/projects/:id/assignments` - Obtener asignaciones del proyecto
+- `POST /api/projects/:id/assignments` - Crear nueva asignación
+- `DELETE /api/projects/:id/assignments/:assignmentId` - Eliminar asignación
+
+### 📊 Sistema ROI Avanzado con Costos Multi-Usuario
+
+**Cálculos Realistas de Rentabilidad:**
+- ✅ **Suma de Costos**: ROI considera salarios de TODOS los usuarios asignados
+- ✅ **Cálculo por Dedicación**: Costo proporcional al % de dedicación de cada usuario
+- ✅ **Fórmula Mejorada**: `Total Cost = Σ (User_Salary ÷ Monthly_Hours × Allocation_% × Project_Hours)`
+- ✅ **Desglose Detallado**: API devuelve breakdown de costos por usuario
+- ✅ **Recálculo Automático**: ROI se actualiza al cambiar asignaciones
+
+**Ejemplo de Cálculo Real:**
+```
+Proyecto con 100 horas estimadas:
+- Team Lead: $1,500,000 CLP/mes ÷ 176h × 50% × 100h = $426,136 CLP
+- Developer 1: $1,200,000 CLP/mes ÷ 176h × 100% × 100h = $681,818 CLP
+- Developer 2: $1,200,000 CLP/mes ÷ 176h × 75% × 100h = $511,364 CLP
+Costo Total del Proyecto: $1,619,318 CLP
+```
+
+### ⚙️ Configuración Completa de Salarios
+
+**Settings Financieros Expandidos:**
+- ✅ **Todos los Roles**: Agregada configuración de salario para Team Lead
+- ✅ **Rangos Realistas**: Placeholders actualizados para mercado chileno
+- ✅ **Auto-cálculo**: Visualización en tiempo real del costo por hora
+- ✅ **Integración Total**: Conectado directamente con sistema ROI
+
+**Configuración de Salarios por Rol:**
+- Team Lead: $1,500,000 - $2,500,000 CLP/mes
+- RPA Developer: $1,200,000 - $1,800,000 CLP/mes  
+- RPA Operations: $1,000,000 - $1,400,000 CLP/mes
+- IT Support: $800,000 - $1,200,000 CLP/mes
+
+### 🏗️ Mejoras Técnicas
+
+**Database Schema:**
+- ✅ **Nueva Tabla**: `project_assignments` con relaciones many-to-many
+- ✅ **Migración Profesional**: Sistema automático que preserva datos existentes
+- ✅ **Campos Nuevos**: user_id, project_id, role, allocation_percentage
+
+**Backend APIs:**
+- ✅ **3 Nuevos Endpoints**: Gestión completa de asignaciones
+- ✅ **Error Handling**: Validaciones robustas y mensajes descriptivos
+- ✅ **Performance**: Consultas optimizadas con JOINs eficientes
+
+**Frontend UX:**
+- ✅ **Multi-Select Moderno**: Interface intuitiva para selección de usuarios
+- ✅ **Indicadores Visuales**: Tags por rol (Lead/Member) con colores distintivos
+- ✅ **Feedback Inmediato**: Cálculos ROI actualizados en tiempo real
+
+### 📈 Impacto Empresarial
+
+**Beneficios Operacionales:**
+- **Costeo Preciso**: Proyectos reflejan costos reales del equipo completo
+- **Gestión de Recursos**: Visibilidad de asignación y carga de trabajo
+- **ROI Confiable**: Decisiones basadas en datos financieros precisos
+- **Escalabilidad**: Maneja equipos pequeños y medianos eficientemente
+
+**Casos de Uso Empresariales:**
+- Proyectos complejos que requieren múltiples especialistas
+- Asignación parcial de líderes técnicos en varios proyectos
+- Cálculo preciso de rentabilidad para licitaciones
+- Planificación de recursos y presupuestos realistas

@@ -39,7 +39,9 @@ import {
   CalendarOutlined,
   FireOutlined,
   ThunderboltOutlined,
-  EyeOutlined
+  EyeOutlined,
+  EditOutlined,
+  DeleteOutlined
 } from '@ant-design/icons';
 import { useAuthStore } from '@/store/authStore';
 import apiService from '@/services/api';
@@ -229,13 +231,19 @@ export const PMODashboard: React.FC = () => {
       onOk: async () => {
         try {
           if (record.type === 'milestone') {
-            // API de eliminación no implementada aún en backend
-            message.info(`Eliminación de hitos pendiente de implementar en API`);
+            await apiService.deleteMilestone(record.id);
+            message.success(`Hito "${record.name}" eliminado exitosamente`);
+            loadDashboardData();
+            // Reload gantt data if we're in gantt view
+            if (selectedProjectId) {
+              loadGanttData(selectedProjectId);
+            }
           } else {
-            // API de eliminación no implementada aún en backend
+            // API de eliminación de tareas no implementada aún en backend
             message.info(`Eliminación de tareas pendiente de implementar en API`);
           }
         } catch (error) {
+          console.error('Error deleting item:', error);
           message.error('Error al eliminar elemento');
         }
       }
@@ -289,6 +297,21 @@ export const PMODashboard: React.FC = () => {
       case 'warning': return <AlertOutlined style={{ color: '#faad14' }} />;
       case 'critical': return <AlertOutlined style={{ color: '#f5222d' }} />;
       default: return <ClockCircleOutlined style={{ color: '#d9d9d9' }} />;
+    }
+  };
+
+  const getResponsibilityIndicator = (responsibility: string) => {
+    switch (responsibility) {
+      case 'internal': 
+        return { icon: '🏢', color: '#1890ff', bg: '#e6f7ff', label: 'Interno' };
+      case 'client': 
+        return { icon: '👤', color: '#faad14', bg: '#fff7e6', label: 'Cliente' };
+      case 'external': 
+        return { icon: '🏪', color: '#f5222d', bg: '#fff1f0', label: 'Externo' };
+      case 'shared': 
+        return { icon: '🤝', color: '#722ed1', bg: '#f9f0ff', label: 'Compartido' };
+      default: 
+        return { icon: '🏢', color: '#1890ff', bg: '#e6f7ff', label: 'Interno' };
     }
   };
 
@@ -1611,7 +1634,10 @@ export const PMODashboard: React.FC = () => {
                           }))
                         ]
                         .sort((a, b) => new Date(a.sortDate || '2099-12-31').getTime() - new Date(b.sortDate || '2099-12-31').getTime())
-                        .map((item: any, index: number) => (
+                        .map((item: any, index: number) => {
+                          const responsibilityInfo = getResponsibilityIndicator(item.responsibility || 'internal');
+                          
+                          return (
                           <div
                             key={`element-${item.type}-${item.id}`}
                             style={{
@@ -1619,16 +1645,22 @@ export const PMODashboard: React.FC = () => {
                               alignItems: 'center',
                               padding: '8px',
                               height: '45px', // Altura fija para alineación
-                              background: item.type === 'milestone' ? '#fff7e6' : '#f9f9f9',
+                              background: item.type === 'milestone' ? responsibilityInfo.bg : '#f9f9f9',
                               borderRadius: '4px',
-                              borderLeft: item.type === 'milestone' ? '4px solid #faad14' : '4px solid #1890ff',
+                              borderLeft: item.type === 'milestone' ? `4px solid ${responsibilityInfo.color}` : '4px solid #1890ff',
                               cursor: 'pointer',
                               transition: 'all 0.2s',
                               marginBottom: '2px'
                             }}
-                            onClick={() => handleEditItem(item)}
-                            onMouseEnter={(e) => e.currentTarget.style.background = item.type === 'milestone' ? '#ffeaa7' : '#e6f7ff'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = item.type === 'milestone' ? '#fff7e6' : '#f9f9f9'}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.background = item.type === 'milestone' ? 
+                                (item.responsibility === 'external' ? '#ffccc7' : 
+                                 item.responsibility === 'client' ? '#ffeaa7' : 
+                                 item.responsibility === 'shared' ? '#efdbff' : '#bae7ff') : '#e6f7ff';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.background = item.type === 'milestone' ? responsibilityInfo.bg : '#f9f9f9';
+                            }}
                           >
                             <div style={{ flex: 1 }}>
                               <div style={{ 
@@ -1637,14 +1669,26 @@ export const PMODashboard: React.FC = () => {
                                 marginBottom: '2px'
                               }}>
                                 <span style={{ marginRight: '6px' }}>
-                                  {item.type === 'milestone' ? '🎯' : '📋'}
+                                  {item.type === 'milestone' ? responsibilityInfo.icon : '📋'}
                                 </span>
                                 <strong style={{ 
                                   fontSize: '12px',
-                                  color: item.type === 'milestone' ? '#d48806' : '#1890ff'
+                                  color: item.type === 'milestone' ? responsibilityInfo.color : '#1890ff'
                                 }}>
                                   {item.name || item.title}
                                 </strong>
+                                {item.type === 'milestone' && item.responsibility !== 'internal' && (
+                                  <Tag 
+                                    size="small" 
+                                    color={
+                                      item.responsibility === 'external' ? 'red' : 
+                                      item.responsibility === 'client' ? 'orange' : 'purple'
+                                    }
+                                    style={{ marginLeft: '8px', fontSize: '10px' }}
+                                  >
+                                    {responsibilityInfo.label}
+                                  </Tag>
+                                )}
                               </div>
                               <div style={{ fontSize: '10px', color: '#666' }}>
                                 {item.type === 'milestone' 
@@ -1657,7 +1701,7 @@ export const PMODashboard: React.FC = () => {
                                 }
                               </div>
                             </div>
-                            <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                               <Tag 
                                 size="small"
                                 color={
@@ -1669,9 +1713,43 @@ export const PMODashboard: React.FC = () => {
                                 {item.status === 'completed' || item.status === 'done' ? '✓' : 
                                  item.status === 'in_progress' ? '⏳' : '◯'}
                               </Tag>
+                              <Space size={2}>
+                                <Button 
+                                  type="text" 
+                                  size="small" 
+                                  icon={<EditOutlined />}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleEditItem(item);
+                                  }}
+                                  style={{ 
+                                    padding: '2px 4px',
+                                    height: '20px',
+                                    width: '20px',
+                                    fontSize: '10px'
+                                  }}
+                                />
+                                <Button 
+                                  type="text" 
+                                  size="small" 
+                                  icon={<DeleteOutlined />}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteItem(item);
+                                  }}
+                                  style={{ 
+                                    padding: '2px 4px',
+                                    height: '20px',
+                                    width: '20px',
+                                    fontSize: '10px',
+                                    color: '#ff4d4f'
+                                  }}
+                                />
+                              </Space>
                             </div>
                           </div>
-                        ))}
+                        );
+                        })}
                       </div>
 
                       {/* Panel derecho con timeline alineado */}
@@ -1862,6 +1940,166 @@ export const PMODashboard: React.FC = () => {
             </div>
           )}
         </TabPane>
+
+        <TabPane tab="🔗 Dependencias Externas" key="dependencies">
+          <Card>
+            <Title level={3} style={{ marginBottom: '20px' }}>
+              📊 Dashboard de Dependencias Externas
+            </Title>
+            
+            {/* Métricas de dependencias */}
+            <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
+              <Col xs={24} sm={8}>
+                <Card size="small" style={{ background: '#fff1f0', borderColor: '#ffccc7' }}>
+                  <Statistic
+                    title="Dependencias Externas"
+                    value={
+                      dashboardData?.projects?.reduce((total: number, project: any) => {
+                        return total + (ganttData?.milestones?.filter((m: any) => 
+                          m.responsibility === 'external' || m.responsibility === 'client'
+                        ).length || 0);
+                      }, 0) || 0
+                    }
+                    prefix="🏪"
+                    valueStyle={{ color: '#f5222d' }}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} sm={8}>
+                <Card size="small" style={{ background: '#fff7e6', borderColor: '#ffd591' }}>
+                  <Statistic
+                    title="Retrasos por Cliente"
+                    value={
+                      ganttData?.milestones?.filter((m: any) => 
+                        m.responsibility === 'client' && m.estimated_delay_days > 0
+                      ).length || 0
+                    }
+                    prefix="⏰"
+                    valueStyle={{ color: '#faad14' }}
+                  />
+                </Card>
+              </Col>
+              <Col xs={24} sm={8}>
+                <Card size="small" style={{ background: '#f6ffed', borderColor: '#b7eb8f' }}>
+                  <Statistic
+                    title="Impacto Financiero"
+                    value={Math.round(
+                      (ganttData?.milestones?.reduce((total: number, m: any) => 
+                        total + (parseFloat(m.financial_impact) || 0), 0
+                      ) || 0) / 1000000
+                    )}
+                    suffix="M CLP"
+                    prefix="💰"
+                    valueStyle={{ color: '#52c41a' }}
+                  />
+                </Card>
+              </Col>
+            </Row>
+
+            {/* Lista de dependencias críticas */}
+            <Row gutter={[16, 16]}>
+              <Col span={24}>
+                <Card 
+                  title="🚨 Dependencias Críticas por Cliente/Terceros" 
+                  size="small"
+                  style={{ marginBottom: '16px' }}
+                >
+                  {ganttData?.milestones?.filter((m: any) => 
+                    m.responsibility !== 'internal'
+                  ).length > 0 ? (
+                    <div>
+                      {ganttData.milestones
+                        .filter((m: any) => m.responsibility !== 'internal')
+                        .map((milestone: any) => {
+                          const responsibilityInfo = getResponsibilityIndicator(milestone.responsibility);
+                          const isDelayed = milestone.estimated_delay_days > 0;
+                          
+                          return (
+                            <Card 
+                              key={milestone.id}
+                              size="small" 
+                              style={{ 
+                                marginBottom: '12px',
+                                border: isDelayed ? '2px solid #ff4d4f' : '1px solid #d9d9d9',
+                                background: isDelayed ? '#fff1f0' : responsibilityInfo.bg
+                              }}
+                            >
+                              <Row justify="space-between" align="middle">
+                                <Col span={12}>
+                                  <Space>
+                                    <span style={{ fontSize: '16px' }}>{responsibilityInfo.icon}</span>
+                                    <div>
+                                      <strong>{milestone.name}</strong>
+                                      <div style={{ fontSize: '12px', color: '#666' }}>
+                                        📅 {dayjs(milestone.planned_date).format('DD/MM/YYYY')}
+                                      </div>
+                                    </div>
+                                  </Space>
+                                </Col>
+                                <Col span={6}>
+                                  <Tag color={responsibilityInfo.color.replace('#', '')}>
+                                    {responsibilityInfo.label}
+                                  </Tag>
+                                  {isDelayed && (
+                                    <Tag color="red" style={{ marginTop: '4px' }}>
+                                      +{milestone.estimated_delay_days} días
+                                    </Tag>
+                                  )}
+                                </Col>
+                                <Col span={6}>
+                                  {milestone.financial_impact > 0 && (
+                                    <div style={{ textAlign: 'right' }}>
+                                      <strong style={{ color: '#f5222d' }}>
+                                        ${(milestone.financial_impact / 1000000).toFixed(1)}M
+                                      </strong>
+                                      <div style={{ fontSize: '10px', color: '#666' }}>
+                                        Impacto CLP
+                                      </div>
+                                    </div>
+                                  )}
+                                  {milestone.external_contact && (
+                                    <div style={{ fontSize: '10px', color: '#666' }}>
+                                      👤 {milestone.external_contact}
+                                    </div>
+                                  )}
+                                </Col>
+                              </Row>
+                              
+                              {milestone.blocking_reason && (
+                                <div style={{ marginTop: '8px', padding: '8px', background: '#fafafa', borderRadius: '4px' }}>
+                                  <strong style={{ fontSize: '11px' }}>Razón del bloqueo:</strong>
+                                  <div style={{ fontSize: '11px', marginTop: '2px' }}>
+                                    {milestone.blocking_reason}
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {milestone.delay_justification && (
+                                <div style={{ marginTop: '4px', padding: '8px', background: '#fff7e6', borderRadius: '4px' }}>
+                                  <strong style={{ fontSize: '11px' }}>Justificación:</strong>
+                                  <div style={{ fontSize: '11px', marginTop: '2px' }}>
+                                    {milestone.delay_justification}
+                                  </div>
+                                </div>
+                              )}
+                            </Card>
+                          );
+                        })}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+                      <CheckCircleOutlined style={{ fontSize: '48px', marginBottom: '16px' }} />
+                      <div>¡Excelente! No hay dependencias externas críticas</div>
+                      <div style={{ fontSize: '12px', marginTop: '8px' }}>
+                        Todos los hitos están bajo control interno
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              </Col>
+            </Row>
+          </Card>
+        </TabPane>
       </Tabs>
 
       {/* Modal editar elemento */}
@@ -1917,6 +2155,66 @@ export const PMODashboard: React.FC = () => {
                     </Select.Option>
                   ))}
                 </Select>
+              </Form.Item>
+
+              <Form.Item name="responsibility" label="Tipo de Responsabilidad">
+                <Select>
+                  <Select.Option value="internal">
+                    <span style={{ color: '#1890ff' }}>🏢 Interno</span> - Tu equipo
+                  </Select.Option>
+                  <Select.Option value="client">
+                    <span style={{ color: '#faad14' }}>👤 Cliente</span> - Responsabilidad del cliente
+                  </Select.Option>
+                  <Select.Option value="external">
+                    <span style={{ color: '#f5222d' }}>🏪 Externo</span> - Proveedores/Terceros
+                  </Select.Option>
+                  <Select.Option value="shared">
+                    <span style={{ color: '#722ed1' }}>🤝 Compartido</span> - Colaboración requerida
+                  </Select.Option>
+                </Select>
+              </Form.Item>
+
+              <Form.Item 
+                shouldUpdate={(prevValues, currentValues) => prevValues.responsibility !== currentValues.responsibility}
+                style={{ marginBottom: 0 }}
+              >
+                {({ getFieldValue }) => {
+                  const responsibility = getFieldValue('responsibility');
+                  return responsibility !== 'internal' ? (
+                    <div>
+                      <Form.Item name="external_contact" label="Contacto Externo">
+                        <Input placeholder="Nombre y contacto del responsable externo" />
+                      </Form.Item>
+
+                      <Form.Item name="blocking_reason" label="Razón de Bloqueo/Dependencia">
+                        <Input.TextArea 
+                          placeholder="Describe por qué este hito depende de factores externos"
+                          rows={2}
+                        />
+                      </Form.Item>
+
+                      <Row gutter={16}>
+                        <Col span={12}>
+                          <Form.Item name="estimated_delay_days" label="Días de Retraso Estimados">
+                            <Input type="number" min={0} placeholder="0" />
+                          </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                          <Form.Item name="financial_impact" label="Impacto Financiero (CLP)">
+                            <Input type="number" min={0} step="1000" placeholder="0" />
+                          </Form.Item>
+                        </Col>
+                      </Row>
+
+                      <Form.Item name="delay_justification" label="Justificación/Evidencias">
+                        <Input.TextArea 
+                          placeholder="Documentación o evidencias del retraso/dependencia"
+                          rows={2}
+                        />
+                      </Form.Item>
+                    </div>
+                  ) : null;
+                }}
               </Form.Item>
             </>
           ) : (
@@ -2059,6 +2357,66 @@ export const PMODashboard: React.FC = () => {
                 </Select.Option>
               ))}
             </Select>
+          </Form.Item>
+
+          <Form.Item name="responsibility" label="Tipo de Responsabilidad" initialValue="internal">
+            <Select>
+              <Select.Option value="internal">
+                <span style={{ color: '#1890ff' }}>🏢 Interno</span> - Tu equipo
+              </Select.Option>
+              <Select.Option value="client">
+                <span style={{ color: '#faad14' }}>👤 Cliente</span> - Responsabilidad del cliente
+              </Select.Option>
+              <Select.Option value="external">
+                <span style={{ color: '#f5222d' }}>🏪 Externo</span> - Proveedores/Terceros
+              </Select.Option>
+              <Select.Option value="shared">
+                <span style={{ color: '#722ed1' }}>🤝 Compartido</span> - Colaboración requerida
+              </Select.Option>
+            </Select>
+          </Form.Item>
+
+          <Form.Item 
+            shouldUpdate={(prevValues, currentValues) => prevValues.responsibility !== currentValues.responsibility}
+            style={{ marginBottom: 0 }}
+          >
+            {({ getFieldValue }) => {
+              const responsibility = getFieldValue('responsibility');
+              return responsibility !== 'internal' ? (
+                <div>
+                  <Form.Item name="external_contact" label="Contacto Externo">
+                    <Input placeholder="Nombre y contacto del responsable externo" />
+                  </Form.Item>
+
+                  <Form.Item name="blocking_reason" label="Razón de Bloqueo/Dependencia">
+                    <Input.TextArea 
+                      placeholder="Describe por qué este hito depende de factores externos"
+                      rows={2}
+                    />
+                  </Form.Item>
+
+                  <Row gutter={16}>
+                    <Col span={12}>
+                      <Form.Item name="estimated_delay_days" label="Días de Retraso Estimados">
+                        <Input type="number" min={0} placeholder="0" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item name="financial_impact" label="Impacto Financiero (CLP)">
+                        <Input type="number" min={0} step="1000" placeholder="0" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+
+                  <Form.Item name="delay_justification" label="Justificación/Evidencias">
+                    <Input.TextArea 
+                      placeholder="Documentación o evidencias del retraso/dependencia"
+                      rows={2}
+                    />
+                  </Form.Item>
+                </div>
+              ) : null;
+            }}
           </Form.Item>
 
           <Form.Item>

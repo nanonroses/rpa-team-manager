@@ -126,6 +126,7 @@ export class PMOController {
     getProjectGantt = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             const { id } = req.params;
+            logger.info(`Loading Gantt data for project: ${id}`);
 
             // Get project basic info
             const project = await db.get(`
@@ -135,9 +136,12 @@ export class PMOController {
             `, [id]);
 
             if (!project) {
+                logger.warn(`Project not found: ${id}`);
                 res.status(404).json({ error: 'Project not found' });
                 return;
             }
+
+            logger.info(`Project found: ${project.name}`);
 
             // Get all tasks for the project
             const tasks = await db.query(`
@@ -156,6 +160,8 @@ export class PMOController {
                 ORDER BY t.position
             `, [id]);
 
+            logger.info(`Found ${tasks.length} tasks`);
+
             // Get milestones
             const milestones = await db.query(`
                 SELECT 
@@ -166,6 +172,8 @@ export class PMOController {
                 WHERE m.project_id = ?
                 ORDER BY m.planned_date
             `, [id]);
+
+            logger.info(`Found ${milestones.length} milestones`);
 
             // Get project dependencies
             const projectDependencies = await db.query(`
@@ -178,6 +186,8 @@ export class PMOController {
                 JOIN projects dp ON pd.dependent_project_id = dp.id
                 WHERE pd.source_project_id = ? OR pd.dependent_project_id = ?
             `, [id, id]);
+
+            logger.info(`Found ${projectDependencies.length} project dependencies`);
 
             // Get task dependencies
             const taskDependencies = await db.query(`
@@ -192,13 +202,45 @@ export class PMOController {
                    OR st.board_id IN (SELECT id FROM task_boards WHERE project_id = ?)
             `, [id, id]);
 
-            res.json({
-                project,
+            logger.info(`Found ${taskDependencies.length} task dependencies`);
+
+            // Calculate completion percentage based on milestones and tasks
+            let totalItems = 0;
+            let completedItems = 0;
+
+            // Count completed milestones
+            if (milestones.length > 0) {
+                totalItems += milestones.length;
+                completedItems += milestones.filter((m: any) => m.status === 'completed').length;
+            }
+
+            // Count completed tasks
+            if (tasks.length > 0) {
+                totalItems += tasks.length;
+                completedItems += tasks.filter((t: any) => t.status === 'done').length;
+            }
+
+            // Calculate completion percentage
+            const calculatedCompletion = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
+
+            // Update project with calculated completion if different from stored
+            const projectWithCompletion = {
+                ...project,
+                completion_percentage: calculatedCompletion
+            };
+
+            logger.info(`Calculated completion: ${calculatedCompletion}% (${completedItems}/${totalItems} items completed)`);
+
+            const result = {
+                project: projectWithCompletion,
                 tasks,
                 milestones,
                 projectDependencies,
                 taskDependencies
-            });
+            };
+
+            logger.info(`Gantt data successfully loaded for project ${id}`);
+            res.json(result);
         } catch (error) {
             logger.error('Get project Gantt error:', error);
             res.status(500).json({ error: 'Failed to get project Gantt data' });
@@ -216,7 +258,13 @@ export class PMOController {
                 planned_date,
                 priority,
                 responsible_user_id,
-                impact_on_timeline
+                impact_on_timeline,
+                responsibility,
+                blocking_reason,
+                delay_justification,
+                external_contact,
+                estimated_delay_days,
+                financial_impact
             } = req.body;
 
             if (!project_id || !name || !planned_date) {
@@ -227,11 +275,15 @@ export class PMOController {
             const result = await db.run(`
                 INSERT INTO project_milestones (
                     project_id, name, description, milestone_type, planned_date, 
-                    priority, responsible_user_id, impact_on_timeline, created_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    priority, responsible_user_id, impact_on_timeline, responsibility,
+                    blocking_reason, delay_justification, external_contact, 
+                    estimated_delay_days, financial_impact, created_by
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 project_id, name, description, milestone_type || 'delivery', planned_date,
-                priority || 'medium', responsible_user_id, impact_on_timeline || 0, req.user?.id
+                priority || 'medium', responsible_user_id, impact_on_timeline || 0, 
+                responsibility || 'internal', blocking_reason, delay_justification, 
+                external_contact, estimated_delay_days || 0, financial_impact || 0, req.user?.id
             ]);
 
             const newMilestone = await db.get(`
@@ -296,6 +348,29 @@ export class PMOController {
         } catch (error) {
             logger.error('Update milestone error:', error);
             res.status(500).json({ error: 'Failed to update milestone' });
+        }
+    };
+
+    // DELETE /api/pmo/milestones/:id - Delete milestone
+    deleteMilestone = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const { id } = req.params;
+
+            // Check if milestone exists
+            const milestone = await db.get('SELECT * FROM project_milestones WHERE id = ?', [id]);
+            if (!milestone) {
+                res.status(404).json({ error: 'Milestone not found' });
+                return;
+            }
+
+            // Delete the milestone
+            await db.run('DELETE FROM project_milestones WHERE id = ?', [id]);
+
+            logger.info(`Milestone deleted: ${id} (${milestone.name})`);
+            res.json({ success: true, message: 'Milestone deleted successfully' });
+        } catch (error) {
+            logger.error('Delete milestone error:', error);
+            res.status(500).json({ error: 'Failed to delete milestone' });
         }
     };
 

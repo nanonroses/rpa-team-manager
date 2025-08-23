@@ -13,22 +13,38 @@ import { useAuthStore } from '@/store/authStore';
 const { Text, Title } = Typography;
 
 interface ProjectROIData {
-  project_id: string;
-  sale_price: number | null;
-  budget_allocated: number | null;
-  actual_cost: number;
-  profit_margin: number;
-  roi_percentage: number;
-  efficiency_percentage: number;
-  hours_budgeted: number;
-  hours_spent: number;
-  cost_breakdown: any[];
+  project_id: number;
+  project_name: string;
+  
+  // BASIC PARAMETERS
+  planned_hours: number;
+  real_hours: number;
+  client_delay_hours: number;
+  hourly_rate_uf: number;
+  uf_value_clp: number;
+  engineer_hourly_cost: number;
+  
+  // FINANCIAL RESULTS
+  sale_price: number;
+  planned_cost: number;
+  real_cost: number;
+  planned_profit: number;
+  real_profit: number;
+  
+  // ROI METRICS
+  planned_roi: number;
+  real_roi: number;
+  
+  // CLIENT IMPACT
+  delay_impact: number;
+  lost_profit: number;
+  
+  // ALERTS
   alerts: Array<{
     type: string;
     level: string;
     message: string;
-    threshold: number;
-    current: number;
+    impact: string;
   }>;
 }
 
@@ -76,25 +92,24 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
     }
   };
 
-  // Calculate estimated cost for budgeted hours
-  const calculateEstimatedCost = () => {
-    if (!roiData || !assignedUserId) return 0;
+  // Helper to determine if we should show real vs planned data
+  const hasClientDelays = roiData?.client_delay_hours > 0;
+  const shouldShowReal = hasClientDelays;
+  
+  // Get the appropriate values to display
+  const getDisplayValues = () => {
+    if (!roiData) return null;
     
-    const userCost = userCosts.find(cost => cost.user_id === assignedUserId);
-    if (!userCost) return 0;
-    
-    return roiData.hours_budgeted * userCost.hourly_rate;
-  };
-
-  // Calculate estimated ROI based on budgeted data
-  const calculateEstimatedROI = () => {
-    if (!roiData?.sale_price) return 0;
-    
-    const estimatedCost = calculateEstimatedCost();
-    if (estimatedCost === 0) return 0;
-    
-    const profit = roiData.sale_price - estimatedCost;
-    return Math.round((profit / estimatedCost) * 100);
+    return {
+      hours: shouldShowReal ? roiData.real_hours : roiData.planned_hours,
+      cost: shouldShowReal ? roiData.real_cost : roiData.planned_cost,
+      profit: shouldShowReal ? roiData.real_profit : roiData.planned_profit,
+      roi: shouldShowReal ? roiData.real_roi : roiData.planned_roi,
+      costLabel: shouldShowReal ? "Costo Real" : "Costo Planificado",
+      profitLabel: shouldShowReal ? "Ganancia Real" : "Ganancia Planificada",
+      roiLabel: shouldShowReal ? "ROI Real" : "ROI Planificado",
+      hoursLabel: shouldShowReal ? "Horas Reales" : "Horas Planificadas"
+    };
   };
 
   const getROIColor = (roi: number) => {
@@ -132,16 +147,10 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
     );
   }
 
-  const estimatedCost = calculateEstimatedCost();
-  const estimatedROI = calculateEstimatedROI();
-  const actualROI = roiData.roi_percentage;
-  const hasActualData = roiData.hours_spent > 0;
+  const displayValues = getDisplayValues();
+  if (!displayValues) return null;
   
-  const roiToShow = hasActualData ? actualROI : estimatedROI;
-  const costToShow = hasActualData ? roiData.actual_cost : estimatedCost;
-  const hoursToShow = hasActualData ? roiData.hours_spent : roiData.hours_budgeted;
-  
-  const status = getROIStatus(roiToShow);
+  const status = getROIStatus(displayValues.roi);
 
   return (
     <Card 
@@ -158,7 +167,7 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
         <Col span={8}>
           <Statistic
             title="Precio de Venta"
-            value={roiData.sale_price || 0}
+            value={roiData.sale_price}
             prefix="$"
             formatter={(value) => `${Number(value).toLocaleString()}`}
             valueStyle={{ color: '#1890ff' }}
@@ -166,8 +175,8 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
         </Col>
         <Col span={8}>
           <Statistic
-            title={hasActualData ? "Costo Real" : "Costo Estimado"}
-            value={costToShow}
+            title={displayValues.costLabel}
+            value={displayValues.cost}
             prefix="$"
             formatter={(value) => `${Number(value).toLocaleString()}`}
             valueStyle={{ color: '#fa8c16' }}
@@ -175,12 +184,12 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
         </Col>
         <Col span={8}>
           <Statistic
-            title="Ganancia"
-            value={(roiData.sale_price || 0) - costToShow}
+            title={displayValues.profitLabel}
+            value={displayValues.profit}
             prefix="$"
             formatter={(value) => `${Number(value).toLocaleString()}`}
             valueStyle={{ 
-              color: ((roiData.sale_price || 0) - costToShow) > 0 ? '#52c41a' : '#f5222d' 
+              color: displayValues.profit > 0 ? '#52c41a' : '#f5222d' 
             }}
           />
         </Col>
@@ -191,13 +200,13 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
         <Col span={12}>
           <Card type="inner" size="small">
             <Space direction="vertical" style={{ width: '100%' }}>
-              <Text strong>ROI {hasActualData ? 'Real' : 'Estimado'}</Text>
+              <Text strong>{displayValues.roiLabel}</Text>
               <Progress
                 type="circle"
                 size={80}
-                percent={Math.max(0, Math.min(100, roiToShow + 50))} // Normalize for display
-                format={() => `${roiToShow}%`}
-                strokeColor={getROIColor(roiToShow)}
+                percent={Math.max(0, Math.min(100, displayValues.roi + 50))} // Normalize for display
+                format={() => `${displayValues.roi}%`}
+                strokeColor={getROIColor(displayValues.roi)}
               />
             </Space>
           </Card>
@@ -205,19 +214,24 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
         <Col span={12}>
           <Card type="inner" size="small">
             <Space direction="vertical" style={{ width: '100%' }}>
-              <Text strong>Horas {hasActualData ? 'Trabajadas' : 'Presupuestadas'}</Text>
+              <Text strong>{displayValues.hoursLabel}</Text>
               <Statistic
-                value={hoursToShow}
-                suffix={`/ ${roiData.hours_budgeted}`}
+                value={displayValues.hours}
+                suffix={`/ ${roiData.planned_hours}`}
                 prefix={<ClockCircleOutlined />}
                 valueStyle={{ fontSize: 20 }}
               />
-              {roiData.hours_budgeted > 0 && (
+              {roiData.planned_hours > 0 && (
                 <Progress
-                  percent={Math.round((hoursToShow / roiData.hours_budgeted) * 100)}
+                  percent={Math.round((displayValues.hours / roiData.planned_hours) * 100)}
                   size="small"
-                  status={hoursToShow > roiData.hours_budgeted ? 'exception' : 'active'}
+                  status={displayValues.hours > roiData.planned_hours ? 'exception' : 'active'}
                 />
+              )}
+              {roiData.client_delay_hours > 0 && (
+                <Text type="warning" style={{ fontSize: 12 }}>
+                  +{roiData.client_delay_hours}h demora cliente
+                </Text>
               )}
             </Space>
           </Card>
@@ -233,11 +247,17 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
               <Alert
                 key={index}
                 message={alert.message}
-                type={alert.level === 'critical' ? 'error' : 'warning'}
+                type={
+                  alert.level === 'critical' ? 'error' : 
+                  alert.level === 'warning' ? 'warning' : 
+                  alert.level === 'success' ? 'success' : 'info'
+                }
                 showIcon
                 icon={
                   alert.level === 'critical' ? 
                     <ExclamationCircleOutlined /> : 
+                  alert.level === 'success' ? 
+                    <CheckCircleOutlined /> :
                     <ExclamationCircleOutlined />
                 }
               />
@@ -251,31 +271,40 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
       <Row gutter={16}>
         <Col span={8}>
           <Space>
-            {roiToShow >= 20 ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> : <ExclamationCircleOutlined style={{ color: '#f5222d' }} />}
+            {displayValues.roi >= 20 ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> : <ExclamationCircleOutlined style={{ color: '#f5222d' }} />}
             <Text>Rentabilidad</Text>
           </Space>
         </Col>
         <Col span={8}>
           <Space>
-            {hoursToShow <= roiData.hours_budgeted ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> : <ExclamationCircleOutlined style={{ color: '#f5222d' }} />}
+            {displayValues.hours <= roiData.planned_hours ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> : <ExclamationCircleOutlined style={{ color: '#f5222d' }} />}
             <Text>Tiempo</Text>
           </Space>
         </Col>
         <Col span={8}>
           <Space>
-            {((roiData.sale_price || 0) - costToShow) > 0 ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> : <ExclamationCircleOutlined style={{ color: '#f5222d' }} />}
+            {displayValues.profit > 0 ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> : <ExclamationCircleOutlined style={{ color: '#f5222d' }} />}
             <Text>Margen</Text>
           </Space>
         </Col>
       </Row>
 
       {/* Info adicional */}
-      {!hasActualData && (
+      {!shouldShowReal ? (
         <Alert
           style={{ marginTop: 16 }}
-          message="Cálculo Estimado"
-          description="Los valores mostrados son estimaciones basadas en las horas presupuestadas y el costo del usuario asignado. Los valores reales aparecerán cuando se registren horas trabajadas."
+          message="Cálculo Planificado"
+          description="Los valores mostrados son cálculos planificados basados en las horas y costos presupuestados inicialmente."
           type="info"
+          showIcon
+          closable
+        />
+      ) : (
+        <Alert
+          style={{ marginTop: 16 }}
+          message="Impacto de Demoras del Cliente"
+          description={`Las demoras del cliente han generado ${roiData.client_delay_hours} horas adicionales, impactando el costo en $${roiData.delay_impact.toLocaleString()} y reduciendo la ganancia en $${roiData.lost_profit.toLocaleString()}.`}
+          type="warning"
           showIcon
           closable
         />

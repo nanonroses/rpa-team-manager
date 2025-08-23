@@ -652,6 +652,16 @@ CREATE TABLE IF NOT EXISTS project_milestones (
     responsible_user_id INTEGER,
     completion_percentage INTEGER DEFAULT 0 CHECK (completion_percentage >= 0 AND completion_percentage <= 100),
     impact_on_timeline INTEGER DEFAULT 0, -- Days of impact if delayed
+    
+    -- Responsibility tracking (key for dependency management)
+    responsibility VARCHAR(20) DEFAULT 'internal' CHECK (responsibility IN ('internal', 'client', 'external', 'shared')),
+    
+    -- External dependency tracking
+    blocking_reason TEXT, -- Why this milestone is blocked/delayed
+    delay_justification TEXT, -- Evidence/justification for delays
+    external_contact VARCHAR(200), -- Contact person for external dependencies
+    estimated_delay_days INTEGER DEFAULT 0, -- Estimated days of delay
+    financial_impact DECIMAL(10,2) DEFAULT 0, -- Cost impact of delays
     created_by INTEGER NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,

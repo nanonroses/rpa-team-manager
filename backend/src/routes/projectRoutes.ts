@@ -38,4 +38,15 @@ router.get('/debug/financial', authorize(['team_lead']), projectController.debug
 // Clean duplicate financial records (temporary)
 router.post('/debug/clean-duplicates', authorize(['team_lead']), projectController.cleanDuplicateFinancials);
 
+// === MULTI-USER ASSIGNMENT ROUTES ===
+
+// GET /api/projects/:id/assignments - Get all assignments for a project
+router.get('/:id/assignments', projectController.getProjectAssignments);
+
+// POST /api/projects/:id/assignments - Update project assignments (add/remove users)
+router.post('/:id/assignments', authorize(['team_lead']), projectController.addProjectAssignments);
+
+// DELETE /api/projects/:id/assignments/:assignmentId - Remove specific assignment
+router.delete('/:id/assignments/:assignmentId', authorize(['team_lead']), projectController.removeProjectAssignment);
+
 export default router;

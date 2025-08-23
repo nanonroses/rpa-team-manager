@@ -24,27 +24,41 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [teamMembers, setTeamMembers] = useState<{ label: string; value: number }[]>([]);
+  const [teamMembers, setTeamMembers] = useState<{ label: string; value: number; role?: string }[]>([]);
+  const [projectAssignments, setProjectAssignments] = useState<any[]>([]);
   const { createProject, updateProject } = useProjectStore();
   const { user } = useAuthStore();
 
   const isEdit = !!editProject;
 
+  // Helper function to get team member role
+  const getTeamMemberRole = (userId: number) => {
+    const member = teamMembers.find(m => m.value === userId);
+    return member?.role || 'Unknown';
+  };
+
   // Load team members when modal opens
   useEffect(() => {
     if (visible) {
       loadTeamMembers();
+      if (isEdit && editProject) {
+        loadProjectAssignments();
+      }
     }
-  }, [visible]);
+  }, [visible, isEdit, editProject]);
 
-  // Separate effect for form population to ensure it runs after team members are loaded
+  // Separate effect for form population to ensure it runs after team members and assignments are loaded
   useEffect(() => {
     if (visible && teamMembers.length > 0) {
       if (editProject) {
-        // Debug: Check what data we're getting
         console.log('Edit project data:', editProject);
-        console.log('Sale price:', editProject.sale_price);
-        console.log('Hours budgeted:', editProject.hours_budgeted);
+        console.log('Project assignments:', projectAssignments);
+        
+        // Get assigned users from project assignments
+        const assignedUsers = projectAssignments.map(a => a.user_id);
+        const defaultAllocation = projectAssignments.length > 0 
+          ? projectAssignments[0].allocation_percentage 
+          : 100;
         
         // Populate form with existing project data
         const formData = {
@@ -57,7 +71,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             dayjs(editProject.start_date),
             dayjs(editProject.end_date)
           ] : undefined,
-          assigned_to: editProject.assigned_to,
+          assigned_users: assignedUsers,
+          default_allocation: defaultAllocation,
           // Handle null/undefined values for InputNumber components
           sale_price: editProject.sale_price || undefined,
           hours_budgeted: editProject.hours_budgeted || undefined
@@ -70,23 +85,44 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         form.resetFields();
         form.setFieldsValue({
           status: 'planning',
-          priority: 'medium'
+          priority: 'medium',
+          default_allocation: 100
         });
       }
     }
-  }, [visible, editProject, teamMembers, form]);
+  }, [visible, editProject, teamMembers, projectAssignments, form]);
 
   const loadTeamMembers = async () => {
     try {
       const users = await apiService.getUsers();
       const memberOptions = users.map(user => ({
         label: user.full_name,
-        value: user.id
+        value: user.id,
+        role: user.role
       }));
       setTeamMembers(memberOptions);
     } catch (error) {
       console.error('Failed to load team members:', error);
       message.error('Failed to load team members');
+    }
+  };
+
+  const loadProjectAssignments = async () => {
+    if (!editProject?.id) return;
+    
+    try {
+      const assignments = await apiService.get(`/projects/${editProject.id}/assignments`);
+      setProjectAssignments(assignments);
+    } catch (error) {
+      console.error('Failed to load project assignments:', error);
+      // If assignments don't exist yet, create from legacy assigned_to field
+      if (editProject.assigned_to) {
+        setProjectAssignments([{
+          user_id: editProject.assigned_to,
+          allocation_percentage: 100,
+          role: 'primary'
+        }]);
+      }
     }
   };
 
@@ -105,7 +141,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         budget: values.budget,
         start_date: values.dates?.[0]?.format('YYYY-MM-DD'),
         end_date: values.dates?.[1]?.format('YYYY-MM-DD'),
-        assigned_to: values.assigned_to,
+        assigned_to: values.assigned_users?.[0] || null,
         // Financial data
         sale_price: values.sale_price,
         hours_budgeted: values.hours_budgeted
@@ -121,6 +157,25 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       } else {
         result = await createProject(projectData);
         message.success('Project created successfully');
+      }
+
+      // Handle multiple user assignments
+      if (values.assigned_users && values.assigned_users.length > 0) {
+        const userAssignments = values.assigned_users.map((userId: number) => ({
+          user_id: userId,
+          allocation_percentage: values.default_allocation || 100,
+          role: userId === values.assigned_users[0] ? 'lead' : 'member'
+        }));
+
+        try {
+          await apiService.post(`/projects/${result.id}/assignments`, {
+            user_assignments: userAssignments
+          });
+          console.log('User assignments updated successfully');
+        } catch (assignmentError) {
+          console.error('Failed to update assignments:', assignmentError);
+          message.warning('Project saved but failed to update assignments');
+        }
       }
 
       form.resetFields();
@@ -264,13 +319,35 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         </Form.Item>
 
         <Form.Item
-          name="assigned_to"
-          label="Assigned To"
+          name="assigned_users"
+          label="Assigned Team Members"
+          rules={[{ required: true, message: 'Please assign at least one team member' }]}
         >
           <Select 
-            options={teamMembers} 
-            placeholder="Select team member"
+            mode="multiple"
+            options={teamMembers.map(member => ({
+              ...member,
+              label: `${member.label} (${getTeamMemberRole(member.value)})`
+            }))} 
+            placeholder="Select team members"
             allowClear
+            maxTagCount="responsive"
+            optionFilterProp="label"
+          />
+        </Form.Item>
+
+        <Form.Item
+          name="default_allocation"
+          label="Default Allocation per Member (%)"
+          tooltip="Default percentage of time each team member will dedicate to this project"
+        >
+          <InputNumber
+            min={1}
+            max={100}
+            placeholder="100"
+            formatter={(value) => `${value}%`}
+            parser={(value) => value!.replace('%', '')}
+            style={{ width: '100%' }}
           />
         </Form.Item>
 

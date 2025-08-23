@@ -504,4 +504,145 @@ export class ProjectController {
             res.status(500).json({ error: 'Failed to clean duplicate records' });
         }
     };
+
+    // === MULTI-USER ASSIGNMENT METHODS ===
+
+    // GET /api/projects/:id/assignments
+    getProjectAssignments = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const { id } = req.params;
+
+            const assignments = await db.query(`
+                SELECT 
+                    pa.*,
+                    u.full_name,
+                    u.role as user_role,
+                    u.email,
+                    ucr.monthly_cost,
+                    ucr.hourly_rate
+                FROM project_assignments pa
+                JOIN users u ON pa.user_id = u.id
+                LEFT JOIN user_cost_rates ucr ON pa.user_id = ucr.user_id AND ucr.is_active = 1
+                WHERE pa.project_id = ? AND pa.is_active = 1
+                ORDER BY pa.created_at ASC
+            `, [id]);
+
+            res.json(assignments);
+        } catch (error) {
+            logger.error('Get project assignments error:', error);
+            res.status(500).json({ error: 'Failed to get project assignments' });
+        }
+    };
+
+    // POST /api/projects/:id/assignments
+    addProjectAssignments = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const { id } = req.params;
+            const { user_assignments } = req.body; // Array of {user_id, allocation_percentage, role}
+            const userId = req.user?.id;
+
+            if (!userId) {
+                res.status(401).json({ error: 'User not authenticated' });
+                return;
+            }
+
+            if (!Array.isArray(user_assignments) || user_assignments.length === 0) {
+                res.status(400).json({ error: 'user_assignments array is required' });
+                return;
+            }
+
+            // Start transaction
+            await db.beginTransaction();
+
+            try {
+                // Delete existing assignments to avoid unique constraint conflicts
+                await db.run(`
+                    DELETE FROM project_assignments 
+                    WHERE project_id = ?
+                `, [id]);
+
+                // Add new assignments
+                const newAssignments = [];
+                for (const assignment of user_assignments) {
+                    const { user_id, allocation_percentage = 100, role = 'member' } = assignment;
+
+                    // Validate user exists
+                    const userExists = await db.get(`SELECT id FROM users WHERE id = ?`, [user_id]);
+                    if (!userExists) {
+                        throw new Error(`User with id ${user_id} not found`);
+                    }
+
+                    const result = await db.run(`
+                        INSERT INTO project_assignments (
+                            project_id, user_id, role, allocation_percentage, created_by, is_active
+                        ) VALUES (?, ?, ?, ?, ?, 1)
+                    `, [id, user_id, role, allocation_percentage, userId]);
+
+                    newAssignments.push({
+                        id: result.id,
+                        project_id: id,
+                        user_id,
+                        role,
+                        allocation_percentage,
+                        created_by: userId,
+                        is_active: 1
+                    });
+                }
+
+                await db.commit();
+
+                logger.info(`Added ${newAssignments.length} assignments to project ${id}`);
+                res.status(201).json({
+                    message: 'Project assignments updated successfully',
+                    assignments: newAssignments
+                });
+
+            } catch (error) {
+                await db.rollback();
+                throw error;
+            }
+
+        } catch (error) {
+            logger.error('Add project assignments error:', error);
+            res.status(500).json({ error: 'Failed to update project assignments' });
+        }
+    };
+
+    // DELETE /api/projects/:id/assignments/:assignmentId
+    removeProjectAssignment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const { id, assignmentId } = req.params;
+            const userId = req.user?.id;
+
+            if (!userId) {
+                res.status(401).json({ error: 'User not authenticated' });
+                return;
+            }
+
+            // Verify assignment exists and belongs to the project
+            const assignment = await db.get(`
+                SELECT * FROM project_assignments 
+                WHERE id = ? AND project_id = ? AND is_active = 1
+            `, [assignmentId, id]);
+
+            if (!assignment) {
+                res.status(404).json({ error: 'Assignment not found' });
+                return;
+            }
+
+            // Deactivate assignment instead of deleting (for audit trail)
+            await db.run(`
+                UPDATE project_assignments 
+                SET is_active = 0 
+                WHERE id = ?
+            `, [assignmentId]);
+
+            logger.info(`Removed assignment ${assignmentId} from project ${id}`);
+            res.json({ message: 'Assignment removed successfully' });
+
+        } catch (error) {
+            logger.error('Remove project assignment error:', error);
+            res.status(500).json({ error: 'Failed to remove project assignment' });
+        }
+    };
 }

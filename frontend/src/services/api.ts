@@ -458,6 +458,11 @@ class ApiService {
     return response.data;
   }
 
+  async deleteMilestone(milestoneId: number): Promise<any> {
+    const response = await this.api.delete(`/pmo/milestones/${milestoneId}`);
+    return response.data;
+  }
+
   async updateProjectMetrics(projectId: number, metrics: any): Promise<any> {
     const response = await this.api.post(`/pmo/projects/${projectId}/metrics`, metrics);
     return response.data;
