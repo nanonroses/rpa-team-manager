@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run dev:*)",
+      "Bash(curl:*)",
+      "Bash(npm install:*)",
+      "Bash(taskkill:*)",
+      "Bash(npm run build:*)",
+      "Bash(sqlite3:*)",
+      "Bash(node:*)",
+      "Bash(mkdir:*)",
+      "Bash(powershell:*)",
+      "Bash(tasklist:*)",
+      "Bash(mv:*)",
+      "Bash(del PASOS_RECUPERACION.md)",
+      "Bash(rm:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(npx tsc:*)",
+      "Bash(del datadatabase.sqlite)",
+      "Bash(Get-Process node -ErrorAction SilentlyContinue)",
+      "Bash(where sqlite3)",
+      "Bash(del database.sqlite database.sqlite-shm database.sqlite-wal)",
+      "Bash(npm run:*)",
+      "Bash(npx sqlite3:*)",
+      "Bash(del add_column.js)",
+      "mcp__ide__getDiagnostics"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

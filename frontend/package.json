@@ -1,0 +1,53 @@
+{
+  "name": "rpa-team-manager-frontend",
+  "version": "1.0.0",
+  "description": "Frontend for RPA Team Manager - React SPA optimized for 5-person teams",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "lint:fix": "eslint . --ext ts,tsx --fix",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^5.2.6",
+    "@hookform/resolvers": "^3.3.1",
+    "antd": "^5.8.6",
+    "axios": "^1.5.0",
+    "clsx": "^2.0.0",
+    "date-fns": "^4.1.0",
+    "dayjs": "^1.11.13",
+    "lucide-react": "^0.263.1",
+    "react": "^18.2.0",
+    "react-beautiful-dnd": "^13.1.1",
+    "react-dom": "^18.2.0",
+    "react-hook-form": "^7.45.4",
+    "react-query": "^3.39.3",
+    "react-router-dom": "^6.15.0",
+    "recharts": "^2.8.0",
+    "zod": "^3.22.2",
+    "zustand": "^4.4.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.15",
+    "@types/react-beautiful-dnd": "^13.1.8",
+    "@types/react-dom": "^18.2.7",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vitejs/plugin-react": "^4.0.3",
+    "eslint": "^8.45.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.3",
+    "typescript": "^5.0.2",
+    "vite": "^4.4.5",
+    "vite-plugin-pwa": "^0.16.4",
+    "workbox-window": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  }
+}

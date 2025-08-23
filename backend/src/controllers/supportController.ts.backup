@@ -1,0 +1,798 @@
+import { Request, Response } from 'express';
+import { Database } from 'sqlite3';
+import { promisify } from 'util';
+import { AuthenticatedRequest } from '../types/auth';
+
+// Database connection
+const db = new Database('./data/database.sqlite');
+const dbRun = promisify(db.run.bind(db));
+const dbGet = promisify(db.get.bind(db));
+const dbAll = promisify(db.all.bind(db));
+
+// ========================================
+// SUPPORT COMPANIES CRUD
+// ========================================
+
+// Get all support companies
+export const getSupportCompanies = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { status, search, page = 1, limit = 10 } = req.query;
+    
+    let query = `
+      SELECT 
+        sc.*,
+        u.full_name as created_by_name,
+        COUNT(st.id) as total_tickets,
+        SUM(CASE WHEN st.status IN ('open', 'in_progress') THEN 1 ELSE 0 END) as open_tickets,
+        COALESCE(sms.consumed_hours, 0) as current_month_consumed_hours,
+        COALESCE(sms.remaining_hours, sc.contracted_hours_monthly) as current_month_remaining_hours
+      FROM support_companies sc
+      LEFT JOIN users u ON sc.created_by = u.id
+      LEFT JOIN support_tickets st ON sc.id = st.company_id
+      LEFT JOIN support_monthly_summaries sms ON sc.id = sms.company_id 
+        AND sms.year = strftime('%Y', 'now') 
+        AND sms.month = strftime('%m', 'now')
+      WHERE 1=1
+    `;
+    
+    const params: any[] = [];
+    
+    if (status) {
+      query += ` AND sc.status = ?`;
+      params.push(status);
+    }
+    
+    if (search) {
+      query += ` AND (sc.company_name LIKE ? OR sc.contact_person LIKE ? OR sc.email LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    
+    query += ` GROUP BY sc.id ORDER BY sc.company_name`;
+    
+    // Add pagination
+    const offset = (Number(page) - 1) * Number(limit);
+    query += ` LIMIT ? OFFSET ?`;
+    params.push(Number(limit), offset);
+    
+    const companies = await dbAll(query, params);
+    
+    // Get total count for pagination
+    let countQuery = `SELECT COUNT(DISTINCT sc.id) as total FROM support_companies sc WHERE 1=1`;
+    const countParams: any[] = [];
+    
+    if (status) {
+      countQuery += ` AND sc.status = ?`;
+      countParams.push(status);
+    }
+    
+    if (search) {
+      countQuery += ` AND (sc.company_name LIKE ? OR sc.contact_person LIKE ? OR sc.email LIKE ?)`;
+      countParams.push(`%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    
+    const countResult = await dbGet(countQuery, countParams) as any;
+    
+    res.json({
+      data: companies,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: countResult.total,
+        pages: Math.ceil(countResult.total / Number(limit))
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching support companies:', error);
+    res.status(500).json({ error: 'Failed to fetch support companies' });
+  }
+};
+
+// Get single support company
+export const getSupportCompany = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const company = await dbGet(`
+      SELECT 
+        sc.*,
+        u.full_name as created_by_name
+      FROM support_companies sc
+      LEFT JOIN users u ON sc.created_by = u.id
+      WHERE sc.id = ?
+    `, [id]);
+    
+    if (!company) {
+      return res.status(404).json({ error: 'Support company not found' });
+    }
+    
+    // Get current month summary
+    const currentSummary = await dbGet(`
+      SELECT * FROM support_monthly_summaries 
+      WHERE company_id = ? 
+        AND year = strftime('%Y', 'now') 
+        AND month = strftime('%m', 'now')
+    `, [id]);
+    
+    // Get recent tickets
+    const recentTickets = await dbAll(`
+      SELECT 
+        st.*,
+        u.full_name as resolver_name
+      FROM support_tickets st
+      LEFT JOIN users u ON st.resolver_id = u.id
+      WHERE st.company_id = ?
+      ORDER BY st.created_at DESC
+      LIMIT 10
+    `, [id]);
+    
+    res.json({
+      company,
+      currentSummary: currentSummary || {
+        contracted_hours: company.contracted_hours_monthly,
+        consumed_hours: 0,
+        remaining_hours: company.contracted_hours_monthly,
+        exceeded_hours: 0,
+        total_tickets: 0,
+        resolved_tickets: 0,
+        open_tickets: 0
+      },
+      recentTickets
+    });
+  } catch (error) {
+    console.error('Error fetching support company:', error);
+    res.status(500).json({ error: 'Failed to fetch support company' });
+  }
+};
+
+// Create support company
+export const createSupportCompany = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const {
+      company_name,
+      contact_person,
+      email,
+      phone,
+      address,
+      contracted_hours_monthly,
+      hourly_rate,
+      hourly_rate_currency = 'CLP',
+      contract_start_date,
+      contract_end_date,
+      notes,
+      timezone = 'America/Santiago',
+      preferred_language = 'es'
+    } = req.body;
+    
+    if (!company_name || !contracted_hours_monthly || !hourly_rate) {
+      return res.status(400).json({ error: 'Company name, contracted hours, and hourly rate are required' });
+    }
+    
+    const result = await dbRun(`
+      INSERT INTO support_companies (
+        company_name, contact_person, email, phone, address,
+        contracted_hours_monthly, hourly_rate, hourly_rate_currency,
+        contract_start_date, contract_end_date, notes, timezone, preferred_language,
+        created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      company_name, contact_person, email, phone, address,
+      contracted_hours_monthly, hourly_rate, hourly_rate_currency,
+      contract_start_date, contract_end_date, notes, timezone, preferred_language,
+      req.user!.id
+    ]);
+    
+    const newCompany = await dbGet(`
+      SELECT sc.*, u.full_name as created_by_name
+      FROM support_companies sc
+      LEFT JOIN users u ON sc.created_by = u.id
+      WHERE sc.id = ?
+    `, [result.lastID]);
+    
+    res.status(201).json(newCompany);
+  } catch (error) {
+    console.error('Error creating support company:', error);
+    res.status(500).json({ error: 'Failed to create support company' });
+  }
+};
+
+// Update support company
+export const updateSupportCompany = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const {
+      company_name,
+      contact_person,
+      email,
+      phone,
+      address,
+      contracted_hours_monthly,
+      hourly_rate,
+      hourly_rate_currency,
+      contract_start_date,
+      contract_end_date,
+      status,
+      notes,
+      timezone,
+      preferred_language
+    } = req.body;
+    
+    await dbRun(`
+      UPDATE support_companies SET
+        company_name = ?, contact_person = ?, email = ?, phone = ?, address = ?,
+        contracted_hours_monthly = ?, hourly_rate = ?, hourly_rate_currency = ?,
+        contract_start_date = ?, contract_end_date = ?, status = ?, notes = ?,
+        timezone = ?, preferred_language = ?, updated_at = CURRENT_TIMESTAMP
+      WHERE id = ?
+    `, [
+      company_name, contact_person, email, phone, address,
+      contracted_hours_monthly, hourly_rate, hourly_rate_currency,
+      contract_start_date, contract_end_date, status, notes,
+      timezone, preferred_language, id
+    ]);
+    
+    const updatedCompany = await dbGet(`
+      SELECT sc.*, u.full_name as created_by_name
+      FROM support_companies sc
+      LEFT JOIN users u ON sc.created_by = u.id
+      WHERE sc.id = ?
+    `, [id]);
+    
+    res.json(updatedCompany);
+  } catch (error) {
+    console.error('Error updating support company:', error);
+    res.status(500).json({ error: 'Failed to update support company' });
+  }
+};
+
+// Delete support company
+export const deleteSupportCompany = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // Check if company has active tickets
+    const activeTickets = await dbGet(`
+      SELECT COUNT(*) as count FROM support_tickets 
+      WHERE company_id = ? AND status NOT IN ('closed', 'cancelled')
+    `, [id]);
+    
+    if (activeTickets && activeTickets.count > 0) {
+      return res.status(400).json({ 
+        error: 'Cannot delete company with active tickets. Close all tickets first.' 
+      });
+    }
+    
+    await dbRun('DELETE FROM support_companies WHERE id = ?', [id]);
+    res.json({ message: 'Support company deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting support company:', error);
+    res.status(500).json({ error: 'Failed to delete support company' });
+  }
+};
+
+// ========================================
+// SUPPORT TICKETS CRUD
+// ========================================
+
+// Get all support tickets
+export const getSupportTickets = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { 
+      company_id, 
+      status, 
+      priority, 
+      ticket_type, 
+      resolver_id, 
+      search, 
+      date_from, 
+      date_to,
+      page = 1, 
+      limit = 20 
+    } = req.query;
+    
+    let query = `
+      SELECT 
+        st.*,
+        sc.company_name,
+        u_resolver.full_name as resolver_name,
+        u_creator.full_name as created_by_name
+      FROM support_tickets st
+      LEFT JOIN support_companies sc ON st.company_id = sc.id
+      LEFT JOIN users u_resolver ON st.resolver_id = u_resolver.id
+      LEFT JOIN users u_creator ON st.created_by = u_creator.id
+      WHERE 1=1
+    `;
+    
+    const params: any[] = [];
+    
+    if (company_id) {
+      query += ` AND st.company_id = ?`;
+      params.push(company_id);
+    }
+    
+    if (status) {
+      query += ` AND st.status = ?`;
+      params.push(status);
+    }
+    
+    if (priority) {
+      query += ` AND st.priority = ?`;
+      params.push(priority);
+    }
+    
+    if (ticket_type) {
+      query += ` AND st.ticket_type = ?`;
+      params.push(ticket_type);
+    }
+    
+    if (resolver_id) {
+      query += ` AND st.resolver_id = ?`;
+      params.push(resolver_id);
+    }
+    
+    if (search) {
+      query += ` AND (st.id_ticket LIKE ? OR st.description LIKE ? OR st.client_name LIKE ? OR st.rpa_process LIKE ?)`;
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+    }
+    
+    if (date_from) {
+      query += ` AND DATE(st.open_date) >= ?`;
+      params.push(date_from);
+    }
+    
+    if (date_to) {
+      query += ` AND DATE(st.open_date) <= ?`;
+      params.push(date_to);
+    }
+    
+    query += ` ORDER BY st.open_date DESC`;
+    
+    // Add pagination
+    const offset = (Number(page) - 1) * Number(limit);
+    query += ` LIMIT ? OFFSET ?`;
+    params.push(Number(limit), offset);
+    
+    const tickets = await dbAll(query, params);
+    
+    // Get total count
+    let countQuery = query.replace(/SELECT.*?FROM/, 'SELECT COUNT(*) as total FROM').replace(/ORDER BY.*$/, '').replace(/LIMIT.*$/, '');
+    const countResult = await dbGet(countQuery, params.slice(0, -2)) as any;
+    
+    res.json({
+      data: tickets,
+      pagination: {
+        page: Number(page),
+        limit: Number(limit),
+        total: countResult.total,
+        pages: Math.ceil(countResult.total / Number(limit))
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching support tickets:', error);
+    res.status(500).json({ error: 'Failed to fetch support tickets' });
+  }
+};
+
+// Get single support ticket
+export const getSupportTicket = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    const ticket = await dbGet(`
+      SELECT 
+        st.*,
+        sc.company_name,
+        sc.hourly_rate,
+        sc.hourly_rate_currency,
+        u_resolver.full_name as resolver_name,
+        u_creator.full_name as created_by_name
+      FROM support_tickets st
+      LEFT JOIN support_companies sc ON st.company_id = sc.id
+      LEFT JOIN users u_resolver ON st.resolver_id = u_resolver.id
+      LEFT JOIN users u_creator ON st.created_by = u_creator.id
+      WHERE st.id_ticket = ? OR st.id = ?
+    `, [id, id]);
+    
+    if (!ticket) {
+      return res.status(404).json({ error: 'Support ticket not found' });
+    }
+    
+    // Get ticket comments
+    const comments = await dbAll(`
+      SELECT 
+        stc.*,
+        u.full_name as user_name,
+        u.avatar_url
+      FROM support_ticket_comments stc
+      LEFT JOIN users u ON stc.user_id = u.id
+      WHERE stc.ticket_id = ?
+      ORDER BY stc.created_at ASC
+    `, [ticket.id_ticket]);
+    
+    res.json({ ticket, comments });
+  } catch (error) {
+    console.error('Error fetching support ticket:', error);
+    res.status(500).json({ error: 'Failed to fetch support ticket' });
+  }
+};
+
+// Create support ticket
+export const createSupportTicket = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const {
+      company_id,
+      client_name,
+      ticket_type,
+      attention_method,
+      rpa_process,
+      requester,
+      resolver_id,
+      description,
+      priority = 'medium',
+      urgency_level = 'normal',
+      tags
+    } = req.body;
+    
+    if (!company_id || !client_name || !ticket_type || !attention_method || !requester || !description) {
+      return res.status(400).json({ 
+        error: 'Company, client name, ticket type, attention method, requester, and description are required' 
+      });
+    }
+    
+    // Get next ticket number
+    const lastTicket = await dbGet(`
+      SELECT MAX(id) as last_id FROM support_tickets
+    `);
+    
+    const nextId = (lastTicket?.last_id || 0) + 1;
+    const ticketId = `SUP-${new Date().getFullYear()}-${String(nextId).padStart(3, '0')}`;
+    
+    const result = await dbRun(`
+      INSERT INTO support_tickets (
+        id, id_ticket, company_id, client_name, ticket_type, attention_method,
+        rpa_process, requester, resolver_id, description, priority, urgency_level,
+        tags, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `, [
+      nextId, ticketId, company_id, client_name, ticket_type, attention_method,
+      rpa_process, requester, resolver_id, description, priority, urgency_level,
+      tags, req.user!.id
+    ]);
+    
+    const newTicket = await dbGet(`
+      SELECT 
+        st.*,
+        sc.company_name,
+        u_resolver.full_name as resolver_name,
+        u_creator.full_name as created_by_name
+      FROM support_tickets st
+      LEFT JOIN support_companies sc ON st.company_id = sc.id
+      LEFT JOIN users u_resolver ON st.resolver_id = u_resolver.id
+      LEFT JOIN users u_creator ON st.created_by = u_creator.id
+      WHERE st.id = ?
+    `, [nextId]);
+    
+    res.status(201).json(newTicket);
+  } catch (error) {
+    console.error('Error creating support ticket:', error);
+    res.status(500).json({ error: 'Failed to create support ticket' });
+  }
+};
+
+// Update support ticket
+export const updateSupportTicket = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const {
+      client_name,
+      ticket_type,
+      attention_method,
+      rpa_process,
+      requester,
+      resolver_id,
+      description,
+      solution,
+      status,
+      priority,
+      urgency_level,
+      time_invested_minutes,
+      customer_satisfaction,
+      tags
+    } = req.body;
+    
+    // If status is being changed to resolved/closed, set close_date
+    let close_date = null;
+    if (status && ['resolved', 'closed'].includes(status)) {
+      close_date = new Date().toISOString();
+    }
+    
+    await dbRun(`
+      UPDATE support_tickets SET
+        client_name = ?, ticket_type = ?, attention_method = ?, rpa_process = ?,
+        requester = ?, resolver_id = ?, description = ?, solution = ?, status = ?,
+        priority = ?, urgency_level = ?, time_invested_minutes = ?, 
+        customer_satisfaction = ?, tags = ?, close_date = ?,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id_ticket = ? OR id = ?
+    `, [
+      client_name, ticket_type, attention_method, rpa_process,
+      requester, resolver_id, description, solution, status,
+      priority, urgency_level, time_invested_minutes,
+      customer_satisfaction, tags, close_date, id, id
+    ]);
+    
+    const updatedTicket = await dbGet(`
+      SELECT 
+        st.*,
+        sc.company_name,
+        u_resolver.full_name as resolver_name,
+        u_creator.full_name as created_by_name
+      FROM support_tickets st
+      LEFT JOIN support_companies sc ON st.company_id = sc.id
+      LEFT JOIN users u_resolver ON st.resolver_id = u_resolver.id
+      LEFT JOIN users u_creator ON st.created_by = u_creator.id
+      WHERE st.id_ticket = ? OR st.id = ?
+    `, [id, id]);
+    
+    res.json(updatedTicket);
+  } catch (error) {
+    console.error('Error updating support ticket:', error);
+    res.status(500).json({ error: 'Failed to update support ticket' });
+  }
+};
+
+// Add comment to support ticket
+export const addTicketComment = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { content, comment_type = 'comment', time_spent_minutes = 0, is_internal = false } = req.body;
+    
+    if (!content) {
+      return res.status(400).json({ error: 'Comment content is required' });
+    }
+    
+    // Get the ticket to get the id_ticket
+    const ticket = await dbGet(`
+      SELECT id_ticket FROM support_tickets WHERE id_ticket = ? OR id = ?
+    `, [id, id]);
+    
+    if (!ticket) {
+      return res.status(404).json({ error: 'Support ticket not found' });
+    }
+    
+    await dbRun(`
+      INSERT INTO support_ticket_comments (
+        ticket_id, user_id, comment_type, content, time_spent_minutes, is_internal
+      ) VALUES (?, ?, ?, ?, ?, ?)
+    `, [ticket.id_ticket, req.user!.id, comment_type, content, time_spent_minutes, is_internal]);
+    
+    // If time was spent, update the ticket's total time
+    if (time_spent_minutes > 0) {
+      await dbRun(`
+        UPDATE support_tickets 
+        SET time_invested_minutes = time_invested_minutes + ?
+        WHERE id_ticket = ?
+      `, [time_spent_minutes, ticket.id_ticket]);
+    }
+    
+    const newComment = await dbGet(`
+      SELECT 
+        stc.*,
+        u.full_name as user_name,
+        u.avatar_url
+      FROM support_ticket_comments stc
+      LEFT JOIN users u ON stc.user_id = u.id
+      WHERE stc.id = last_insert_rowid()
+    `);
+    
+    res.status(201).json(newComment);
+  } catch (error) {
+    console.error('Error adding ticket comment:', error);
+    res.status(500).json({ error: 'Failed to add comment' });
+  }
+};
+
+// ========================================
+// SUPPORT DASHBOARD & ANALYTICS
+// ========================================
+
+// Get support dashboard data
+export const getSupportDashboard = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const currentMonth = new Date().getMonth() + 1;
+    const currentYear = new Date().getFullYear();
+    
+    // Get summary statistics
+    const totalCompanies = await dbGet(`
+      SELECT COUNT(*) as count FROM support_companies WHERE status = 'active'
+    `);
+    
+    const totalActiveTickets = await dbGet(`
+      SELECT COUNT(*) as count FROM support_tickets WHERE status IN ('open', 'in_progress', 'pending_client')
+    `);
+    
+    const thisMonthTickets = await dbGet(`
+      SELECT COUNT(*) as count FROM support_tickets 
+      WHERE strftime('%Y', open_date) = ? AND strftime('%m', open_date) = ?
+    `, [currentYear.toString(), currentMonth.toString().padStart(2, '0')]);
+    
+    const thisMonthResolved = await dbGet(`
+      SELECT COUNT(*) as count FROM support_tickets 
+      WHERE strftime('%Y', close_date) = ? AND strftime('%m', close_date) = ?
+      AND status IN ('resolved', 'closed')
+    `, [currentYear.toString(), currentMonth.toString().padStart(2, '0')]);
+    
+    // Get companies with highest consumption
+    const topCompanies = await dbAll(`
+      SELECT 
+        sc.company_name,
+        sc.contracted_hours_monthly,
+        COALESCE(sms.consumed_hours, 0) as consumed_hours,
+        COALESCE(sms.remaining_hours, sc.contracted_hours_monthly) as remaining_hours,
+        CASE 
+          WHEN COALESCE(sms.consumed_hours, 0) > sc.contracted_hours_monthly THEN 'exceeded'
+          WHEN COALESCE(sms.consumed_hours, 0) / sc.contracted_hours_monthly > 0.8 THEN 'near_limit'
+          ELSE 'normal'
+        END as status
+      FROM support_companies sc
+      LEFT JOIN support_monthly_summaries sms ON sc.id = sms.company_id 
+        AND sms.year = ? AND sms.month = ?
+      WHERE sc.status = 'active'
+      ORDER BY consumed_hours DESC
+      LIMIT 10
+    `, [currentYear, currentMonth]);
+    
+    // Get recent tickets
+    const recentTickets = await dbAll(`
+      SELECT 
+        st.id_ticket,
+        st.client_name,
+        st.priority,
+        st.status,
+        st.open_date,
+        sc.company_name,
+        u.full_name as resolver_name
+      FROM support_tickets st
+      LEFT JOIN support_companies sc ON st.company_id = sc.id
+      LEFT JOIN users u ON st.resolver_id = u.id
+      ORDER BY st.open_date DESC
+      LIMIT 10
+    `);
+    
+    // Get monthly trends (last 6 months)
+    const trends = await dbAll(`
+      SELECT 
+        year,
+        month,
+        SUM(total_tickets) as tickets,
+        SUM(resolved_tickets) as resolved,
+        SUM(consumed_hours) as hours
+      FROM support_monthly_summaries
+      WHERE (year = ? AND month >= ?) OR (year = ? AND month <= ?)
+      GROUP BY year, month
+      ORDER BY year DESC, month DESC
+      LIMIT 6
+    `, [currentYear, currentMonth - 5, currentYear - 1, 12]);
+    
+    res.json({
+      summary: {
+        totalCompanies: totalCompanies.count,
+        totalActiveTickets: totalActiveTickets.count,
+        thisMonthTickets: thisMonthTickets.count,
+        thisMonthResolved: thisMonthResolved.count
+      },
+      topCompanies,
+      recentTickets,
+      trends
+    });
+  } catch (error) {
+    console.error('Error fetching support dashboard:', error);
+    res.status(500).json({ error: 'Failed to fetch support dashboard' });
+  }
+};
+
+// Get monthly billing report
+export const getMonthlyBillingReport = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { year, month } = req.query;
+    const currentYear = year || new Date().getFullYear();
+    const currentMonth = month || new Date().getMonth() + 1;
+    
+    const billingData = await dbAll(`
+      SELECT 
+        sc.company_name,
+        sc.contracted_hours_monthly,
+        sc.hourly_rate,
+        sc.hourly_rate_currency,
+        COALESCE(sms.consumed_hours, 0) as consumed_hours,
+        COALESCE(sms.remaining_hours, sc.contracted_hours_monthly) as remaining_hours,
+        COALESCE(sms.exceeded_hours, 0) as exceeded_hours,
+        COALESCE(sms.total_tickets, 0) as total_tickets,
+        COALESCE(sms.resolved_tickets, 0) as resolved_tickets,
+        (sc.contracted_hours_monthly * sc.hourly_rate) as base_cost,
+        (COALESCE(sms.exceeded_hours, 0) * sc.hourly_rate) as additional_cost,
+        ((sc.contracted_hours_monthly + COALESCE(sms.exceeded_hours, 0)) * sc.hourly_rate) as total_billing
+      FROM support_companies sc
+      LEFT JOIN support_monthly_summaries sms ON sc.id = sms.company_id 
+        AND sms.year = ? AND sms.month = ?
+      WHERE sc.status = 'active'
+      ORDER BY total_billing DESC
+    `, [currentYear, currentMonth]);
+    
+    const totals = {
+      totalBaseCost: billingData.reduce((sum, item) => sum + item.base_cost, 0),
+      totalAdditionalCost: billingData.reduce((sum, item) => sum + item.additional_cost, 0),
+      totalBilling: billingData.reduce((sum, item) => sum + item.total_billing, 0),
+      totalHours: billingData.reduce((sum, item) => sum + item.consumed_hours, 0),
+      totalTickets: billingData.reduce((sum, item) => sum + item.total_tickets, 0)
+    };
+    
+    res.json({
+      period: { year: currentYear, month: currentMonth },
+      companies: billingData,
+      totals
+    });
+  } catch (error) {
+    console.error('Error fetching billing report:', error);
+    res.status(500).json({ error: 'Failed to fetch billing report' });
+  }
+};
+
+// Get support metrics for a company
+export const getCompanySupportMetrics = async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { months = 6 } = req.query;
+    
+    // Get historical data for the specified number of months
+    const historicalData = await dbAll(`
+      SELECT 
+        year,
+        month,
+        contracted_hours,
+        consumed_hours,
+        remaining_hours,
+        exceeded_hours,
+        total_tickets,
+        resolved_tickets,
+        total_monthly_charge
+      FROM support_monthly_summaries
+      WHERE company_id = ?
+      ORDER BY year DESC, month DESC
+      LIMIT ?
+    `, [id, Number(months)]);
+    
+    // Get ticket type distribution
+    const ticketTypes = await dbAll(`
+      SELECT 
+        ticket_type,
+        COUNT(*) as count,
+        AVG(hours_calculated) as avg_hours,
+        SUM(hours_calculated) as total_hours
+      FROM support_tickets
+      WHERE company_id = ?
+      GROUP BY ticket_type
+      ORDER BY count DESC
+    `, [id]);
+    
+    // Get resolution time statistics
+    const resolutionStats = await dbGet(`
+      SELECT 
+        AVG(julianday(close_date) - julianday(open_date)) as avg_resolution_days,
+        MIN(julianday(close_date) - julianday(open_date)) as min_resolution_days,
+        MAX(julianday(close_date) - julianday(open_date)) as max_resolution_days,
+        AVG(hours_calculated) as avg_hours_per_ticket,
+        AVG(customer_satisfaction) as avg_satisfaction
+      FROM support_tickets
+      WHERE company_id = ? AND status IN ('resolved', 'closed')
+    `, [id]);
+    
+    res.json({
+      historicalData: historicalData.reverse(), // Reverse to get chronological order
+      ticketTypes,
+      resolutionStats
+    });
+  } catch (error) {
+    console.error('Error fetching company support metrics:', error);
+    res.status(500).json({ error: 'Failed to fetch company support metrics' });
+  }
+};

@@ -1,0 +1,80 @@
+import { Router } from 'express';
+import { authenticate } from '../middleware/auth';
+import {
+  // Support Companies
+  getSupportCompanies,
+  getSupportCompany,
+  createSupportCompany,
+  updateSupportCompany,
+  deleteSupportCompany,
+  
+  // Support Tickets
+  getSupportTickets,
+  getSupportTicket,
+  createSupportTicket,
+  updateSupportTicket,
+  addTicketComment,
+  
+  // Dashboard & Analytics
+  getSupportDashboard,
+  getMonthlyBillingReport,
+  getCompanySupportMetrics
+} from '../controllers/supportController';
+
+const router = Router();
+
+// All routes require authentication
+router.use(authenticate);
+
+// ========================================
+// SUPPORT COMPANIES ROUTES
+// ========================================
+
+// GET /api/support/companies - Get all support companies
+router.get('/companies', getSupportCompanies);
+
+// GET /api/support/companies/:id - Get single support company
+router.get('/companies/:id', getSupportCompany);
+
+// POST /api/support/companies - Create new support company
+router.post('/companies', createSupportCompany);
+
+// PUT /api/support/companies/:id - Update support company
+router.put('/companies/:id', updateSupportCompany);
+
+// DELETE /api/support/companies/:id - Delete support company
+router.delete('/companies/:id', deleteSupportCompany);
+
+// GET /api/support/companies/:id/metrics - Get support metrics for company
+router.get('/companies/:id/metrics', getCompanySupportMetrics);
+
+// ========================================
+// SUPPORT TICKETS ROUTES
+// ========================================
+
+// GET /api/support/tickets - Get all support tickets
+router.get('/tickets', getSupportTickets);
+
+// GET /api/support/tickets/:id - Get single support ticket
+router.get('/tickets/:id', getSupportTicket);
+
+// POST /api/support/tickets - Create new support ticket
+router.post('/tickets', createSupportTicket);
+
+// PUT /api/support/tickets/:id - Update support ticket
+router.put('/tickets/:id', updateSupportTicket);
+
+// POST /api/support/tickets/:id/comments - Add comment to support ticket
+router.post('/tickets/:id/comments', addTicketComment);
+
+// ========================================
+// DASHBOARD & REPORTS ROUTES
+// ========================================
+
+// GET /api/support/dashboard - Get support dashboard data
+router.get('/dashboard', getSupportDashboard);
+
+// GET /api/support/billing-report - Get monthly billing report
+router.get('/billing-report', getMonthlyBillingReport);
+
+export default router;
