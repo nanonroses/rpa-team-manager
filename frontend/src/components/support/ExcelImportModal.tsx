@@ -88,7 +88,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
   };
 
   const handleFileUpload: UploadProps['onChange'] = (info) => {
-    const file = info.file.originFileObj || info.file as File;
+    const file = info.file.originFileObj || (info.file as unknown as File);
     if (file) {
       setUploadedFile(file);
       console.log('File uploaded:', file.name, file.size);

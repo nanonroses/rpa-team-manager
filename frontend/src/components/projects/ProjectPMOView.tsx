@@ -14,23 +14,15 @@ import {
   Typography,
   Tooltip,
   Divider,
-  List,
-  Avatar,
   Empty,
   Spin,
   message
 } from 'antd';
 import {
-  ProjectOutlined,
-  AlertOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  DollarOutlined,
-  TeamOutlined,
   RiseOutlined,
   FallOutlined,
-  BarChartOutlined,
-  LineChartOutlined,
   WarningOutlined,
   TrophyOutlined,
   CalendarOutlined,
@@ -39,12 +31,15 @@ import {
   EyeOutlined,
   FundOutlined,
   ExclamationCircleOutlined,
-  SyncOutlined
+  SyncOutlined,
+  PlusOutlined,
+  DisconnectOutlined,
+  DatabaseOutlined
 } from '@ant-design/icons';
 import apiService from '@/services/api';
 import dayjs from 'dayjs';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface ProjectPMOViewProps {
   projectId: number;
@@ -52,6 +47,12 @@ interface ProjectPMOViewProps {
   projectStatus?: string;
   startDate?: string;
   endDate?: string;
+}
+
+interface ErrorState {
+  hasError: boolean;
+  errorMessage: string;
+  errorType: 'network' | 'permission' | 'data' | 'unknown';
 }
 
 interface PMOMetrics {
@@ -83,16 +84,19 @@ interface Milestone {
 
 export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
   projectId,
-  projectName,
-  projectStatus,
-  startDate,
-  endDate
+  projectName
 }) => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [pmoMetrics, setPmoMetrics] = useState<PMOMetrics | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
   const [ganttData, setGanttData] = useState<any>(null);
+  const [error, setError] = useState<ErrorState>({
+    hasError: false,
+    errorMessage: '',
+    errorType: 'unknown'
+  });
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     loadPMOData();
@@ -101,33 +105,125 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
   const loadPMOData = async () => {
     try {
       setLoading(true);
+      setError({ hasError: false, errorMessage: '', errorType: 'unknown' });
       
-      // Load PMO metrics for this project
-      const metricsResponse = await apiService.getPMOAnalytics();
-      const projectMetrics = metricsResponse.projects?.find((p: any) => p.project_id === projectId);
+      // Load PMO metrics for this specific project
+      const pmoData = await apiService.getProjectPMOMetrics(projectId);
       
-      if (projectMetrics) {
-        setPmoMetrics({
-          completion_percentage: projectMetrics.completion_percentage || 0,
-          schedule_variance_days: projectMetrics.schedule_variance_days || 0,
-          cost_variance_percentage: projectMetrics.cost_variance_percentage || 0,
-          risk_level: projectMetrics.risk_level || 'low',
-          team_velocity: projectMetrics.team_velocity || 0,
-          bugs_found: projectMetrics.bugs_found || 0,
-          bugs_resolved: projectMetrics.bugs_resolved || 0,
-          actual_hours: projectMetrics.actual_hours || 0,
-          planned_hours: projectMetrics.planned_hours || 0
+      if (pmoData && pmoData.success) {
+        // Set PMO metrics
+        if (pmoData.data.metrics) {
+          setPmoMetrics({
+            completion_percentage: pmoData.data.metrics.completion_percentage || 0,
+            schedule_variance_days: pmoData.data.metrics.schedule_variance_days || 0,
+            cost_variance_percentage: pmoData.data.metrics.cost_variance_percentage || 0,
+            risk_level: pmoData.data.metrics.risk_level || 'low',
+            team_velocity: pmoData.data.metrics.team_velocity || 0,
+            bugs_found: pmoData.data.metrics.bugs_found || 0,
+            bugs_resolved: pmoData.data.metrics.bugs_resolved || 0,
+            actual_hours: pmoData.data.metrics.actual_hours || 0,
+            planned_hours: pmoData.data.metrics.planned_hours || 0
+          });
+        }
+
+        // Set milestones from PMO data
+        if (pmoData.data.milestones) {
+          setMilestones(pmoData.data.milestones);
+        }
+
+        // Set gantt data if available
+        if (pmoData.data.gantt) {
+          setGanttData(pmoData.data.gantt);
+        }
+
+        // Reset retry count on successful load
+        setRetryCount(0);
+      } else {
+        // Handle case where response is not successful
+        setError({
+          hasError: true,
+          errorMessage: pmoData?.message || 'Invalid response from server',
+          errorType: 'data'
         });
       }
-
-      // Load Gantt data to get milestones
-      const ganttResponse = await apiService.getProjectGantt(projectId);
-      setGanttData(ganttResponse);
-      setMilestones(ganttResponse.milestones || []);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading PMO data:', error);
-      message.error('Failed to load PMO data');
+      
+      let errorState: ErrorState = {
+        hasError: true,
+        errorMessage: 'Unknown error occurred',
+        errorType: 'unknown'
+      };
+
+      // Categorize error types
+      if (error.response) {
+        const status = error.response.status;
+        if (status === 401 || status === 403) {
+          errorState = {
+            hasError: true,
+            errorMessage: 'Access denied. You may not have permission to view this project\'s PMO data.',
+            errorType: 'permission'
+          };
+        } else if (status === 404) {
+          errorState = {
+            hasError: true,
+            errorMessage: 'PMO data not found for this project.',
+            errorType: 'data'
+          };
+        } else if (status >= 500) {
+          errorState = {
+            hasError: true,
+            errorMessage: 'Server error. Please try again later.',
+            errorType: 'network'
+          };
+        } else {
+          errorState = {
+            hasError: true,
+            errorMessage: error.response.data?.message || `Request failed with status ${status}`,
+            errorType: 'data'
+          };
+        }
+      } else if (error.request) {
+        errorState = {
+          hasError: true,
+          errorMessage: 'Network error. Please check your connection and try again.',
+          errorType: 'network'
+        };
+      } else {
+        errorState = {
+          hasError: true,
+          errorMessage: error.message || 'An unexpected error occurred',
+          errorType: 'unknown'
+        };
+      }
+
+      setError(errorState);
+      
+      // Show appropriate message based on error type
+      if (errorState.errorType === 'network') {
+        message.error('Network error - unable to load PMO data');
+      } else if (errorState.errorType === 'permission') {
+        message.warning('Access denied for PMO data');
+      } else {
+        message.error('Failed to load PMO data');
+      }
+      
+      // Fallback: try to load basic gantt data for milestones only for non-permission errors
+      if (errorState.errorType !== 'permission' && retryCount < 2) {
+        try {
+          const ganttResponse = await apiService.getProjectGantt(projectId);
+          if (ganttResponse) {
+            setGanttData(ganttResponse);
+            if (ganttResponse && ganttResponse.milestones) {
+              setMilestones(ganttResponse.milestones);
+            }
+            message.info('Loaded basic milestone data as fallback');
+          }
+        } catch (ganttError) {
+          console.error('Error loading fallback Gantt data:', ganttError);
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -183,7 +279,76 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
     );
   }
 
-  if (!pmoMetrics && milestones.length === 0) {
+  // Enhanced error display
+  if (error.hasError && !loading) {
+    const getErrorIcon = () => {
+      switch (error.errorType) {
+        case 'network': return <DisconnectOutlined />;
+        case 'permission': return <ExclamationCircleOutlined />;
+        case 'data': return <DatabaseOutlined />;
+        default: return <WarningOutlined />;
+      }
+    };
+
+    const getErrorActions = () => {
+      const actions = [
+        <Button 
+          key="retry"
+          type="primary" 
+          icon={<SyncOutlined />}
+          onClick={() => {
+            setRetryCount(prev => prev + 1);
+            loadPMOData();
+          }}
+          disabled={retryCount >= 3}
+        >
+          {retryCount >= 3 ? 'Max Retries Reached' : 'Retry'}
+        </Button>
+      ];
+
+      if (error.errorType !== 'permission') {
+        actions.push(
+          <Button 
+            key="pmo-dashboard"
+            icon={<FundOutlined />}
+            onClick={handleViewFullPMO}
+          >
+            Go to PMO Dashboard
+          </Button>
+        );
+      }
+
+      return actions;
+    };
+
+    return (
+      <div style={{ padding: '24px' }}>
+        <Alert
+          message={`Error Loading PMO Data (${error.errorType})`}
+          description={error.errorMessage}
+          type={error.errorType === 'permission' ? 'warning' : 'error'}
+          showIcon
+          icon={getErrorIcon()}
+          action={<Space>{getErrorActions()}</Space>}
+          style={{ marginBottom: '24px' }}
+        />
+        
+        {/* Show partial data if available */}
+        {(pmoMetrics || milestones.length > 0) && (
+          <Alert
+            message="Partial Data Available"
+            description="Some PMO data was loaded successfully despite errors."
+            type="info"
+            showIcon
+            style={{ marginBottom: '16px' }}
+          />
+        )}
+      </div>
+    );
+  }
+
+  // No data state (when no error but no data)
+  if (!error.hasError && !pmoMetrics && milestones.length === 0 && !loading) {
     return (
       <div style={{ padding: '24px' }}>
         <Empty
@@ -217,25 +382,6 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
 
   return (
     <div style={{ padding: '8px 0' }}>
-      {/* Quick Actions */}
-      <div style={{ marginBottom: '24px', textAlign: 'right' }}>
-        <Space>
-          <Button 
-            type="primary" 
-            icon={<FundOutlined />}
-            onClick={handleViewFullPMO}
-          >
-            Open PMO Dashboard
-          </Button>
-          <Button 
-            icon={<BarChartOutlined />}
-            onClick={handleViewGantt}
-          >
-            View Gantt Chart
-          </Button>
-        </Space>
-      </div>
-
       <Row gutter={[24, 24]}>
         {/* Left Column - Metrics & Performance */}
         <Col xs={24} lg={14}>
@@ -425,7 +571,7 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
                       <div style={{ marginBottom: '4px' }}>
                         <Text strong>{milestone.name}</Text>
                         <div style={{ float: 'right' }}>
-                          <Tag color={getMilestoneStatusColor(milestone.status)} size="small">
+                          <Tag color={getMilestoneStatusColor(milestone.status)}>
                             {milestone.status.replace('_', ' ')}
                           </Tag>
                         </div>
@@ -439,7 +585,7 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
                         </Text>
                       </div>
                       <div style={{ marginBottom: '8px' }}>
-                        <Tag color={getResponsibilityColor(milestone.responsibility)} size="small">
+                        <Tag color={getResponsibilityColor(milestone.responsibility)}>
                           {milestone.responsibility}
                         </Tag>
                         {milestone.completion_percentage > 0 && (
@@ -455,7 +601,6 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
                         <Alert
                           message={milestone.delay_justification}
                           type="warning"
-                          size="small"
                           showIcon
                           style={{ fontSize: '11px', marginTop: '4px' }}
                         />

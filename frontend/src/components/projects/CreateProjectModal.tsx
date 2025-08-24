@@ -346,7 +346,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             max={100}
             placeholder="100"
             formatter={(value) => `${value}%`}
-            parser={(value) => value!.replace('%', '')}
+            parser={(value) => parseInt(value!.replace('%', '')) as 1 | 100}
             style={{ width: '100%' }}
           />
         </Form.Item>

@@ -200,7 +200,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
         </Space>
       </Space>
 
-      <style jsx>{`
+      <style>{`
         .project-card.overdue {
           box-shadow: 0 0 0 1px #ff4d4f, 0 2px 8px rgba(255, 77, 79, 0.15);
         }
