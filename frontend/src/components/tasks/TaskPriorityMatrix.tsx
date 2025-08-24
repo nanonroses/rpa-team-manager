@@ -9,6 +9,8 @@ import {
   EyeOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { PriorityMatrix, QuadrantConfig, QuadrantRules, MatrixAxisConfig, MatrixItemRenderer, MatrixSummary } from '@/components/common';
+import { getTaskStatusColor, getPriorityColor } from '@/utils';
 
 const { Title, Text } = Typography;
 
@@ -117,73 +119,6 @@ const TaskPriorityMatrix: React.FC<TaskPriorityMatrixProps> = ({ tasks }) => {
     return Math.max(1, Math.min(5, impactScore));
   };
 
-  // Create matrix based on Urgency vs Impact
-  const createMatrix = () => {
-    const matrix: Array<Array<Task[]>> = [];
-    
-    // Initialize 5x5 matrix
-    for (let urgency = 5; urgency >= 1; urgency--) {
-      matrix[5 - urgency] = [];
-      for (let impact = 1; impact <= 5; impact++) {
-        matrix[5 - urgency][impact - 1] = [];
-      }
-    }
-
-    // Populate matrix with tasks
-    tasks.forEach(task => {
-      const urgencyScore = calculateUrgencyScore(task);
-      const impactScore = calculateImpactScore(task);
-      
-      const urgencyIndex = 5 - urgencyScore;
-      const impactIndex = impactScore - 1;
-      
-      if (matrix[urgencyIndex] && matrix[urgencyIndex][impactIndex]) {
-        matrix[urgencyIndex][impactIndex].push(task);
-      }
-    });
-
-    return matrix;
-  };
-
-  const getQuadrantInfo = (urgency: number, impact: number) => {
-    if (urgency >= 4 && impact >= 4) {
-      return { 
-        label: 'DO FIRST', 
-        color: '#f5222d', 
-        backgroundColor: '#fff2f0',
-        description: 'Critical - handle immediately!'
-      };
-    } else if (urgency <= 2 && impact >= 4) {
-      return { 
-        label: 'SCHEDULE', 
-        color: '#faad14', 
-        backgroundColor: '#fffbe6',
-        description: 'Important - plan and schedule properly'
-      };
-    } else if (urgency >= 4 && impact <= 2) {
-      return { 
-        label: 'DELEGATE', 
-        color: '#1890ff', 
-        backgroundColor: '#f0f9ff',
-        description: 'Urgent but low impact - delegate if possible'
-      };
-    } else if (urgency <= 2 && impact <= 2) {
-      return { 
-        label: 'ELIMINATE', 
-        color: '#8c8c8c', 
-        backgroundColor: '#f5f5f5',
-        description: 'Low priority - eliminate or do later'
-      };
-    }
-    
-    return { 
-      label: 'EVALUATE', 
-      color: '#722ed1', 
-      backgroundColor: '#f9f0ff',
-      description: 'Medium priority - evaluate based on capacity'
-    };
-  };
-
   const getTaskTypeIcon = (type: string) => {
     switch (type) {
       case 'bug': return '🐛';
@@ -194,27 +129,6 @@ const TaskPriorityMatrix: React.FC<TaskPriorityMatrixProps> = ({ tasks }) => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    const colors = {
-      todo: 'default',
-      in_progress: 'processing',
-      review: 'warning',
-      testing: 'purple',
-      done: 'success',
-      blocked: 'error'
-    };
-    return colors[status as keyof typeof colors] || 'default';
-  };
-
-  const getPriorityColor = (priority: string) => {
-    const colors = {
-      critical: 'red',
-      high: 'orange',
-      medium: 'blue',
-      low: 'green'
-    };
-    return colors[priority as keyof typeof colors] || 'default';
-  };
 
   const isOverdue = (dueDate?: string) => {
     if (!dueDate) return false;
@@ -232,284 +146,242 @@ const TaskPriorityMatrix: React.FC<TaskPriorityMatrixProps> = ({ tasks }) => {
     navigate('/tasks');
   };
 
-  const matrix = createMatrix();
+  // Quadrant rules for tasks (Eisenhower Matrix)
+  const quadrantRules: QuadrantRules<Task> = {
+    getQuadrantInfo: (impact: number, urgency: number) => {
+      if (urgency >= 4 && impact >= 4) {
+        return { 
+          label: 'DO FIRST', 
+          color: '#f5222d', 
+          backgroundColor: '#fff2f0',
+          description: 'Critical - handle immediately!'
+        };
+      } else if (urgency <= 2 && impact >= 4) {
+        return { 
+          label: 'SCHEDULE', 
+          color: '#faad14', 
+          backgroundColor: '#fffbe6',
+          description: 'Important - plan and schedule properly'
+        };
+      } else if (urgency >= 4 && impact <= 2) {
+        return { 
+          label: 'DELEGATE', 
+          color: '#1890ff', 
+          backgroundColor: '#f0f9ff',
+          description: 'Urgent but low impact - delegate if possible'
+        };
+      } else if (urgency <= 2 && impact <= 2) {
+        return { 
+          label: 'ELIMINATE', 
+          color: '#8c8c8c', 
+          backgroundColor: '#f5f5f5',
+          description: 'Low priority - eliminate or do later'
+        };
+      }
+      
+      return { 
+        label: 'EVALUATE', 
+        color: '#722ed1', 
+        backgroundColor: '#f9f0ff',
+        description: 'Medium priority - evaluate based on capacity'
+      };
+    }
+  };
+
+  // X-axis configuration (Impact)
+  const xAxis: MatrixAxisConfig = {
+    label: 'Impact',
+    min: 1,
+    max: 5,
+    getAxisLabel: (value) => `Impact ${value}`,
+    getAxisDescription: (value) => {
+      const descriptions = { 1: 'Very Low', 2: 'Low', 3: 'Medium', 4: 'High', 5: 'Very High' };
+      return descriptions[value as keyof typeof descriptions] || '';
+    }
+  };
+
+  // Y-axis configuration (Urgency)
+  const yAxis: MatrixAxisConfig = {
+    label: 'Urgency',
+    min: 1,
+    max: 5,
+    getAxisLabel: (value) => `Urgency ${value}`,
+    getAxisDescription: (value) => {
+      const descriptions = { 1: 'Very Low', 2: 'Low', 3: 'Medium', 4: 'High', 5: 'Critical' };
+      return descriptions[value as keyof typeof descriptions] || '';
+    }
+  };
+
+  // Item renderer
+  const itemRenderer: MatrixItemRenderer<Task> = {
+    getItemKey: (task) => task.id,
+    renderTooltip: (task) => {
+      const overdue = isOverdue(task.due_date);
+      return (
+        <div>
+          <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+            {getTaskTypeIcon(task.task_type)} {task.title}
+          </div>
+          <div style={{ marginBottom: '4px' }}>
+            Priority: {task.priority.toUpperCase()}
+          </div>
+          <div style={{ marginBottom: '4px' }}>
+            Status: {task.status.replace('_', ' ').toUpperCase()}
+          </div>
+          {task.assignee_name && (
+            <div style={{ marginBottom: '4px' }}>
+              Assigned to: {task.assignee_name}
+            </div>
+          )}
+          {task.due_date && (
+            <div style={{ marginBottom: '4px' }}>
+              Due: {dayjs(task.due_date).format('MMM DD, YYYY')}
+              {overdue && <span style={{ color: '#f5222d' }}> (OVERDUE)</span>}
+            </div>
+          )}
+          {task.estimated_hours && (
+            <div style={{ marginBottom: '4px' }}>
+              Estimated: {task.estimated_hours}h
+            </div>
+          )}
+          {task.story_points && (
+            <div style={{ marginBottom: '4px' }}>
+              Story Points: {task.story_points}
+            </div>
+          )}
+          <div>
+            {task.description?.substring(0, 100)}
+            {task.description && task.description.length > 100 ? '...' : ''}
+          </div>
+        </div>
+      );
+    },
+    renderItem: (task) => {
+      const daysUntilDue = getDaysUntilDue(task.due_date);
+      const overdue = isOverdue(task.due_date);
+      
+      return (
+        <Card
+          size="small"
+          style={{
+            cursor: 'pointer',
+            fontSize: '11px',
+            border: overdue ? '1px solid #f5222d' : undefined
+          }}
+          bodyStyle={{ padding: '6px' }}
+          onClick={() => handleTaskClick(task)}
+          hoverable
+        >
+          <div style={{ 
+            fontWeight: 'bold', 
+            marginBottom: '2px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
+          }}>
+            {getTaskTypeIcon(task.task_type)} {task.title}
+          </div>
+          <Space direction="vertical" size={1} style={{ width: '100%' }}>
+            <div>
+              <Space size="small">
+                <Tag 
+                  color={getPriorityColor(task.priority)}
+                  style={{ fontSize: '9px', padding: '1px 4px' }}
+                >
+                  {task.priority.charAt(0).toUpperCase()}
+                </Tag>
+                <Tag 
+                  color={getTaskStatusColor(task.status)}
+                  style={{ fontSize: '9px', padding: '1px 4px' }}
+                >
+                  {task.status === 'in_progress' ? 'PROG' : task.status.toUpperCase()}
+                </Tag>
+              </Space>
+            </div>
+            {task.assignee_name && (
+              <div style={{ fontSize: '10px' }}>
+                <UserOutlined /> {task.assignee_name.split(' ')[0]}
+              </div>
+            )}
+            {task.due_date && (
+              <div style={{ 
+                fontSize: '10px',
+                color: overdue ? '#f5222d' : daysUntilDue !== null && daysUntilDue <= 3 ? '#faad14' : undefined
+              }}>
+                <CalendarOutlined /> 
+                {overdue 
+                  ? 'OVERDUE' 
+                  : daysUntilDue === 0 
+                    ? 'TODAY' 
+                    : daysUntilDue === 1 
+                      ? 'TOMORROW'
+                      : dayjs(task.due_date).format('MM/DD')
+                }
+              </div>
+            )}
+            {task.estimated_hours && (
+              <div style={{ fontSize: '10px' }}>
+                <ClockCircleOutlined /> {task.estimated_hours}h
+              </div>
+            )}
+          </Space>
+        </Card>
+      );
+    }
+  };
+
+  // Summary configuration
+  const summary: MatrixSummary<Task> = {
+    getStats: (tasks) => [
+      { label: 'Total Tasks', value: tasks.length },
+      { 
+        label: 'Critical (Do First)', 
+        value: tasks.filter(t => {
+          const urgency = calculateUrgencyScore(t);
+          const impact = calculateImpactScore(t);
+          return urgency >= 4 && impact >= 4;
+        }).length 
+      },
+      { 
+        label: 'Important (Schedule)', 
+        value: tasks.filter(t => {
+          const urgency = calculateUrgencyScore(t);
+          const impact = calculateImpactScore(t);
+          return urgency <= 2 && impact >= 4;
+        }).length 
+      },
+      { 
+        label: 'Overdue', 
+        value: tasks.filter(t => isOverdue(t.due_date)).length 
+      }
+    ]
+  };
+
+  // Legend configuration
+  const legend: QuadrantConfig[] = [
+    { label: 'DO FIRST', color: 'red', backgroundColor: '', description: 'High Urgency, High Impact' },
+    { label: 'SCHEDULE', color: 'orange', backgroundColor: '', description: 'Low Urgency, High Impact' },
+    { label: 'DELEGATE', color: 'blue', backgroundColor: '', description: 'High Urgency, Low Impact' },
+    { label: 'ELIMINATE', color: 'gray', backgroundColor: '', description: 'Low Urgency, Low Impact' },
+    { label: 'EVALUATE', color: 'purple', backgroundColor: '', description: 'Medium Priority' }
+  ];
 
   return (
-    <div style={{ padding: '16px' }}>
-      <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-        <Title level={4}>Task Priority Matrix - Eisenhower Method</Title>
-        <Text type="secondary">
-          Tasks are positioned based on urgency (due dates + priority) vs impact (business value + complexity). 
-          Higher positions indicate greater urgency, while positions to the right indicate greater impact.
-        </Text>
-      </div>
-
-      {/* Legend */}
-      <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-        <Space wrap>
-          <Tag color="red">DO FIRST (High Urgency, High Impact)</Tag>
-          <Tag color="orange">SCHEDULE (Low Urgency, High Impact)</Tag>
-          <Tag color="blue">DELEGATE (High Urgency, Low Impact)</Tag>
-          <Tag color="gray">ELIMINATE (Low Urgency, Low Impact)</Tag>
-          <Tag color="purple">EVALUATE (Medium Priority)</Tag>
-        </Space>
-      </div>
-
-      {/* Matrix Grid */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'auto repeat(5, 1fr)',
-        gridTemplateRows: 'auto repeat(5, 1fr)',
-        gap: '2px',
-        backgroundColor: '#f0f0f0',
-        padding: '2px',
-        borderRadius: '8px'
-      }}>
-        {/* Empty top-left corner */}
-        <div style={{ 
-          backgroundColor: '#fafafa', 
-          padding: '8px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontWeight: 'bold',
-          fontSize: '12px'
-        }}>
-          Urgency ↑<br/>Impact →
-        </div>
-
-        {/* Impact headers */}
-        {[1, 2, 3, 4, 5].map(impact => (
-          <div key={`impact-${impact}`} style={{
-            backgroundColor: '#fafafa',
-            padding: '8px',
-            textAlign: 'center',
-            fontWeight: 'bold',
-            fontSize: '12px'
-          }}>
-            Impact {impact}
-            <br />
-            <Text type="secondary" style={{ fontSize: '10px' }}>
-              {impact === 1 ? 'Very Low' : 
-               impact === 2 ? 'Low' :
-               impact === 3 ? 'Medium' :
-               impact === 4 ? 'High' : 'Very High'}
-            </Text>
-          </div>
-        ))}
-
-        {/* Matrix cells */}
-        {matrix.map((row, urgencyIndex) => {
-          const urgency = 5 - urgencyIndex;
-          return [
-            // Urgency header for this row
-            <div key={`urgency-${urgency}`} style={{
-              backgroundColor: '#fafafa',
-              padding: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 'bold',
-              fontSize: '12px',
-              writingMode: 'vertical-rl',
-              textAlign: 'center'
-            }}>
-              Urgency {urgency}
-              <br />
-              <Text type="secondary" style={{ fontSize: '10px' }}>
-                {urgency === 1 ? 'Very Low' : 
-                 urgency === 2 ? 'Low' :
-                 urgency === 3 ? 'Medium' :
-                 urgency === 4 ? 'High' : 'Critical'}
-              </Text>
-            </div>,
-            
-            // Impact cells for this row
-            ...row.map((cellTasks, impactIndex) => {
-              const impact = impactIndex + 1;
-              const quadrant = getQuadrantInfo(urgency, impact);
-              
-              return (
-                <div
-                  key={`cell-${urgency}-${impact}`}
-                  style={{
-                    backgroundColor: quadrant.backgroundColor,
-                    border: `2px solid ${quadrant.color}`,
-                    borderRadius: '6px',
-                    padding: '8px',
-                    minHeight: '140px',
-                    position: 'relative'
-                  }}
-                >
-                  {/* Quadrant label */}
-                  <div style={{
-                    position: 'absolute',
-                    top: '4px',
-                    right: '4px',
-                    fontSize: '10px',
-                    fontWeight: 'bold',
-                    color: quadrant.color,
-                    textAlign: 'right'
-                  }}>
-                    {quadrant.label}
-                  </div>
-
-                  {/* Tasks in this cell */}
-                  <div style={{ marginTop: '16px' }}>
-                    {cellTasks.map(task => {
-                      const daysUntilDue = getDaysUntilDue(task.due_date);
-                      const overdue = isOverdue(task.due_date);
-                      
-                      return (
-                        <Tooltip 
-                          key={task.id}
-                          title={
-                            <div>
-                              <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                                {getTaskTypeIcon(task.task_type)} {task.title}
-                              </div>
-                              <div style={{ marginBottom: '4px' }}>
-                                Priority: {task.priority.toUpperCase()}
-                              </div>
-                              <div style={{ marginBottom: '4px' }}>
-                                Status: {task.status.replace('_', ' ').toUpperCase()}
-                              </div>
-                              {task.assignee_name && (
-                                <div style={{ marginBottom: '4px' }}>
-                                  Assigned to: {task.assignee_name}
-                                </div>
-                              )}
-                              {task.due_date && (
-                                <div style={{ marginBottom: '4px' }}>
-                                  Due: {dayjs(task.due_date).format('MMM DD, YYYY')}
-                                  {overdue && <span style={{ color: '#f5222d' }}> (OVERDUE)</span>}
-                                </div>
-                              )}
-                              {task.estimated_hours && (
-                                <div style={{ marginBottom: '4px' }}>
-                                  Estimated: {task.estimated_hours}h
-                                </div>
-                              )}
-                              {task.story_points && (
-                                <div style={{ marginBottom: '4px' }}>
-                                  Story Points: {task.story_points}
-                                </div>
-                              )}
-                              <div>
-                                {task.description?.substring(0, 100)}
-                                {task.description && task.description.length > 100 ? '...' : ''}
-                              </div>
-                            </div>
-                          }
-                          placement="topLeft"
-                        >
-                          <Card
-                            size="small"
-                            style={{
-                              marginBottom: '4px',
-                              cursor: 'pointer',
-                              fontSize: '11px',
-                              border: overdue ? '1px solid #f5222d' : undefined
-                            }}
-                            bodyStyle={{ padding: '6px' }}
-                            onClick={() => handleTaskClick(task)}
-                            hoverable
-                          >
-                            <div style={{ 
-                              fontWeight: 'bold', 
-                              marginBottom: '2px',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis'
-                            }}>
-                              {getTaskTypeIcon(task.task_type)} {task.title}
-                            </div>
-                            <Space direction="vertical" size={1} style={{ width: '100%' }}>
-                              <div>
-                                <Space size="small">
-                                  <Tag 
-                                    color={getPriorityColor(task.priority)}
-                                    style={{ fontSize: '9px', padding: '1px 4px' }}
-                                  >
-                                    {task.priority.charAt(0).toUpperCase()}
-                                  </Tag>
-                                  <Tag 
-                                    color={getStatusColor(task.status)}
-                                    style={{ fontSize: '9px', padding: '1px 4px' }}
-                                  >
-                                    {task.status === 'in_progress' ? 'PROG' : task.status.toUpperCase()}
-                                  </Tag>
-                                </Space>
-                              </div>
-                              {task.assignee_name && (
-                                <div style={{ fontSize: '10px' }}>
-                                  <UserOutlined /> {task.assignee_name.split(' ')[0]}
-                                </div>
-                              )}
-                              {task.due_date && (
-                                <div style={{ 
-                                  fontSize: '10px',
-                                  color: overdue ? '#f5222d' : daysUntilDue !== null && daysUntilDue <= 3 ? '#faad14' : undefined
-                                }}>
-                                  <CalendarOutlined /> 
-                                  {overdue 
-                                    ? 'OVERDUE' 
-                                    : daysUntilDue === 0 
-                                      ? 'TODAY' 
-                                      : daysUntilDue === 1 
-                                        ? 'TOMORROW'
-                                        : dayjs(task.due_date).format('MM/DD')
-                                  }
-                                </div>
-                              )}
-                              {task.estimated_hours && (
-                                <div style={{ fontSize: '10px' }}>
-                                  <ClockCircleOutlined /> {task.estimated_hours}h
-                                </div>
-                              )}
-                            </Space>
-                          </Card>
-                        </Tooltip>
-                      );
-                    })}
-                    
-                    {cellTasks.length === 0 && (
-                      <Text type="secondary" style={{ fontSize: '10px' }}>
-                        No tasks
-                      </Text>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          ];
-        }).flat()}
-      </div>
-
-      {/* Summary Stats */}
-      <div style={{ marginTop: '20px', textAlign: 'center' }}>
-        <Space split={<span style={{ color: '#d9d9d9' }}>•</span>}>
-          <Text>Total Tasks: {tasks.length}</Text>
-          <Text style={{ color: '#f5222d' }}>
-            Critical (Do First): {tasks.filter(t => {
-              const urgency = calculateUrgencyScore(t);
-              const impact = calculateImpactScore(t);
-              return urgency >= 4 && impact >= 4;
-            }).length}
-          </Text>
-          <Text style={{ color: '#faad14' }}>
-            Important (Schedule): {tasks.filter(t => {
-              const urgency = calculateUrgencyScore(t);
-              const impact = calculateImpactScore(t);
-              return urgency <= 2 && impact >= 4;
-            }).length}
-          </Text>
-          <Text style={{ color: '#f5222d' }}>
-            Overdue: {tasks.filter(t => isOverdue(t.due_date)).length}
-          </Text>
-        </Space>
-      </div>
-
+    <div>
+      <PriorityMatrix
+        items={tasks}
+        title="Task Priority Matrix - Eisenhower Method"
+        description="Tasks are positioned based on urgency (due dates + priority) vs impact (business value + complexity). Higher positions indicate greater urgency, while positions to the right indicate greater impact."
+        xAxis={xAxis}
+        yAxis={yAxis}
+        quadrantRules={quadrantRules}
+        itemRenderer={itemRenderer}
+        summary={summary}
+        getXValue={calculateImpactScore}
+        getYValue={calculateUrgencyScore}
+        legend={legend}
+      />
+      
       <div style={{ marginTop: '16px', textAlign: 'center' }}>
         <Text type="secondary" style={{ fontSize: '12px' }}>
           Click on any task card to navigate to the full task management view

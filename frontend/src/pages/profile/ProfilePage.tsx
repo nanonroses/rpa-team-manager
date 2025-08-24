@@ -28,6 +28,7 @@ import {
 } from '@ant-design/icons';
 import { useAuthStore } from '@/store/authStore';
 import { apiService } from '@/services/api';
+import { getRoleColor } from '@/utils';
 
 const { Title, Text } = Typography;
 
@@ -87,15 +88,6 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
-  const getRoleColor = (role: string) => {
-    switch (role) {
-      case 'team_lead': return 'gold';
-      case 'rpa_developer': return 'blue';
-      case 'rpa_operations': return 'green';
-      case 'it_support': return 'purple';
-      default: return 'default';
-    }
-  };
 
   const getRoleLabel = (role: string) => {
     switch (role) {

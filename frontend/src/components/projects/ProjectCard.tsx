@@ -14,6 +14,7 @@ import {
 import { Project, ProjectStatusLabels, PriorityLabels } from '@/types/project';
 import { useAuthStore } from '@/store/authStore';
 import dayjs from 'dayjs';
+import { getProjectStatusColor, getPriorityColor, getProgressColor } from '@/utils';
 
 const { Text, Title } = Typography;
 
@@ -33,27 +34,6 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
   onClick
 }) => {
   const { user, hasPermission } = useAuthStore();
-
-  const getStatusColor = (status: string) => {
-    const colors = {
-      planning: 'blue',
-      active: 'green',
-      on_hold: 'orange',
-      completed: 'purple',
-      cancelled: 'red'
-    };
-    return colors[status as keyof typeof colors] || 'default';
-  };
-
-  const getPriorityColor = (priority: string) => {
-    const colors = {
-      critical: 'red',
-      high: 'orange',
-      medium: 'blue',
-      low: 'green'
-    };
-    return colors[priority as keyof typeof colors] || 'default';
-  };
 
   const getProgressStatus = (percentage: number) => {
     if (percentage === 100) return 'success';

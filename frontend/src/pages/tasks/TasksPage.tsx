@@ -35,6 +35,7 @@ import {
 } from '@ant-design/icons';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { apiService } from '@/services/api';
+import { getPriorityColor } from '@/utils';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -349,15 +350,6 @@ export const TasksPage: React.FC = () => {
     });
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'critical': return 'red';
-      case 'high': return 'orange';
-      case 'medium': return 'blue';
-      case 'low': return 'green';
-      default: return 'default';
-    }
-  };
 
   const getTaskTypeIcon = (type: string) => {
     switch (type) {

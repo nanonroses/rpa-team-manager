@@ -4,6 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { DollarOutlined, ClockCircleOutlined, EyeOutlined } from '@ant-design/icons';
 import { Project } from '@/types/project';
 import { apiService } from '@/services/api';
+import { PriorityMatrix, QuadrantConfig, QuadrantRules, MatrixAxisConfig, MatrixItemRenderer, MatrixSummary } from '@/components/common';
+import { getProjectStatusColor } from '@/utils';
 
 const { Title, Text } = Typography;
 
@@ -58,105 +60,33 @@ const ProjectPriorityMatrix: React.FC<ProjectPriorityMatrixProps> = ({ projects 
     }
   };
 
-  // Create matrix based on ROI vs Complexity/Risk
-  const createMatrix = () => {
-    const matrix: Array<Array<Project[]>> = [];
+  // Calculate ROI score for a project (1-5 scale)
+  const calculateROIScore = (project: Project): number => {
+    const roi = roiData[project.id];
+    if (!roi) return 3; // default medium
     
-    // Initialize 5x5 matrix
-    for (let roi = 5; roi >= 1; roi--) {
-      matrix[5 - roi] = [];
-      for (let complexity = 1; complexity <= 5; complexity++) {
-        matrix[5 - roi][complexity - 1] = [];
-      }
-    }
-
-    // Populate matrix with projects
-    projects.forEach(project => {
-      const roi = roiData[project.id];
-      
-      // Calculate ROI score (1-5 scale)
-      let roiScore = 3; // default medium
-      if (roi) {
-        if (roi.roi_percentage >= 200) roiScore = 5; // Very High ROI
-        else if (roi.roi_percentage >= 100) roiScore = 4; // High ROI
-        else if (roi.roi_percentage >= 50) roiScore = 3; // Medium ROI
-        else if (roi.roi_percentage >= 0) roiScore = 2; // Low ROI
-        else roiScore = 1; // Negative ROI
-      }
-
-      // Calculate complexity/risk score based on budget and timeline
-      let complexityScore = 3; // default medium
-      if (roi) {
-        const budgetOverrun = Math.abs(roi.budget_variance);
-        const timelineRisk = 100 - (roi.timeline_adherence || 80);
-        
-        if (budgetOverrun >= 50 || timelineRisk >= 40) complexityScore = 5; // Very High Risk
-        else if (budgetOverrun >= 25 || timelineRisk >= 25) complexityScore = 4; // High Risk
-        else if (budgetOverrun >= 10 || timelineRisk >= 15) complexityScore = 3; // Medium Risk
-        else if (budgetOverrun >= 5 || timelineRisk >= 10) complexityScore = 2; // Low Risk
-        else complexityScore = 1; // Very Low Risk
-      }
-
-      const roiIndex = 5 - roiScore;
-      const complexityIndex = complexityScore - 1;
-      
-      if (matrix[roiIndex] && matrix[roiIndex][complexityIndex]) {
-        matrix[roiIndex][complexityIndex].push(project);
-      }
-    });
-
-    return matrix;
+    if (roi.roi_percentage >= 200) return 5; // Very High ROI
+    else if (roi.roi_percentage >= 100) return 4; // High ROI
+    else if (roi.roi_percentage >= 50) return 3; // Medium ROI
+    else if (roi.roi_percentage >= 0) return 2; // Low ROI
+    else return 1; // Negative ROI
   };
 
-  const getQuadrantInfo = (roi: number, complexity: number) => {
-    if (roi >= 4 && complexity <= 2) {
-      return { 
-        label: 'Strategic Winners', 
-        color: '#52c41a', 
-        backgroundColor: '#f6ffed',
-        description: 'High ROI, low complexity - prioritize immediately!'
-      };
-    } else if (roi >= 4 && complexity >= 4) {
-      return { 
-        label: 'High Stakes', 
-        color: '#faad14', 
-        backgroundColor: '#fffbe6',
-        description: 'High ROI but high complexity - manage carefully'
-      };
-    } else if (roi <= 2 && complexity <= 2) {
-      return { 
-        label: 'Quick Fixes', 
-        color: '#1890ff', 
-        backgroundColor: '#f0f9ff',
-        description: 'Low ROI, low complexity - fill spare time'
-      };
-    } else if (roi <= 2 && complexity >= 4) {
-      return { 
-        label: 'Money Pits', 
-        color: '#f5222d', 
-        backgroundColor: '#fff2f0',
-        description: 'Low ROI, high complexity - avoid or redesign'
-      };
-    }
+  // Calculate complexity/risk score for a project (1-5 scale)
+  const calculateComplexityScore = (project: Project): number => {
+    const roi = roiData[project.id];
+    if (!roi) return 3; // default medium
     
-    return { 
-      label: 'Evaluate', 
-      color: '#722ed1', 
-      backgroundColor: '#f9f0ff',
-      description: 'Medium priority - evaluate resource availability'
-    };
+    const budgetOverrun = Math.abs(roi.budget_variance);
+    const timelineRisk = 100 - (roi.timeline_adherence || 80);
+    
+    if (budgetOverrun >= 50 || timelineRisk >= 40) return 5; // Very High Risk
+    else if (budgetOverrun >= 25 || timelineRisk >= 25) return 4; // High Risk
+    else if (budgetOverrun >= 10 || timelineRisk >= 15) return 3; // Medium Risk
+    else if (budgetOverrun >= 5 || timelineRisk >= 10) return 2; // Low Risk
+    else return 1; // Very Low Risk
   };
 
-  const getStatusColor = (status: string) => {
-    const colors = {
-      planning: 'blue',
-      active: 'green',
-      on_hold: 'orange',
-      completed: 'purple',
-      cancelled: 'red'
-    };
-    return colors[status as keyof typeof colors] || 'default';
-  };
 
   const formatCurrency = (amount: number) => {
     return `$${amount.toLocaleString()}`;
@@ -170,8 +100,6 @@ const ProjectPriorityMatrix: React.FC<ProjectPriorityMatrixProps> = ({ projects 
     navigate(`/projects/${project.id}`);
   };
 
-  const matrix = createMatrix();
-
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '50px' }}>
@@ -181,248 +109,213 @@ const ProjectPriorityMatrix: React.FC<ProjectPriorityMatrixProps> = ({ projects 
     );
   }
 
-  return (
-    <div style={{ padding: '16px' }}>
-      <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-        <Title level={4}>Project ROI vs Complexity Priority Matrix</Title>
-        <Text type="secondary">
-          Projects are positioned based on their ROI potential and implementation complexity. 
-          Higher positions indicate greater ROI, while positions to the left indicate lower complexity/risk.
-        </Text>
-      </div>
+  // Quadrant rules for projects
+  const quadrantRules: QuadrantRules<Project> = {
+    getQuadrantInfo: (complexity: number, roi: number) => {
+      if (roi >= 4 && complexity <= 2) {
+        return { 
+          label: 'Strategic Winners', 
+          color: '#52c41a', 
+          backgroundColor: '#f6ffed',
+          description: 'High ROI, low complexity - prioritize immediately!'
+        };
+      } else if (roi >= 4 && complexity >= 4) {
+        return { 
+          label: 'High Stakes', 
+          color: '#faad14', 
+          backgroundColor: '#fffbe6',
+          description: 'High ROI but high complexity - manage carefully'
+        };
+      } else if (roi <= 2 && complexity <= 2) {
+        return { 
+          label: 'Quick Fixes', 
+          color: '#1890ff', 
+          backgroundColor: '#f0f9ff',
+          description: 'Low ROI, low complexity - fill spare time'
+        };
+      } else if (roi <= 2 && complexity >= 4) {
+        return { 
+          label: 'Money Pits', 
+          color: '#f5222d', 
+          backgroundColor: '#fff2f0',
+          description: 'Low ROI, high complexity - avoid or redesign'
+        };
+      }
+      
+      return { 
+        label: 'Evaluate', 
+        color: '#722ed1', 
+        backgroundColor: '#f9f0ff',
+        description: 'Medium priority - evaluate resource availability'
+      };
+    }
+  };
 
-      {/* Legend */}
-      <div style={{ marginBottom: '20px', textAlign: 'center' }}>
-        <Space wrap>
-          <Tag color="green">Strategic Winners (High ROI, Low Complexity)</Tag>
-          <Tag color="orange">High Stakes (High ROI, High Complexity)</Tag>
-          <Tag color="blue">Quick Fixes (Low ROI, Low Complexity)</Tag>
-          <Tag color="red">Money Pits (Low ROI, High Complexity)</Tag>
-          <Tag color="purple">Evaluate (Medium Priority)</Tag>
-        </Space>
-      </div>
+  // X-axis configuration (Complexity/Risk)
+  const xAxis: MatrixAxisConfig = {
+    label: 'Complexity',
+    min: 1,
+    max: 5,
+    getAxisLabel: (value) => `Risk/Complexity ${value}`,
+    getAxisDescription: (value) => {
+      const descriptions = { 1: 'Very Low', 2: 'Low', 3: 'Medium', 4: 'High', 5: 'Very High' };
+      return descriptions[value as keyof typeof descriptions] || '';
+    }
+  };
 
-      {/* Matrix Grid */}
-      <div style={{ 
-        display: 'grid', 
-        gridTemplateColumns: 'auto repeat(5, 1fr)',
-        gridTemplateRows: 'auto repeat(5, 1fr)',
-        gap: '2px',
-        backgroundColor: '#f0f0f0',
-        padding: '2px',
-        borderRadius: '8px'
-      }}>
-        {/* Empty top-left corner */}
-        <div style={{ 
-          backgroundColor: '#fafafa', 
-          padding: '8px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontWeight: 'bold',
-          fontSize: '12px'
-        }}>
-          ROI ↑<br/>Complexity →
-        </div>
+  // Y-axis configuration (ROI)
+  const yAxis: MatrixAxisConfig = {
+    label: 'ROI',
+    min: 1,
+    max: 5,
+    getAxisLabel: (value) => `ROI Level ${value}`,
+    getAxisDescription: (value) => {
+      const descriptions = { 
+        1: 'Negative', 
+        2: 'Low (0-50%)', 
+        3: 'Medium (50-100%)', 
+        4: 'High (100-200%)', 
+        5: 'Very High (200%+)' 
+      };
+      return descriptions[value as keyof typeof descriptions] || '';
+    }
+  };
 
-        {/* Complexity headers */}
-        {[1, 2, 3, 4, 5].map(complexity => (
-          <div key={`complexity-${complexity}`} style={{
-            backgroundColor: '#fafafa',
-            padding: '8px',
-            textAlign: 'center',
-            fontWeight: 'bold',
-            fontSize: '12px'
-          }}>
-            Risk/Complexity {complexity}
-            <br />
-            <Text type="secondary" style={{ fontSize: '10px' }}>
-              {complexity === 1 ? 'Very Low' : 
-               complexity === 2 ? 'Low' :
-               complexity === 3 ? 'Medium' :
-               complexity === 4 ? 'High' : 'Very High'}
-            </Text>
+  // Item renderer
+  const itemRenderer: MatrixItemRenderer<Project> = {
+    getItemKey: (project) => project.id,
+    renderTooltip: (project) => {
+      const projectROI = roiData[project.id];
+      return (
+        <div>
+          <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+            {project.name}
           </div>
-        ))}
+          {projectROI && (
+            <>
+              <div style={{ marginBottom: '4px' }}>
+                ROI: {formatPercentage(projectROI.roi_percentage)}
+              </div>
+              <div style={{ marginBottom: '4px' }}>
+                Revenue: {formatCurrency(projectROI.revenue)}
+              </div>
+              <div style={{ marginBottom: '4px' }}>
+                Budget Variance: {formatPercentage(projectROI.budget_variance)}
+              </div>
+              <div style={{ marginBottom: '4px' }}>
+                Timeline: {formatPercentage(projectROI.timeline_adherence || 80)}
+              </div>
+            </>
+          )}
+          <div>
+            {project.description?.substring(0, 100)}
+            {project.description && project.description.length > 100 ? '...' : ''}
+          </div>
+        </div>
+      );
+    },
+    renderItem: (project) => {
+      const projectROI = roiData[project.id];
+      return (
+        <Card
+          size="small"
+          style={{
+            cursor: 'pointer',
+            fontSize: '11px'
+          }}
+          bodyStyle={{ padding: '6px' }}
+          onClick={() => handleProjectClick(project)}
+          hoverable
+        >
+          <div style={{ 
+            fontWeight: 'bold', 
+            marginBottom: '2px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
+          }}>
+            {project.name}
+          </div>
+          <Space direction="vertical" size={1} style={{ width: '100%' }}>
+            <div>
+              <Tag 
+                color={getProjectStatusColor(project.status)}
+                style={{ fontSize: '9px', padding: '1px 4px' }}
+              >
+                {project.status.replace('_', ' ').toUpperCase()}
+              </Tag>
+            </div>
+            {projectROI && (
+              <div style={{ fontSize: '10px' }}>
+                <Space size="small">
+                  <span style={{ color: projectROI.roi_percentage >= 50 ? '#52c41a' : '#f5222d' }}>
+                    <DollarOutlined /> {formatPercentage(projectROI.roi_percentage)}
+                  </span>
+                  <span>
+                    <ClockCircleOutlined /> {formatPercentage(projectROI.timeline_adherence || 80)}
+                  </span>
+                </Space>
+              </div>
+            )}
+          </Space>
+        </Card>
+      );
+    }
+  };
 
-        {/* Matrix cells */}
-        {matrix.map((row, roiIndex) => {
-          const roi = 5 - roiIndex;
-          return [
-            // ROI header for this row
-            <div key={`roi-${roi}`} style={{
-              backgroundColor: '#fafafa',
-              padding: '8px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontWeight: 'bold',
-              fontSize: '12px',
-              writingMode: 'vertical-rl',
-              textAlign: 'center'
-            }}>
-              ROI Level {roi}
-              <br />
-              <Text type="secondary" style={{ fontSize: '10px' }}>
-                {roi === 1 ? 'Negative' : 
-                 roi === 2 ? 'Low (0-50%)' :
-                 roi === 3 ? 'Medium (50-100%)' :
-                 roi === 4 ? 'High (100-200%)' : 'Very High (200%+)'}
-              </Text>
-            </div>,
-            
-            // Complexity cells for this row
-            ...row.map((cellProjects, complexityIndex) => {
-              const complexity = complexityIndex + 1;
-              const quadrant = getQuadrantInfo(roi, complexity);
-              
-              return (
-                <div
-                  key={`cell-${roi}-${complexity}`}
-                  style={{
-                    backgroundColor: quadrant.backgroundColor,
-                    border: `1px solid ${quadrant.color}`,
-                    borderRadius: '6px',
-                    padding: '8px',
-                    minHeight: '140px',
-                    position: 'relative'
-                  }}
-                >
-                  {/* Quadrant label */}
-                  <div style={{
-                    position: 'absolute',
-                    top: '4px',
-                    right: '4px',
-                    fontSize: '10px',
-                    fontWeight: 'bold',
-                    color: quadrant.color,
-                    textAlign: 'right'
-                  }}>
-                    {quadrant.label}
-                  </div>
+  // Summary configuration
+  const summary: MatrixSummary<Project> = {
+    getStats: (projects) => [
+      { label: 'Total Projects', value: projects.length },
+      { 
+        label: 'Strategic Winners', 
+        value: projects.filter(p => {
+          const roi = roiData[p.id];
+          return roi && roi.roi_percentage >= 100 && Math.abs(roi.budget_variance) < 25;
+        }).length 
+      },
+      { 
+        label: 'High Stakes', 
+        value: projects.filter(p => {
+          const roi = roiData[p.id];
+          return roi && roi.roi_percentage >= 100 && Math.abs(roi.budget_variance) >= 25;
+        }).length 
+      },
+      { 
+        label: 'Money Pits', 
+        value: projects.filter(p => {
+          const roi = roiData[p.id];
+          return roi && roi.roi_percentage < 0 && Math.abs(roi.budget_variance) >= 25;
+        }).length 
+      }
+    ]
+  };
 
-                  {/* Projects in this cell */}
-                  <div style={{ marginTop: '16px' }}>
-                    {cellProjects.map(project => {
-                      const projectROI = roiData[project.id];
-                      
-                      return (
-                        <Tooltip 
-                          key={project.id}
-                          title={
-                            <div>
-                              <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-                                {project.name}
-                              </div>
-                              {projectROI && (
-                                <>
-                                  <div style={{ marginBottom: '4px' }}>
-                                    ROI: {formatPercentage(projectROI.roi_percentage)}
-                                  </div>
-                                  <div style={{ marginBottom: '4px' }}>
-                                    Revenue: {formatCurrency(projectROI.revenue)}
-                                  </div>
-                                  <div style={{ marginBottom: '4px' }}>
-                                    Budget Variance: {formatPercentage(projectROI.budget_variance)}
-                                  </div>
-                                  <div style={{ marginBottom: '4px' }}>
-                                    Timeline: {formatPercentage(projectROI.timeline_adherence || 80)}
-                                  </div>
-                                </>
-                              )}
-                              <div>
-                                {project.description?.substring(0, 100)}
-                                {project.description && project.description.length > 100 ? '...' : ''}
-                              </div>
-                            </div>
-                          }
-                          placement="topLeft"
-                        >
-                          <Card
-                            size="small"
-                            style={{
-                              marginBottom: '4px',
-                              cursor: 'pointer',
-                              fontSize: '11px'
-                            }}
-                            bodyStyle={{ padding: '6px' }}
-                            onClick={() => handleProjectClick(project)}
-                            hoverable
-                          >
-                            <div style={{ 
-                              fontWeight: 'bold', 
-                              marginBottom: '2px',
-                              whiteSpace: 'nowrap',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis'
-                            }}>
-                              {project.name}
-                            </div>
-                            <Space direction="vertical" size={1} style={{ width: '100%' }}>
-                              <div>
-                                <Tag 
-                                  color={getStatusColor(project.status)}
-                                  style={{ fontSize: '9px', padding: '1px 4px' }}
-                                >
-                                  {project.status.replace('_', ' ').toUpperCase()}
-                                </Tag>
-                              </div>
-                              {projectROI && (
-                                <div style={{ fontSize: '10px' }}>
-                                  <Space size="small">
-                                    <span style={{ color: projectROI.roi_percentage >= 50 ? '#52c41a' : '#f5222d' }}>
-                                      <DollarOutlined /> {formatPercentage(projectROI.roi_percentage)}
-                                    </span>
-                                    <span>
-                                      <ClockCircleOutlined /> {formatPercentage(projectROI.timeline_adherence || 80)}
-                                    </span>
-                                  </Space>
-                                </div>
-                              )}
-                            </Space>
-                          </Card>
-                        </Tooltip>
-                      );
-                    })}
-                    
-                    {cellProjects.length === 0 && (
-                      <Text type="secondary" style={{ fontSize: '10px' }}>
-                        No projects
-                      </Text>
-                    )}
-                  </div>
-                </div>
-              );
-            })
-          ];
-        }).flat()}
-      </div>
+  // Legend configuration
+  const legend: QuadrantConfig[] = [
+    { label: 'Strategic Winners', color: 'green', backgroundColor: '', description: 'High ROI, Low Complexity' },
+    { label: 'High Stakes', color: 'orange', backgroundColor: '', description: 'High ROI, High Complexity' },
+    { label: 'Quick Fixes', color: 'blue', backgroundColor: '', description: 'Low ROI, Low Complexity' },
+    { label: 'Money Pits', color: 'red', backgroundColor: '', description: 'Low ROI, High Complexity' },
+    { label: 'Evaluate', color: 'purple', backgroundColor: '', description: 'Medium Priority' }
+  ];
 
-      {/* Summary Stats */}
-      <div style={{ marginTop: '20px', textAlign: 'center' }}>
-        <Space split={<span style={{ color: '#d9d9d9' }}>•</span>}>
-          <Text>Total Projects: {projects.length}</Text>
-          <Text style={{ color: '#52c41a' }}>
-            Strategic Winners: {projects.filter(p => {
-              const roi = roiData[p.id];
-              return roi && roi.roi_percentage >= 100 && Math.abs(roi.budget_variance) < 25;
-            }).length}
-          </Text>
-          <Text style={{ color: '#faad14' }}>
-            High Stakes: {projects.filter(p => {
-              const roi = roiData[p.id];
-              return roi && roi.roi_percentage >= 100 && Math.abs(roi.budget_variance) >= 25;
-            }).length}
-          </Text>
-          <Text style={{ color: '#f5222d' }}>
-            Money Pits: {projects.filter(p => {
-              const roi = roiData[p.id];
-              return roi && roi.roi_percentage < 0 && Math.abs(roi.budget_variance) >= 25;
-            }).length}
-          </Text>
-        </Space>
-      </div>
-
+  return (
+    <div>
+      <PriorityMatrix
+        items={projects}
+        title="Project ROI vs Complexity Priority Matrix"
+        description="Projects are positioned based on their ROI potential and implementation complexity. Higher positions indicate greater ROI, while positions to the left indicate lower complexity/risk."
+        xAxis={xAxis}
+        yAxis={yAxis}
+        quadrantRules={quadrantRules}
+        itemRenderer={itemRenderer}
+        summary={summary}
+        getXValue={calculateComplexityScore}
+        getYValue={calculateROIScore}
+        legend={legend}
+      />
+      
       <div style={{ marginTop: '16px', textAlign: 'center' }}>
         <Text type="secondary" style={{ fontSize: '12px' }}>
           Click on any project card to view detailed information and metrics

@@ -11,6 +11,7 @@ import {
 } from '@ant-design/icons';
 import { useIdeaStore } from '@/store/ideaStore';
 import { useAuthStore } from '@/store/authStore';
+import { getIdeaStatusColor } from '@/utils';
 import { Idea, IdeaFilters, IdeaCategory, IdeaStatus } from '@/types/idea';
 import CreateIdeaModal from '@/components/ideas/CreateIdeaModal';
 import IdeaPriorityMatrix from '@/components/ideas/IdeaPriorityMatrix';
@@ -117,17 +118,6 @@ const IdeasPage: React.FC = () => {
     currentPage * pageSize
   );
 
-  const getStatusColor = (status: IdeaStatus): string => {
-    const colors = {
-      draft: 'default',
-      under_review: 'processing',
-      approved: 'success',
-      in_progress: 'warning',
-      done: 'success',
-      rejected: 'error'
-    };
-    return colors[status] || 'default';
-  };
 
   const getCategoryColor = (category: IdeaCategory): string => {
     const colors = {
@@ -212,7 +202,7 @@ const IdeasPage: React.FC = () => {
         <div style={{ minHeight: 200 }}>
           <div style={{ marginBottom: 12 }}>
             <Space>
-              <Tag color={getStatusColor(idea.status)}>
+              <Tag color={getIdeaStatusColor(idea.status)}>
                 {idea.status.replace('_', ' ').toUpperCase()}
               </Tag>
               <Tag color={getCategoryColor(idea.category)}>

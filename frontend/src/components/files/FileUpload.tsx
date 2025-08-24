@@ -25,6 +25,7 @@ import {
   InfoCircleOutlined
 } from '@ant-design/icons';
 import { fileService, FileCategory, UploadResult } from '@/services/fileService';
+import { getFileStatusColor } from '@/utils';
 
 const { Dragger } = Upload;
 const { Text, Title } = Typography;
@@ -281,18 +282,6 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     }
   };
 
-  const getStatusColor = (status: FileItem['status']) => {
-    switch (status) {
-      case 'success':
-        return 'success';
-      case 'error':
-        return 'error';
-      case 'uploading':
-        return 'processing';
-      default:
-        return 'default';
-    }
-  };
 
   return (
     <div style={style} className={className}>
@@ -427,7 +416,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                     title={
                       <Space>
                         <Text>{fileItem.file.name}</Text>
-                        <Tag color={getStatusColor(fileItem.status)}>
+                        <Tag color={getFileStatusColor(fileItem.status)}>
                           {fileItem.status}
                         </Tag>
                       </Space>

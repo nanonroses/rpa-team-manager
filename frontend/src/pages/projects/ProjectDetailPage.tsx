@@ -36,15 +36,18 @@ import {
   HomeOutlined,
   FileOutlined,
   FolderOutlined,
-  PictureOutlined
+  PictureOutlined,
+  FundOutlined
 } from '@ant-design/icons';
 import { ProjectROICard } from '@/components/projects/ProjectROICard';
+import { ProjectPMOView } from '@/components/projects/ProjectPMOView';
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal';
 import { FileManager, EvidenceGallery } from '@/components/files';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/store/authStore';
 import { Project, ProjectStatusLabels, PriorityLabels } from '@/types/project';
 import { apiService } from '@/services/api';
+import { getProjectStatusColor, getPriorityColor } from '@/utils';
 import dayjs from 'dayjs';
 
 const { Title, Text, Paragraph } = Typography;
@@ -89,26 +92,6 @@ export const ProjectDetailPage: React.FC = () => {
     }
   };
 
-  const getStatusColor = (status: string) => {
-    const colors = {
-      planning: 'blue',
-      active: 'green',
-      on_hold: 'orange',
-      completed: 'purple',
-      cancelled: 'red'
-    };
-    return colors[status as keyof typeof colors] || 'default';
-  };
-
-  const getPriorityColor = (priority: string) => {
-    const colors = {
-      critical: 'red',
-      high: 'orange',
-      medium: 'blue',
-      low: 'green'
-    };
-    return colors[priority as keyof typeof colors] || 'default';
-  };
 
   const getTaskStatusColor = (status: string) => {
     const colors = {
@@ -226,7 +209,7 @@ export const ProjectDetailPage: React.FC = () => {
             <Title level={2} style={{ margin: 0 }}>
               {project.name}
             </Title>
-            <Tag color={getStatusColor(project.status)} style={{ fontSize: '14px', padding: '4px 12px' }}>
+            <Tag color={getProjectStatusColor(project.status)} style={{ fontSize: '14px', padding: '4px 12px' }}>
               {ProjectStatusLabels[project.status as keyof typeof ProjectStatusLabels]}
             </Tag>
             <Tag color={getPriorityColor(project.priority)} style={{ fontSize: '14px', padding: '4px 12px' }}>
@@ -469,6 +452,34 @@ export const ProjectDetailPage: React.FC = () => {
                       />
                     )}
 
+                    {/* PMO Quick Actions */}
+                    <Card title="PMO & Analytics" style={{ marginTop: '24px' }}>
+                      <Space direction="vertical" style={{ width: '100%' }}>
+                        <Button 
+                          type="primary" 
+                          icon={<FundOutlined />}
+                          onClick={() => navigate(`/pmo?project=${project.id}`)}
+                          block
+                        >
+                          Open PMO Dashboard
+                        </Button>
+                        <Button 
+                          icon={<ProjectOutlined />}
+                          onClick={() => setActiveTab('pmo')}
+                          block
+                        >
+                          View PMO Analytics Tab
+                        </Button>
+                        <Button 
+                          icon={<CalendarOutlined />}
+                          onClick={() => navigate(`/pmo/gantt/${project.id}`)}
+                          block
+                        >
+                          View Gantt Timeline
+                        </Button>
+                      </Space>
+                    </Card>
+
                     {/* Timeline Info */}
                     {(project.start_date && project.end_date) && (
                       <Card title="Timeline" style={{ marginTop: '24px' }}>
@@ -541,6 +552,24 @@ export const ProjectDetailPage: React.FC = () => {
                     maxImages={100}
                   />
                 </div>
+              )
+            },
+            {
+              key: 'pmo',
+              label: (
+                <span>
+                  <FundOutlined />
+                  PMO Analytics
+                </span>
+              ),
+              children: (
+                <ProjectPMOView
+                  projectId={project.id}
+                  projectName={project.name}
+                  projectStatus={project.status}
+                  startDate={project.start_date}
+                  endDate={project.end_date}
+                />
               )
             }
           ]}

@@ -37,6 +37,7 @@ import {
   ImportOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import { getSupportStatusColor, getPriorityColor, getGenericStatusColor } from '@/utils';
 import dayjs from 'dayjs';
 import { apiService } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
@@ -453,7 +454,7 @@ const SupportPage: React.FC = () => {
                   <Text type="secondary">${company.hourly_rate_extra.toLocaleString()}/hora extra</Text><br />
                 </>
               )}
-              <Tag color={getStatusColor(company.status)}>
+              <Tag color={getGenericStatusColor(company.status)}>
                 {company.status === 'active' ? 'Activo' : company.status === 'inactive' ? 'Inactivo' : 'Suspendido'}
               </Tag>
             </Col>
@@ -573,7 +574,7 @@ const SupportPage: React.FC = () => {
             </Col>
             <Col span={8}>
               <Text strong>Estado:</Text><br />
-              <Tag color={getTicketStatusColor(ticket.status)}>
+              <Tag color={getSupportStatusColor(ticket.status)}>
                 {ticket.status === 'open' ? 'Abierto' :
                  ticket.status === 'in_progress' ? 'En Progreso' :
                  ticket.status === 'resolved' ? 'Resuelto' :
@@ -620,36 +621,6 @@ const SupportPage: React.FC = () => {
     });
   };
 
-  // Utility functions
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active': return 'green';
-      case 'inactive': return 'red';
-      case 'suspended': return 'orange';
-      default: return 'default';
-    }
-  };
-
-  const getTicketStatusColor = (status: string) => {
-    switch (status) {
-      case 'open': return 'blue';
-      case 'in_progress': return 'orange';
-      case 'resolved': return 'green';
-      case 'closed': return 'gray';
-      case 'cancelled': return 'red';
-      default: return 'default';
-    }
-  };
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'critical': return 'red';
-      case 'high': return 'orange';
-      case 'medium': return 'blue';
-      case 'low': return 'green';
-      default: return 'default';
-    }
-  };
 
   const getConsumptionStatus = (consumed: number, contracted: number) => {
     const percentage = (consumed / contracted) * 100;
@@ -735,7 +706,7 @@ const SupportPage: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       render: (status) => (
-        <Tag color={getStatusColor(status)}>
+        <Tag color={getGenericStatusColor(status)}>
           {status === 'active' ? 'Activo' : status === 'inactive' ? 'Inactivo' : 'Suspendido'}
         </Tag>
       )
@@ -820,7 +791,7 @@ const SupportPage: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       render: (status) => (
-        <Tag color={getTicketStatusColor(status)}>
+        <Tag color={getSupportStatusColor(status)}>
           {status === 'open' ? 'Abierto' :
            status === 'in_progress' ? 'En Progreso' :
            status === 'resolved' ? 'Resuelto' :
