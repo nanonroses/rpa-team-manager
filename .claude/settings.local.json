@@ -24,7 +24,11 @@
       "Bash(npx sqlite3:*)",
       "Bash(del add_column.js)",
       "mcp__ide__getDiagnostics",
-      "Bash(npx ts-node:*)"
+      "Bash(npx ts-node:*)",
+      "Bash(rg:*)",
+      "Bash(mcp__ide__getDiagnostics:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

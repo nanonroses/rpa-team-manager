@@ -69,6 +69,15 @@ interface SupportCompany {
   contract_end_date?: string;
   address?: string;
   notes?: string;
+  monthly_billing?: {
+    total_to_invoice_clp: number;
+    base_hours_value_clp: number;
+    extra_hours_value_clp: number;
+    consumed_hours: number;
+    base_hours: number;
+    extra_hours: number;
+    selected_month: string;
+  };
 }
 
 interface SupportTicket {
@@ -162,10 +171,12 @@ const SupportPage: React.FC = () => {
     }
   }, [activeTab]);
 
-  // Reload dashboard when month changes
+  // Reload dashboard and companies when month changes
   useEffect(() => {
     if (activeTab === 'dashboard') {
       loadDashboardData();
+    } else if (activeTab === 'companies') {
+      loadCompanies();
     }
   }, [selectedMonth]);
 
@@ -236,7 +247,8 @@ const SupportPage: React.FC = () => {
   const loadCompanies = async () => {
     setLoading(true);
     try {
-      const response = await apiService.getSupportCompanies();
+      const monthParam = selectedMonth.format('YYYY-MM');
+      const response = await apiService.getSupportCompanies({ month: monthParam });
       setCompanies(response.data || []);
     } catch (error) {
       console.error('Error loading companies:', error);
@@ -702,6 +714,32 @@ const SupportPage: React.FC = () => {
       )
     },
     {
+      title: 'Total a Cobrar en el Mes',
+      key: 'monthly_billing',
+      render: (_, record) => {
+        const billing = record.monthly_billing;
+        if (!billing || billing.total_to_invoice_clp === 0) {
+          return <Text type="secondary">$0</Text>;
+        }
+        
+        return (
+          <div>
+            <div>
+              <Text strong style={{ color: '#52c41a' }}>
+                CLP ${billing.total_to_invoice_clp.toLocaleString()}
+              </Text>
+            </div>
+            <div style={{ fontSize: '12px', color: '#666' }}>
+              Base: ${billing.base_hours_value_clp.toLocaleString()}
+              {billing.extra_hours_value_clp > 0 && (
+                <span> + Extra: ${billing.extra_hours_value_clp.toLocaleString()}</span>
+              )}
+            </div>
+          </div>
+        );
+      }
+    },
+    {
       title: 'Estado',
       dataIndex: 'status',
       key: 'status',
@@ -998,33 +1036,59 @@ const SupportPage: React.FC = () => {
             key: 'companies',
             label: 'Empresas',
             children: (
-              <Card>
-                <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
-                  <Title level={4}>Empresas Clientes</Title>
-                  <div style={{ display: 'flex', gap: '8px' }}>
-                    <Button 
-                      icon={<ImportOutlined />}
-                      onClick={() => setImportModalVisible(true)}
-                    >
-                      Importar Excel
-                    </Button>
-                    <Button 
-                      type="primary" 
-                      icon={<PlusOutlined />}
-                      onClick={() => openCompanyModal()}
-                    >
-                      Nueva Empresa
-                    </Button>
+              <div>
+                {/* Month Selector */}
+                <Row gutter={[16, 16]} style={{ marginBottom: '16px' }}>
+                  <Col span={24}>
+                    <Card size="small">
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          <Text strong>📅 Mes para Facturación:</Text>
+                          <DatePicker
+                            picker="month"
+                            value={selectedMonth}
+                            onChange={(date) => date && setSelectedMonth(date)}
+                            format="MMMM YYYY"
+                            allowClear={false}
+                            style={{ width: '200px' }}
+                          />
+                        </div>
+                        <Text type="secondary">
+                          Mostrando totales de facturación de: {selectedMonth.format('MMMM YYYY')}
+                        </Text>
+                      </div>
+                    </Card>
+                  </Col>
+                </Row>
+
+                <Card>
+                  <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
+                    <Title level={4}>Empresas Clientes</Title>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <Button 
+                        icon={<ImportOutlined />}
+                        onClick={() => setImportModalVisible(true)}
+                      >
+                        Importar Excel
+                      </Button>
+                      <Button 
+                        type="primary" 
+                        icon={<PlusOutlined />}
+                        onClick={() => openCompanyModal()}
+                      >
+                        Nueva Empresa
+                      </Button>
+                    </div>
                   </div>
-                </div>
-                <Table
-                  columns={companyColumns}
-                  dataSource={companies}
-                  rowKey="id"
-                  loading={loading}
-                  pagination={{ pageSize: 10 }}
-                />
-              </Card>
+                  <Table
+                    columns={companyColumns}
+                    dataSource={companies}
+                    rowKey="id"
+                    loading={loading}
+                    pagination={{ pageSize: 10 }}
+                  />
+                </Card>
+              </div>
             )
           },
           {

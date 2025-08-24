@@ -319,6 +319,7 @@ class ApiService {
     if (filters?.search) params.append('search', filters.search);
     if (filters?.page) params.append('page', filters.page.toString());
     if (filters?.limit) params.append('limit', filters.limit.toString());
+    if (filters?.month) params.append('month', filters.month);
     
     const response = await this.api.get(`/support/companies${params.toString() ? '?' + params.toString() : ''}`);
     return response.data;
@@ -460,6 +461,11 @@ class ApiService {
 
   async deleteMilestone(milestoneId: number): Promise<any> {
     const response = await this.api.delete(`/pmo/milestones/${milestoneId}`);
+    return response.data;
+  }
+
+  async getProjectPMOMetrics(projectId: number): Promise<any> {
+    const response = await this.api.get(`/pmo/projects/${projectId}/metrics`);
     return response.data;
   }
 

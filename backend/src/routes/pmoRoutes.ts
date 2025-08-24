@@ -25,6 +25,9 @@ router.get('/analytics', pmoController.getPMOAnalytics);
 // GET /api/pmo/projects/:id/gantt - Gantt chart data for specific project
 router.get('/projects/:id/gantt', pmoController.getProjectGantt);
 
+// GET /api/pmo/projects/:id/metrics - Project-specific PMO metrics and analytics
+router.get('/projects/:id/metrics', pmoController.getProjectPMOMetrics);
+
 // ========================================
 // MILESTONES MANAGEMENT ROUTES
 // ========================================

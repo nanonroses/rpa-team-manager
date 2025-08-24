@@ -38,7 +38,10 @@ export class SupportController {
     // GET /api/support/companies
     getSupportCompanies = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
-            const { status, search, page = '1', limit = '50' } = req.query;
+            const { status, search, page = '1', limit = '50', month } = req.query;
+            
+            // Default to current month if not specified for billing calculations
+            const selectedMonth = month || new Date().toISOString().slice(0, 7); // YYYY-MM format
             
             let query = `
                 SELECT sc.*, 
@@ -56,14 +59,18 @@ export class SupportController {
                 ) t ON sc.id = t.company_id
                 LEFT JOIN (
                     SELECT st.company_id,
-                           SUM(st.time_invested_minutes / 60.0) as current_month_consumed_hours
+                           SUM(
+                               CASE WHEN strftime('%Y-%m', st.close_date) = ? OR strftime('%Y-%m', st.open_date) = ?
+                               THEN st.time_invested_minutes / 60.0 
+                               ELSE 0 END
+                           ) as current_month_consumed_hours
                     FROM support_tickets st
                     GROUP BY st.company_id
                 ) h ON sc.id = h.company_id
                 WHERE 1=1
             `;
 
-            const params: any[] = [];
+            const params: any[] = [selectedMonth, selectedMonth];
 
             if (status) {
                 query += ' AND sc.status = ?';
@@ -82,6 +89,35 @@ export class SupportController {
             params.push(parseInt(limit as string), offset);
 
             const companies = await db.query(query, params);
+
+            // Calculate monthly billing for each company
+            for (const company of companies) {
+                const consumedHours = company.current_month_consumed_hours || 0;
+                const contractedHours = company.contracted_hours_monthly || 0;
+                
+                // Always bill contracted hours + any extra hours consumed
+                const baseHours = contractedHours;
+                const extraHours = Math.max(0, consumedHours - contractedHours);
+                
+                const baseValueInOriginalCurrency = baseHours * (company.hourly_rate || 0);
+                const extraValueInOriginalCurrency = extraHours * (company.hourly_rate_extra || company.hourly_rate || 0);
+                
+                // Convert to CLP
+                const baseValueInCLP = await this.convertToCLP(baseValueInOriginalCurrency, company.hourly_rate_currency);
+                const extraValueInCLP = await this.convertToCLP(extraValueInOriginalCurrency, company.hourly_rate_currency);
+                const totalToInvoiceInCLP = baseValueInCLP + extraValueInCLP;
+
+                // Add billing info to company object
+                company.monthly_billing = {
+                    total_to_invoice_clp: Math.round(totalToInvoiceInCLP),
+                    base_hours_value_clp: Math.round(baseValueInCLP),
+                    extra_hours_value_clp: Math.round(extraValueInCLP),
+                    consumed_hours: consumedHours,
+                    base_hours: baseHours,
+                    extra_hours: extraHours,
+                    selected_month: selectedMonth
+                };
+            }
 
             // Get total count for pagination
             let countQuery = 'SELECT COUNT(*) as total FROM support_companies WHERE 1=1';

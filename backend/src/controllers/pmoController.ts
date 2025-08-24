@@ -699,4 +699,201 @@ export class PMOController {
             res.status(500).json({ error: 'Failed to get PMO analytics' });
         }
     };
+
+    // GET /api/pmo/projects/:id/metrics - Project-specific PMO metrics
+    getProjectPMOMetrics = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.id);
+
+            if (!projectId) {
+                res.status(400).json({ error: 'Invalid project ID' });
+                return;
+            }
+
+            // Get project with PMO metrics
+            const projectMetrics = await db.get(`
+                SELECT 
+                    p.id,
+                    p.name,
+                    p.description,
+                    p.status,
+                    p.priority,
+                    p.start_date,
+                    p.end_date,
+                    p.budget,
+                    u.full_name as assigned_to_name,
+                    
+                    -- PMO Metrics
+                    pm.completion_percentage,
+                    pm.schedule_variance_days,
+                    pm.cost_variance_percentage,
+                    pm.risk_level,
+                    pm.planned_hours,
+                    pm.actual_hours,
+                    pm.planned_budget,
+                    pm.actual_cost,
+                    pm.team_velocity,
+                    pm.bugs_found,
+                    pm.bugs_resolved,
+                    pm.client_satisfaction_score,
+                    pm.last_updated as metrics_last_updated,
+                    
+                    -- Calculated metrics
+                    CASE 
+                        WHEN pm.schedule_variance_days > 5 OR pm.cost_variance_percentage > 20 OR pm.risk_level = 'critical' THEN 'critical'
+                        WHEN pm.schedule_variance_days > 2 OR pm.cost_variance_percentage > 10 OR pm.risk_level = 'high' THEN 'warning'
+                        ELSE 'healthy'
+                    END as project_health_status,
+                    
+                    -- Days until deadline
+                    CASE 
+                        WHEN p.end_date IS NOT NULL THEN 
+                            CAST((julianday(p.end_date) - julianday('now')) AS INTEGER)
+                        ELSE NULL
+                    END as days_to_deadline,
+                    
+                    -- Progress ratio
+                    CASE 
+                        WHEN pm.planned_hours > 0 THEN 
+                            ROUND((pm.actual_hours * 100.0) / pm.planned_hours, 2)
+                        ELSE NULL
+                    END as hours_completion_ratio,
+                    
+                    -- Budget utilization
+                    CASE 
+                        WHEN pm.planned_budget > 0 THEN 
+                            ROUND((pm.actual_cost * 100.0) / pm.planned_budget, 2)
+                        ELSE NULL
+                    END as budget_utilization_percentage
+
+                FROM projects p
+                LEFT JOIN project_pmo_metrics pm ON p.id = pm.project_id
+                LEFT JOIN users u ON p.assigned_to = u.id
+                WHERE p.id = ?
+            `, [projectId]);
+
+            if (!projectMetrics) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+
+            // Get milestones for this project
+            const milestones = await db.query(`
+                SELECT 
+                    id,
+                    name as title,
+                    description,
+                    planned_date as due_date,
+                    status,
+                    actual_date as completion_date,
+                    created_at
+                FROM project_milestones 
+                WHERE project_id = ?
+                ORDER BY planned_date ASC
+            `, [projectId]);
+
+            // Get recent risks/alerts for this project
+            const risks = await db.query(`
+                SELECT 
+                    'schedule_delay' as risk_type,
+                    'Schedule Delay' as risk_title,
+                    'Project is ' || ABS(pm.schedule_variance_days) || ' days behind schedule' as risk_description,
+                    CASE 
+                        WHEN pm.schedule_variance_days < -10 THEN 'critical'
+                        WHEN pm.schedule_variance_days < -3 THEN 'high'
+                        ELSE 'medium'
+                    END as severity,
+                    pm.last_updated as detected_date
+                FROM project_pmo_metrics pm
+                WHERE pm.project_id = ? AND pm.schedule_variance_days < -1
+                
+                UNION ALL
+                
+                SELECT 
+                    'budget_overrun' as risk_type,
+                    'Budget Overrun' as risk_title,
+                    'Project is ' || ROUND(pm.cost_variance_percentage, 1) || '% over budget' as risk_description,
+                    CASE 
+                        WHEN pm.cost_variance_percentage > 25 THEN 'critical'
+                        WHEN pm.cost_variance_percentage > 15 THEN 'high'
+                        WHEN pm.cost_variance_percentage > 5 THEN 'medium'
+                        ELSE 'low'
+                    END as severity,
+                    pm.last_updated as detected_date
+                FROM project_pmo_metrics pm
+                WHERE pm.project_id = ? AND pm.cost_variance_percentage > 5
+                
+                UNION ALL
+                
+                SELECT 
+                    'quality_issues' as risk_type,
+                    'Quality Concerns' as risk_title,
+                    'High bug ratio: ' || pm.bugs_found || ' found, ' || pm.bugs_resolved || ' resolved' as risk_description,
+                    CASE 
+                        WHEN (pm.bugs_found - pm.bugs_resolved) > 10 THEN 'critical'
+                        WHEN (pm.bugs_found - pm.bugs_resolved) > 5 THEN 'high'
+                        ELSE 'medium'
+                    END as severity,
+                    pm.last_updated as detected_date
+                FROM project_pmo_metrics pm
+                WHERE pm.project_id = ? AND (pm.bugs_found - pm.bugs_resolved) > 3
+                
+                ORDER BY severity DESC, detected_date DESC
+                LIMIT 10
+            `, [projectId, projectId, projectId]);
+
+            // Get team performance metrics
+            const teamMetrics = await db.get(`
+                SELECT 
+                    COUNT(DISTINCT te.user_id) as team_size,
+                    ROUND(AVG(te.hours), 2) as avg_daily_hours,
+                    SUM(te.hours) as total_hours_logged,
+                    COUNT(DISTINCT DATE(te.date)) as active_days
+                FROM time_entries te
+                JOIN projects p ON te.project_id = p.id
+                WHERE te.project_id = ?
+                    AND te.date >= datetime('now', '-30 days')
+            `, [projectId]);
+
+            // Calculate key performance indicators
+            const kpis = {
+                schedule_performance: projectMetrics.schedule_variance_days ? 
+                    (projectMetrics.schedule_variance_days > 0 ? 'ahead' : 
+                     projectMetrics.schedule_variance_days < -5 ? 'critical_delay' : 'minor_delay') : 'on_track',
+                
+                budget_performance: projectMetrics.cost_variance_percentage ? 
+                    (projectMetrics.cost_variance_percentage > 15 ? 'critical_overrun' :
+                     projectMetrics.cost_variance_percentage > 5 ? 'minor_overrun' : 'within_budget') : 'within_budget',
+                
+                quality_score: projectMetrics.bugs_found ? 
+                    Math.max(0, 100 - ((projectMetrics.bugs_found - projectMetrics.bugs_resolved) * 10)) : 100,
+                
+                team_productivity: projectMetrics.team_velocity || 'N/A',
+                
+                client_satisfaction: projectMetrics.client_satisfaction_score || 'Not rated'
+            };
+
+            logger.info(`PMO metrics retrieved for project: ${projectMetrics.name} (ID: ${projectId})`);
+
+            res.json({
+                project: projectMetrics,
+                milestones: {
+                    total: milestones.length,
+                    completed: milestones.filter((m: any) => m.status === 'completed').length,
+                    upcoming: milestones.filter((m: any) => 
+                        m.status !== 'completed' && new Date(m.due_date) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+                    ).length,
+                    list: milestones
+                },
+                risks: risks,
+                team: teamMetrics,
+                kpis: kpis,
+                alerts: risks.filter((r: any) => r.severity === 'critical' || r.severity === 'high')
+            });
+
+        } catch (error) {
+            logger.error(`Get project PMO metrics error for project ${req.params.id}:`, error);
+            res.status(500).json({ error: 'Failed to get project PMO metrics' });
+        }
+    };
 }
