@@ -116,7 +116,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
       <Space direction="vertical" style={{ width: '100%' }} size="small">
         {/* Status and Priority */}
         <Space>
-          <Tag color={getStatusColor(project.status)}>
+          <Tag color={getProjectStatusColor(project.status)}>
             {ProjectStatusLabels[project.status]}
           </Tag>
           <Tag color={getPriorityColor(project.priority)}>
