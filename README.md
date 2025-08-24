@@ -211,7 +211,15 @@ rpa-team-manager/
 ├── backend/           # Node.js API
 ├── database/          # SQLite database and migrations
 ├── docker/            # Docker configurations
-├── docs/              # Documentation
+├── docs/              # 📖 Complete Documentation
+│   ├── pmo-api.md                    # PMO Analytics API Documentation
+│   ├── support-api.md                # Support & Billing API Documentation  
+│   ├── database-schema.md            # Complete Database Schema
+│   ├── feature-pmo-analytics.md      # PMO Analytics Feature Guide
+│   ├── feature-support-billing.md    # Support Billing Feature Guide
+│   ├── user-guide-support.md         # Support User Guide
+│   ├── component-project-pmo-view.md # PMO Component Documentation
+│   └── development-setup.md          # Development Setup Guide
 ├── scripts/           # Backup and maintenance scripts
 └── docker-compose.yml # Main deployment configuration
 ```
@@ -357,7 +365,13 @@ Para dudas técnicas o problemas:
 2. Verificar health check: `http://localhost:5001/health`
 3. Consultar este README
 4. Revisar [CHANGELOG.md](CHANGELOG.md) para historial de cambios
-5. Contactar al IT Support del equipo
+5. **📖 Documentación Completa**: Revisar carpeta `/docs/` para guías detalladas:
+   - **API**: `docs/pmo-api.md`, `docs/support-api.md`
+   - **Features**: `docs/feature-pmo-analytics.md`, `docs/feature-support-billing.md`
+   - **User Guides**: `docs/user-guide-support.md`
+   - **Development**: `docs/development-setup.md`
+   - **Database**: `docs/database-schema.md`
+6. Contactar al IT Support del equipo
 
 ---
 

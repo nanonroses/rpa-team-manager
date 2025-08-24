@@ -100,6 +100,13 @@ function App() {
                 </ProtectedRoute>
               } />
               
+              {/* PMO Gantt for specific projects - accessible by developers */}
+              <Route path="pmo/gantt/:id" element={
+                <ProtectedRoute requiredRoles={['team_lead', 'rpa_operations', 'rpa_developer']}>
+                  <PMODashboard ganttMode={true} />
+                </ProtectedRoute>
+              } />
+              
               {/* Admin (Team Lead only) */}
               <Route path="admin" element={
                 <ProtectedRoute requiredRoles={['team_lead']}>

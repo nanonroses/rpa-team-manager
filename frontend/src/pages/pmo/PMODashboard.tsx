@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'react-router-dom';
 import {
   Card,
   Row,
@@ -82,8 +83,13 @@ interface PMOAnalytics {
   riskDistribution: any[];
 }
 
-export const PMODashboard: React.FC = () => {
+interface PMODashboardProps {
+  ganttMode?: boolean;
+}
+
+export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false }) => {
   const { user } = useAuthStore();
+  const { id: projectIdParam } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<PMODashboardData | null>(null);
   const [analytics, setAnalytics] = useState<PMOAnalytics | null>(null);
@@ -99,13 +105,20 @@ export const PMODashboard: React.FC = () => {
   const [editForm] = Form.useForm();
   const [taskModalVisible, setTaskModalVisible] = useState(false);
   const [taskForm] = Form.useForm();
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(ganttMode ? 'gantt' : 'overview');
 
   useEffect(() => {
     loadDashboardData();
     loadAnalytics();
     loadDropdownData();
-  }, []);
+    
+    // If in gantt mode, set the project ID and load gantt data
+    if (ganttMode && projectIdParam) {
+      const projectId = parseInt(projectIdParam, 10);
+      setSelectedProjectId(projectId);
+      loadGanttData(projectId);
+    }
+  }, [ganttMode, projectIdParam]);
 
   const loadDashboardData = async () => {
     try {
