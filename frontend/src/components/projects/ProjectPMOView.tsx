@@ -90,7 +90,7 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
   const [loading, setLoading] = useState(true);
   const [pmoMetrics, setPmoMetrics] = useState<PMOMetrics | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [ganttData, setGanttData] = useState<any>(null);
+  const [ganttData] = useState<any>(null);
   const [error, setError] = useState<ErrorState>({
     hasError: false,
     errorMessage: '',
@@ -110,31 +110,30 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
       // Load PMO metrics for this specific project
       const pmoData = await apiService.getProjectPMOMetrics(projectId);
       
-      if (pmoData && pmoData.success) {
-        // Set PMO metrics
-        if (pmoData.data.metrics) {
-          setPmoMetrics({
-            completion_percentage: pmoData.data.metrics.completion_percentage || 0,
-            schedule_variance_days: pmoData.data.metrics.schedule_variance_days || 0,
-            cost_variance_percentage: pmoData.data.metrics.cost_variance_percentage || 0,
-            risk_level: pmoData.data.metrics.risk_level || 'low',
-            team_velocity: pmoData.data.metrics.team_velocity || 0,
-            bugs_found: pmoData.data.metrics.bugs_found || 0,
-            bugs_resolved: pmoData.data.metrics.bugs_resolved || 0,
-            actual_hours: pmoData.data.metrics.actual_hours || 0,
-            planned_hours: pmoData.data.metrics.planned_hours || 0
-          });
-        }
+      if (pmoData && pmoData.project) {
+        // Set PMO metrics from project data
+        const project = pmoData.project;
+        setPmoMetrics({
+          completion_percentage: project.completion_percentage || 0,
+          schedule_variance_days: project.schedule_variance_days || 0,
+          cost_variance_percentage: project.cost_variance_percentage || 0,
+          risk_level: project.risk_level || 'low',
+          team_velocity: project.team_velocity || 0,
+          bugs_found: project.bugs_found || 0,
+          bugs_resolved: project.bugs_resolved || 0,
+          actual_hours: project.actual_hours || 0,
+          planned_hours: project.planned_hours || 0
+        });
 
         // Set milestones from PMO data
-        if (pmoData.data.milestones) {
-          setMilestones(pmoData.data.milestones);
+        if (pmoData.milestones && pmoData.milestones.list) {
+          setMilestones(pmoData.milestones.list);
         }
 
-        // Set gantt data if available
-        if (pmoData.data.gantt) {
-          setGanttData(pmoData.data.gantt);
-        }
+        // Set gantt data if available (future implementation)
+        // if (pmoData.gantt) {
+        //   setGanttData(pmoData.gantt);
+        // }
 
         // Reset retry count on successful load
         setRetryCount(0);
@@ -142,7 +141,7 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
         // Handle case where response is not successful
         setError({
           hasError: true,
-          errorMessage: pmoData?.message || 'Invalid response from server',
+          errorMessage: 'Invalid response from server',
           errorType: 'data'
         });
       }
@@ -214,7 +213,8 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
         try {
           const ganttResponse = await apiService.getProjectGantt(projectId);
           if (ganttResponse) {
-            setGanttData(ganttResponse);
+            // Future implementation for gantt data
+            // setGanttData(ganttResponse);
             if (ganttResponse && ganttResponse.milestones) {
               setMilestones(ganttResponse.milestones);
             }
