@@ -199,7 +199,7 @@ class ApiService {
   }
 
   async getProjectGantt(id: number): Promise<{ tasks: any[]; dependencies: any[] }> {
-    const response = await this.api.get(`/projects/${id}/gantt`);
+    const response = await this.api.get(`/pmo/projects/${id}/gantt`);
     return response.data;
   }
 

@@ -130,7 +130,41 @@ export class PMOController {
 
             // Get project basic info
             const project = await db.get(`
-                SELECT p.*, pm.* FROM projects p
+                SELECT 
+                    p.id,
+                    p.name,
+                    p.description,
+                    p.status,
+                    p.priority,
+                    p.budget,
+                    p.start_date,
+                    p.end_date,
+                    p.actual_start_date,
+                    p.actual_end_date,
+                    p.progress_percentage,
+                    p.created_by,
+                    p.assigned_to,
+                    p.created_at,
+                    p.updated_at,
+                    pm.planned_hours,
+                    pm.planned_start_date,
+                    pm.planned_end_date,
+                    pm.planned_budget,
+                    pm.actual_hours,
+                    pm.actual_cost,
+                    pm.completion_percentage as pmo_completion_percentage,
+                    pm.schedule_variance_days,
+                    pm.cost_variance_percentage,
+                    pm.scope_variance_percentage,
+                    pm.risk_level,
+                    pm.risk_factors,
+                    pm.bugs_found,
+                    pm.bugs_resolved,
+                    pm.client_satisfaction_score,
+                    pm.team_velocity,
+                    pm.last_updated,
+                    pm.updated_by
+                FROM projects p
                 LEFT JOIN project_pmo_metrics pm ON p.id = pm.project_id
                 WHERE p.id = ?
             `, [id]);
