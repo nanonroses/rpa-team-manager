@@ -93,7 +93,7 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
   };
 
   // Helper to determine if we should show real vs planned data
-  const hasClientDelays = roiData?.client_delay_hours > 0;
+  const hasClientDelays = (roiData?.client_delay_hours ?? 0) > 0;
   const shouldShowReal = hasClientDelays;
   
   // Get the appropriate values to display

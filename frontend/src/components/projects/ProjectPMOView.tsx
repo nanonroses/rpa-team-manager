@@ -215,8 +215,10 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
           if (ganttResponse) {
             // Future implementation for gantt data
             // setGanttData(ganttResponse);
-            if (ganttResponse && ganttResponse.milestones) {
-              setMilestones(ganttResponse.milestones);
+            // Note: getProjectGantt only returns tasks and dependencies
+            // Milestones should be loaded separately via getPMOProjectGantt
+            if (ganttResponse && ganttResponse.tasks) {
+              console.log('Loaded fallback gantt tasks:', ganttResponse.tasks.length);
             }
             message.info('Loaded basic milestone data as fallback');
           }
