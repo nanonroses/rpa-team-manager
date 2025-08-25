@@ -493,13 +493,15 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
         await apiService.updateMilestone(editingItem.id, updateData);
         message.success(`Hito actualizado: ${values.name}`);
       } else {
-        // Task update - for now just show success message since we don't have task update API
-        message.success(`Tarea actualizada: ${values.title}`);
-        console.log('Task update would send:', {
+        // Task update - use real updateTask API
+        const updateData = {
           ...values,
-          start_date: values.start_date ? values.start_date.format('YYYY-MM-DD') : values.start_date,
-          due_date: values.due_date ? values.due_date.format('YYYY-MM-DD') : values.due_date
-        });
+          start_date: values.start_date ? values.start_date.format('YYYY-MM-DD') : null,
+          due_date: values.due_date ? values.due_date.format('YYYY-MM-DD') : null
+        };
+        console.log('🔄 Updating task with data:', updateData);
+        await apiService.updateTask(editingItem.id, updateData);
+        message.success(`Tarea actualizada: ${values.title}`);
       }
       setEditModalVisible(false);
       setEditingItem(null);

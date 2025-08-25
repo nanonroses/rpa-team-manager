@@ -334,6 +334,7 @@ export class TaskController {
         assignee_id,
         estimated_hours,
         story_points,
+        start_date,
         due_date,
         column_id,
         position
@@ -390,12 +391,13 @@ export class TaskController {
             assignee_id = COALESCE(?, assignee_id),
             estimated_hours = COALESCE(?, estimated_hours),
             story_points = COALESCE(?, story_points),
+            start_date = COALESCE(?, start_date),
             due_date = COALESCE(?, due_date),
             updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `, [
         title, description, task_type, status, priority,
-        assignee_id, estimated_hours, story_points, due_date, id
+        assignee_id, estimated_hours, story_points, start_date, due_date, id
       ]);
 
       // Get updated task
