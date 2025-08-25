@@ -117,6 +117,8 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   // Refs to prevent multiple simultaneous API calls
   const loadingDashboard = useRef(false);
   const loadingGantt = useRef(false);
+  const deletingItems = useRef(new Set<number>()); // Track items being deleted
+  const pendingReload = useRef<NodeJS.Timeout | null>(null); // Debounced reload
 
   // Parse Mermaid code and extract tasks/milestones
   const parseMermaidCode = (mermaidCode: string) => {
@@ -383,6 +385,46 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
     };
   }, [editModalVisible, editingItem]);
 
+  // Debounced reload function to prevent concurrent reloads during rapid deletions
+  const scheduleReload = () => {
+    console.log('📅 Scheduling debounced reload...');
+    
+    // Clear any existing pending reload
+    if (pendingReload.current) {
+      clearTimeout(pendingReload.current);
+      console.log('🗑️ Cancelled previous pending reload');
+    }
+
+    // Schedule new reload with delay
+    pendingReload.current = setTimeout(async () => {
+      console.log('🔄 Executing debounced reload');
+      try {
+        // Reload dashboard data first
+        await loadDashboardData();
+        
+        // Then reload gantt data if we have a selected project
+        if (selectedProjectId && !loadingGantt.current) {
+          console.log('🔄 Reloading Gantt data after deletion');
+          await loadGanttData(selectedProjectId);
+        }
+        console.log('✅ Debounced reload completed successfully');
+      } catch (error) {
+        console.error('❌ Error in debounced reload:', error);
+        // Try recovery if reload fails
+        if (selectedProjectId) {
+          setTimeout(() => {
+            console.log('🔄 Retry reload after error');
+            if (selectedProjectId && !loadingGantt.current) {
+              loadGanttData(selectedProjectId);
+            }
+          }, 2000);
+        }
+      } finally {
+        pendingReload.current = null;
+      }
+    }, 500); // Wait 500ms before reloading to batch multiple quick deletions
+  };
+
   const loadDashboardData = async () => {
     if (loadingDashboard.current) return;
     
@@ -580,6 +622,13 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   };
 
   const handleDeleteItem = async (record: any) => {
+    // Prevent deleting the same item multiple times
+    if (deletingItems.current.has(record.id)) {
+      console.log('⚠️ Item already being deleted, skipping:', record.id);
+      message.warning('Este elemento ya se está eliminando');
+      return;
+    }
+
     Modal.confirm({
       title: `¿Eliminar ${record.type === 'milestone' ? 'hito' : 'tarea'}?`,
       content: `¿Estás seguro de que quieres eliminar "${record.name || record.title}"?`,
@@ -587,27 +636,53 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       okType: 'danger',
       cancelText: 'Cancelar',
       onOk: async () => {
+        // Mark item as being deleted
+        deletingItems.current.add(record.id);
+        console.log(`🗑️ Starting deletion of ${record.type}:`, record.id, record.name || record.title);
+        console.log(`📊 Items currently being deleted:`, Array.from(deletingItems.current));
+        
         try {
           if (record.type === 'milestone') {
             await apiService.deleteMilestone(record.id);
             message.success(`Hito "${record.name}" eliminado exitosamente`);
-            loadDashboardData();
-            // Reload gantt data if we're in gantt view
-            if (selectedProjectId) {
-              loadGanttData(selectedProjectId);
-            }
+            console.log('✅ Milestone deleted successfully:', record.id);
           } else {
             await apiService.deleteTask(record.id);
-            message.success(`Tarea "${record.name}" eliminada exitosamente`);
-            loadDashboardData();
-            // Reload gantt data if we're in gantt view
-            if (selectedProjectId) {
+            message.success(`Tarea "${record.title || record.name}" eliminada exitosamente`);
+            console.log('✅ Task deleted successfully:', record.id);
+          }
+          
+          // Use debounced reload instead of immediate reload
+          console.log('📅 Scheduling reload after deletion');
+          scheduleReload();
+          
+        } catch (error: any) {
+          console.error('❌ CRITICAL ERROR deleting item:', error);
+          console.error('❌ Deletion error details:', {
+            itemType: record.type,
+            itemId: record.id,
+            itemName: record.name || record.title,
+            error: error.message,
+            stack: error.stack,
+            response: error.response?.data
+          });
+          
+          message.error(`Error al eliminar ${record.type === 'milestone' ? 'hito' : 'tarea'}: ${error.message || 'Error desconocido'}`);
+          
+          // Try recovery if deletion failed
+          console.log('🚨 Attempting recovery after failed deletion');
+          setTimeout(() => {
+            if (selectedProjectId && !loadingGantt.current) {
+              console.log('🔄 Recovery: Reloading Gantt data');
               loadGanttData(selectedProjectId);
             }
-          }
-        } catch (error) {
-          console.error('Error deleting item:', error);
-          message.error('Error al eliminar elemento');
+          }, 1000);
+          
+        } finally {
+          // Always remove from deletion tracking
+          deletingItems.current.delete(record.id);
+          console.log(`✅ Removed ${record.id} from deletion tracking`);
+          console.log(`📊 Items still being deleted:`, Array.from(deletingItems.current));
         }
       }
     });
