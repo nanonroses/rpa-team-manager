@@ -18,6 +18,7 @@ import {
   DatePicker, 
   Progress, 
   Typography, 
+  message, 
   Alert,
   Tooltip,
   Divider,
@@ -967,7 +968,6 @@ const SupportPage: React.FC = () => {
                     <Alert
                       message={`Excedido en ${(company.consumed_hours - company.contracted_hours_monthly).toFixed(1)} horas`}
                       type="warning"
-                      size="small"
                       style={{ marginTop: '4px' }}
                     />
                   )}
@@ -1678,7 +1678,8 @@ const SupportPage: React.FC = () => {
         onCancel={() => setImportModalVisible(false)}
         onSuccess={() => {
           setImportModalVisible(false);
-          loadSupportData();
+          loadCompanies();
+          loadTickets();
           message.success('Excel importado exitosamente');
         }}
       />

@@ -385,7 +385,7 @@ export const TasksPage: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
                 <span style={{ marginRight: 8 }}>{getTaskTypeIcon(task.task_type)}</span>
                 <Text strong style={{ flex: 1 }}>{task.title}</Text>
-                <Tag color={getPriorityColor(task.priority)} size="small">
+                <Tag color={getPriorityColor(task.priority)}>
                   {task.priority.toUpperCase()}
                 </Tag>
               </div>
@@ -406,7 +406,7 @@ export const TasksPage: React.FC = () => {
                 
                 {task.due_date && (
                   <Tooltip title={`Vence: ${dayjs(task.due_date).format('DD/MM/YYYY')}`}>
-                    <Tag icon={<CalendarOutlined />} size="small">
+                    <Tag icon={<CalendarOutlined />}>
                       {dayjs(task.due_date).format('DD/MM')}
                     </Tag>
                   </Tooltip>
@@ -414,7 +414,7 @@ export const TasksPage: React.FC = () => {
                 
                 {task.estimated_hours && (
                   <Tooltip title={`Estimado: ${task.estimated_hours}h`}>
-                    <Tag icon={<ClockCircleOutlined />} size="small">
+                    <Tag icon={<ClockCircleOutlined />}>
                       {task.estimated_hours}h
                     </Tag>
                   </Tooltip>
@@ -422,7 +422,7 @@ export const TasksPage: React.FC = () => {
                 
                 {task.total_hours && (
                   <Tooltip title={`Trabajado: ${task.total_hours}h - $${task.total_value?.toLocaleString()}`}>
-                    <Tag icon={<DollarOutlined />} color="green" size="small">
+                    <Tag icon={<DollarOutlined />} color="green">
                       ${task.total_value?.toLocaleString()}
                     </Tag>
                   </Tooltip>
@@ -485,10 +485,11 @@ export const TasksPage: React.FC = () => {
       <Col key={column.id} xs={24} sm={12} lg={6} style={{ marginBottom: 16 }}>
         <Card
           title={
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Badge count={columnTasks.length} showZero>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <Text strong>{column.name}</Text>
-              </Badge>
+                <Badge count={columnTasks.length} showZero style={{ marginTop: '-2px' }} />
+              </div>
               <Button
                 type="text"
                 icon={<PlusOutlined />}

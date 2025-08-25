@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Card,
@@ -21,7 +21,9 @@ import {
   Divider,
   Alert,
   Typography,
-  Tooltip
+  Tooltip,
+  Upload,
+  Drawer
 } from 'antd';
 import {
   ProjectOutlined,
@@ -42,7 +44,10 @@ import {
   ThunderboltOutlined,
   EyeOutlined,
   EditOutlined,
-  DeleteOutlined
+  DeleteOutlined,
+  ImportOutlined,
+  CodeOutlined,
+  FileTextOutlined
 } from '@ant-design/icons';
 import { useAuthStore } from '@/store/authStore';
 import apiService from '@/services/api';
@@ -106,30 +111,217 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   const [taskModalVisible, setTaskModalVisible] = useState(false);
   const [taskForm] = Form.useForm();
   const [activeTab, setActiveTab] = useState(ganttMode ? 'gantt' : 'overview');
+  const [mermaidDrawerVisible, setMermaidDrawerVisible] = useState(false);
+  const [mermaidCode, setMermaidCode] = useState('');
+  
+  // Refs to prevent multiple simultaneous API calls
+  const loadingDashboard = useRef(false);
+  const loadingGantt = useRef(false);
 
+  // Parse Mermaid code and extract tasks/milestones
+  const parseMermaidCode = (mermaidCode: string) => {
+    const lines = mermaidCode.split('\n').map(line => line.trim()).filter(line => line);
+    const tasks: any[] = [];
+    const milestones: any[] = [];
+    
+    for (const line of lines) {
+      // Skip header and empty lines
+      if (line.startsWith('gantt') || line.startsWith('title') || line.startsWith('dateFormat') || !line) {
+        continue;
+      }
+      
+      // Parse section headers as milestones
+      if (line.startsWith('section ')) {
+        const sectionName = line.replace('section ', '').trim();
+        milestones.push({
+          name: sectionName,
+          description: `Hito generado desde diagrama Mermaid: ${sectionName}`,
+          milestone_type: 'delivery',
+          priority: 'medium',
+          impact_on_timeline: 'medium'
+        });
+        continue;
+      }
+      
+      // Parse task lines (format: "Task name :done/active, task-id, start-date, duration")
+      const taskMatch = line.match(/([^:]+)\s*:\s*(done|active|crit)?,?\s*([^,]*),?\s*([^,]*),?\s*([^,]*)/);
+      if (taskMatch) {
+        const [, taskName, status, taskId, startDate, duration] = taskMatch;
+        tasks.push({
+          title: taskName.trim(),
+          description: `Tarea generada desde diagrama Mermaid`,
+          task_type: 'feature',
+          priority: status === 'crit' ? 'high' : 'medium',
+          status: status === 'done' ? 'completed' : 'pending',
+          estimated_hours: duration ? parseInt(duration.replace(/\D/g, '')) || 8 : 8
+        });
+      } else if (line.includes(':')) {
+        // Simple task format: "Task name : status"
+        const [taskName, status] = line.split(':').map(s => s.trim());
+        if (taskName) {
+          tasks.push({
+            title: taskName,
+            description: `Tarea generada desde diagrama Mermaid`,
+            task_type: 'feature',
+            priority: 'medium',
+            status: status === 'done' ? 'completed' : 'pending',
+            estimated_hours: 8
+          });
+        }
+      }
+    }
+    
+    return { tasks, milestones };
+  };
+
+  // Import Mermaid data
+  const handleMermaidImport = async () => {
+    if (!mermaidCode.trim()) {
+      message.warning('Por favor ingresa código Mermaid válido');
+      return;
+    }
+    
+    if (!selectedProjectId) {
+      message.error('Por favor selecciona un proyecto antes de importar');
+      return;
+    }
+    
+    try {
+      const { tasks, milestones } = parseMermaidCode(mermaidCode);
+      
+      if (tasks.length === 0 && milestones.length === 0) {
+        message.warning('No se encontraron tareas ni hitos válidos en el código Mermaid');
+        return;
+      }
+      
+      // Create milestones first
+      let createdMilestones = 0;
+      for (const milestone of milestones) {
+        try {
+          await apiService.createMilestone({
+            ...milestone,
+            project_id: selectedProjectId,
+            responsible_user_id: user?.id,
+            planned_date: dayjs().add(30, 'days').format('YYYY-MM-DD')
+          });
+          createdMilestones++;
+        } catch (error) {
+          console.error('Error creating milestone:', error);
+        }
+      }
+      
+      // Get project board info first using apiService
+      let boardId = null;
+      let columnId = null;
+      try {
+        console.log('Getting boards for project:', selectedProjectId);
+        const boards = await apiService.getTaskBoards(selectedProjectId);
+        console.log('Boards found:', boards);
+        
+        if (boards.length > 0) {
+          boardId = boards[0].id;
+          console.log('Using board ID:', boardId);
+          
+          // Get board details to find a default column
+          const boardData = await apiService.getTaskBoard(boardId);
+          console.log('Board data:', boardData);
+          
+          // Use "To Do" column or first available column
+          const todoColumn = boardData.columns.find((col: any) => col.name === 'To Do');
+          columnId = todoColumn ? todoColumn.id : boardData.columns[0]?.id;
+          console.log('Using column ID:', columnId);
+        } else {
+          console.warn('No boards found for project');
+        }
+      } catch (error) {
+        console.error('Error getting board info:', error);
+      }
+
+      // Create tasks
+      let createdTasks = 0;
+      if (!boardId || !columnId) {
+        console.error('Cannot create tasks: missing boardId or columnId', { boardId, columnId });
+        message.warning('No se pudieron crear las tareas: falta información del tablero');
+      } else {
+        for (const task of tasks) {
+          try {
+            const taskData = {
+              ...task,
+              project_id: selectedProjectId,
+              board_id: boardId,
+              column_id: columnId,
+              assignee_id: user?.id,
+              due_date: dayjs().add(14, 'days').format('YYYY-MM-DD')
+            };
+            console.log('Creating task:', taskData);
+            await apiService.createTask(taskData);
+            createdTasks++;
+          } catch (error) {
+            console.error('Error creating task:', error);
+          }
+        }
+      }
+      
+      message.success(`Importación completada: ${createdTasks} tareas y ${createdMilestones} hitos creados`);
+      setMermaidDrawerVisible(false);
+      setMermaidCode('');
+      
+      // Reload data with a slight delay to ensure backend processes the data
+      setTimeout(async () => {
+        await loadDashboardData();
+        await loadGanttData(selectedProjectId);
+      }, 500);
+      
+    } catch (error) {
+      console.error('Error importing Mermaid:', error);
+      message.error('Error al importar el diagrama Mermaid');
+    }
+  };
+
+  // Load initial data always on mount - no dependencies
   useEffect(() => {
+    console.log('🚀 PMO Dashboard mounted - loading initial data');
     loadDashboardData();
     loadAnalytics();
     loadDropdownData();
-    
-    // If in gantt mode, set the project ID and load gantt data
+  }, []);
+
+  // Handle gantt mode and project param separately
+  useEffect(() => {
     if (ganttMode && projectIdParam) {
       const projectId = parseInt(projectIdParam, 10);
+      console.log('🎯 Gantt mode with project param:', projectId);
       setSelectedProjectId(projectId);
-      loadGanttData(projectId);
     }
   }, [ganttMode, projectIdParam]);
 
+  // Debug projects state changes
+  useEffect(() => {
+    console.log('📋 Projects state updated:', projects.length, 'projects available');
+    console.log('📋 Projects list:', projects.map((p: any) => ({id: p.id, name: p.name})));
+  }, [projects]);
+
   const loadDashboardData = async () => {
+    if (loadingDashboard.current) return;
+    
     try {
+      loadingDashboard.current = true;
       setLoading(true);
+      console.log('📈 Loading PMO dashboard data...');
       const data = await apiService.getPMODashboard();
+      console.log('✅ Dashboard data loaded:', {
+        projects: data?.projects?.length || 0,
+        hasOverallMetrics: !!data?.overallMetrics,
+        upcomingMilestones: data?.upcomingMilestones?.length || 0
+      });
       setDashboardData(data);
-    } catch (error) {
-      console.error('Error loading PMO dashboard:', error);
-      message.error('Error al cargar el dashboard PMO');
+    } catch (error: any) {
+      console.error('❌ Error loading PMO dashboard:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Error al cargar el dashboard PMO';
+      message.error(errorMessage);
     } finally {
       setLoading(false);
+      loadingDashboard.current = false;
     }
   };
 
@@ -137,21 +329,26 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
     try {
       const data = await apiService.getPMOAnalytics();
       setAnalytics(data);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error loading PMO analytics:', error);
+      // Solo mostrar error si es crítico, analytics es opcional
     }
   };
 
   const loadDropdownData = async () => {
     try {
+      console.log('📊 Loading dropdown data (users and projects)...');
       const [usersData, projectsData] = await Promise.all([
         apiService.getUsers(),
         apiService.getProjects()
       ]);
+      console.log('👥 Users loaded:', usersData?.length || 0);
+      console.log('📋 Projects loaded:', projectsData?.length || 0, projectsData?.map((p: any) => ({id: p.id, name: p.name})));
       setUsers(usersData);
       setProjects(projectsData);
     } catch (error) {
-      console.error('Error loading dropdown data:', error);
+      console.error('❌ Error loading dropdown data:', error);
+      message.error('Error cargando datos básicos del dashboard');
     }
   };
 
@@ -198,26 +395,43 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   };
 
   const loadGanttData = async (projectId: number) => {
+    if (loadingGantt.current) return;
+    
     try {
+      loadingGantt.current = true;
       setGanttLoading(true);
       console.log('Loading Gantt data for project:', projectId);
       const data = await apiService.getPMOProjectGantt(projectId);
       console.log('Gantt data received:', data);
+      console.log('Data structure:', {
+        hasProject: !!data?.project,
+        projectName: data?.project?.name,
+        milestoneCount: data?.milestones?.length || 0,
+        taskCount: data?.tasks?.length || 0,
+        isDataTruthy: !!data
+      });
       setGanttData(data);
-      message.success(`Cronograma cargado para proyecto: ${data.project?.name || projectId}`);
-    } catch (error) {
+      console.log('Gantt data state set - data is:', !!data ? 'truthy' : 'falsy');
+      console.log('Gantt data loaded successfully for project:', data.project?.name || projectId);
+    } catch (error: any) {
       console.error('Error loading Gantt data:', error);
-      message.error('Error al cargar datos del cronograma');
+      const errorMessage = error.response?.data?.error || error.message || 'Error al cargar datos del cronograma';
+      message.error(errorMessage);
       setGanttData(null);
+      console.log('Set ganttData to null due to error');
     } finally {
       setGanttLoading(false);
+      loadingGantt.current = false;
     }
   };
 
   useEffect(() => {
+    console.log('selectedProjectId changed to:', selectedProjectId);
     if (selectedProjectId) {
+      console.log('Loading Gantt data for selected project:', selectedProjectId);
       loadGanttData(selectedProjectId);
     } else {
+      console.log('No project selected, clearing Gantt data');
       setGanttData(null);
     }
   }, [selectedProjectId]);
@@ -252,8 +466,13 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
               loadGanttData(selectedProjectId);
             }
           } else {
-            // API de eliminación de tareas no implementada aún en backend
-            message.info(`Eliminación de tareas pendiente de implementar en API`);
+            await apiService.deleteTask(record.id);
+            message.success(`Tarea "${record.name}" eliminada exitosamente`);
+            loadDashboardData();
+            // Reload gantt data if we're in gantt view
+            if (selectedProjectId) {
+              loadGanttData(selectedProjectId);
+            }
           }
         } catch (error) {
           console.error('Error deleting item:', error);
@@ -1393,12 +1612,26 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
             <Card title="Seleccionar Proyecto para Vista Gantt">
               <div style={{ textAlign: 'center', padding: '40px' }}>
                 <Title level={4}>Selecciona un proyecto para abrir la vista Gantt</Title>
+                {projects.length === 0 && !loading && (
+                  <Alert
+                    message="No se encontraron proyectos"
+                    description="No hay proyectos disponibles para mostrar el Gantt Chart. Verifica que existan proyectos en el sistema."
+                    type="warning"
+                    style={{ marginBottom: '20px', textAlign: 'left' }}
+                    showIcon
+                  />
+                )}
                 <Select
                   size="large"
-                  placeholder="Elegir proyecto..."
+                  placeholder={projects.length === 0 ? "Cargando proyectos..." : "Elegir proyecto..."}
                   style={{ width: '300px', marginBottom: '20px' }}
                   value={selectedProjectId}
-                  onChange={setSelectedProjectId}
+                  onChange={(value) => {
+                    console.log('🎯 Project selected:', value);
+                    setSelectedProjectId(value);
+                  }}
+                  loading={projects.length === 0}
+                  notFoundContent={projects.length === 0 ? "Cargando..." : "No hay proyectos"}
                 >
                   {projects.map((project: any) => (
                     <Select.Option key={project.id} value={project.id}>
@@ -1418,7 +1651,10 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                       render: (name: string, record: any) => (
                         <Button 
                           type="link" 
-                          onClick={() => setSelectedProjectId(record.id)}
+                          onClick={() => {
+                            console.log('🎯 Project selected from table:', record.id, name);
+                            setSelectedProjectId(record.id);
+                          }}
                           style={{ padding: 0, height: 'auto', fontWeight: 'bold' }}
                         >
                           {name}
@@ -1464,7 +1700,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                     <div>Preparando vista Gantt del proyecto</div>
                   </div>
                 </Card>
-              ) : ganttData ? (
+              ) : (console.log('Render condition check - ganttData:', !!ganttData, 'ganttLoading:', ganttLoading), ganttData) ? (
                 <div>
                   {/* Header con controles principales */}
                   <Card size="small" style={{ marginBottom: '10px' }}>
@@ -1498,6 +1734,12 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                             onClick={() => setTaskModalVisible(true)}
                           >
                             Nueva Tarea
+                          </Button>
+                          <Button 
+                            icon={<ImportOutlined />}
+                            onClick={() => setMermaidDrawerVisible(true)}
+                          >
+                            Importar Mermaid
                           </Button>
                           <Button>
                             Exportar
@@ -2539,6 +2781,112 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
           </Form.Item>
         </Form>
       </Modal>
+
+      {/* Mermaid Import Drawer */}
+      <Drawer
+        title="Importar Diagrama Mermaid"
+        placement="right"
+        width={600}
+        onClose={() => setMermaidDrawerVisible(false)}
+        open={mermaidDrawerVisible}
+        extra={
+          <Space>
+            <Button onClick={() => setMermaidDrawerVisible(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              type="primary" 
+              onClick={handleMermaidImport}
+            >
+              Importar
+            </Button>
+          </Space>
+        }
+      >
+        <div style={{ marginBottom: '16px' }}>
+          <Alert
+            message="Importar Diagrama Mermaid"
+            description="Pega tu código Mermaid aquí o sube un archivo .mmd para convertirlo automáticamente en tareas y milestones del proyecto."
+            type="info"
+            showIcon
+          />
+        </div>
+
+        <div style={{ marginBottom: '16px' }}>
+          <Typography.Title level={5}>
+            <FileTextOutlined /> Subir archivo Mermaid
+          </Typography.Title>
+          <Upload.Dragger
+            accept=".mmd,.txt"
+            beforeUpload={(file) => {
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                const content = e.target?.result as string;
+                setMermaidCode(content);
+              };
+              reader.readAsText(file);
+              return false;
+            }}
+            showUploadList={false}
+          >
+            <p className="ant-upload-drag-icon">
+              <ImportOutlined />
+            </p>
+            <p className="ant-upload-text">Haz clic o arrastra archivos .mmd aquí</p>
+            <p className="ant-upload-hint">
+              Soporta archivos .mmd y .txt con código Mermaid
+            </p>
+          </Upload.Dragger>
+        </div>
+
+        <div style={{ marginBottom: '16px' }}>
+          <Typography.Title level={5}>
+            <CodeOutlined /> O pega tu código Mermaid
+          </Typography.Title>
+          <Input.TextArea
+            placeholder="gantt
+    title Proyecto Ejemplo
+    dateFormat  YYYY-MM-DD
+    axisFormat  %d/%m
+
+    section Fase 1
+    Análisis          :done, des1, 2024-01-01, 2024-01-15
+    Diseño           :active, des2, 2024-01-16, 30d
+    
+    section Fase 2
+    Desarrollo       :dev1, after des2, 45d
+    Pruebas         :test1, after dev1, 15d"
+            rows={12}
+            value={mermaidCode}
+            onChange={(e) => setMermaidCode(e.target.value)}
+            style={{ fontFamily: 'monospace' }}
+          />
+        </div>
+
+        <div>
+          <Typography.Title level={5}>Ejemplo de formato Mermaid:</Typography.Title>
+          <Card size="small" style={{ background: '#f8f9fa' }}>
+            <pre style={{ margin: 0, fontSize: '12px' }}>
+{`gantt
+    title Mi Proyecto
+    dateFormat YYYY-MM-DD
+    axisFormat %d/%m
+
+    section Análisis
+    Requisitos       :done, req1, 2024-01-01, 2024-01-10
+    Documentación    :active, doc1, 2024-01-11, 15d
+    
+    section Desarrollo  
+    Backend         :dev1, after doc1, 30d
+    Frontend        :dev2, after dev1, 25d
+    
+    section Testing
+    Pruebas         :test1, after dev2, 10d
+    Deploy          :deploy1, after test1, 3d`}
+            </pre>
+          </Card>
+        </div>
+      </Drawer>
     </div>
   );
 };

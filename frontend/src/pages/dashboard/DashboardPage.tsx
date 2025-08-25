@@ -57,6 +57,8 @@ export const DashboardPage: React.FC = () => {
     try {
       setRoiLoading(true);
       const data = await apiService.getROIDashboard();
+      console.log('ROI Dashboard data:', data);
+      console.log('Overall metrics:', data.overall_metrics);
       setRoiDashboard(data);
     } catch (error) {
       console.error('Failed to load ROI dashboard:', error);
@@ -264,7 +266,7 @@ export const DashboardPage: React.FC = () => {
                 <Statistic
                   title="Total Revenue"
                   value={roiDashboard.overall_metrics?.total_revenue || 0}
-                  precision={2}
+                  precision={0}
                   prefix={<DollarOutlined />}
                   valueStyle={{ color: '#52c41a' }}
                 />
@@ -274,8 +276,8 @@ export const DashboardPage: React.FC = () => {
               <Card>
                 <Statistic
                   title="Average ROI"
-                  value={roiDashboard.overall_metrics?.avg_roi || 0}
-                  precision={1}
+                  value={Math.round(roiDashboard.overall_metrics?.avg_roi || 0)}
+                  precision={0}
                   suffix="%"
                   prefix={roiDashboard.overall_metrics?.avg_roi >= 20 ? <RiseOutlined /> : <FallOutlined />}
                   valueStyle={{ 
@@ -290,7 +292,7 @@ export const DashboardPage: React.FC = () => {
                 <Statistic
                   title="Total Profit"
                   value={roiDashboard.overall_metrics?.total_profit || 0}
-                  precision={2}
+                  precision={0}
                   prefix={<DollarOutlined />}
                   valueStyle={{ 
                     color: roiDashboard.overall_metrics?.total_profit >= 0 ? '#52c41a' : '#f5222d' 

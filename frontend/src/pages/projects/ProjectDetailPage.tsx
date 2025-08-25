@@ -37,10 +37,12 @@ import {
   FileOutlined,
   FolderOutlined,
   PictureOutlined,
-  FundOutlined
+  FundOutlined,
+  RobotOutlined
 } from '@ant-design/icons';
 import { ProjectROICard } from '@/components/projects/ProjectROICard';
 import { ProjectPMOView } from '@/components/projects/ProjectPMOView';
+import { ProjectMLAnalytics } from '@/components/projects/ProjectMLAnalytics';
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal';
 import { FileManager, EvidenceGallery } from '@/components/files';
 import { useProjectStore } from '@/store/projectStore';
@@ -73,16 +75,24 @@ export const ProjectDetailPage: React.FC = () => {
   const loadProjectData = async () => {
     try {
       setLoading(true);
-      const projectData = await getProject(parseInt(id!));
+      
+      // Try direct API call first, then fallback to store
+      let projectData;
+      try {
+        projectData = await apiService.getProject(parseInt(id!));
+      } catch (apiError) {
+        console.log('Direct API failed, trying store:', apiError);
+        projectData = await getProject(parseInt(id!));
+      }
+      
       setProject(projectData);
       
-      // Load real project tasks (latest 5)
+      // Load project tasks 
       try {
-        const projectTasks = await apiService.getProjectTasks(parseInt(id!), 5);
-        setTasks(projectTasks);
+        const tasks = await apiService.request({ url: `/tasks/project/${id}?limit=5` });
+        setTasks(tasks || []);
       } catch (error) {
         console.error('Failed to load project tasks:', error);
-        // Fallback to empty array if tasks can't be loaded
         setTasks([]);
       }
     } catch (error) {
@@ -179,9 +189,20 @@ export const ProjectDetailPage: React.FC = () => {
     );
   }
 
-  const completedTasks = tasks.filter(t => t.status === 'done').length;
+  console.log('Project tasks:', tasks.map(t => ({ id: t.id, title: t.title, status: t.status, column_name: t.column_name })));
+  
+  const completedTasks = tasks.filter(t => 
+    t.status === 'done' || 
+    t.status === 'completed' || 
+    t.status === 'finished' ||
+    t.column_name?.toLowerCase() === 'done' ||
+    t.column_name?.toLowerCase() === 'completed' ||
+    t.column_name?.toLowerCase() === 'finished'
+  ).length;
   const totalTasks = tasks.length;
   const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+  
+  console.log(`Progress: ${completedTasks}/${totalTasks} (${progressPercentage}%)`);
 
   return (
     <div style={{ padding: '24px' }}>
@@ -552,6 +573,21 @@ export const ProjectDetailPage: React.FC = () => {
                     maxImages={100}
                   />
                 </div>
+              )
+            },
+            {
+              key: 'ai-analytics',
+              label: (
+                <span>
+                  <RobotOutlined />
+                  AI Analytics
+                </span>
+              ),
+              children: (
+                <ProjectMLAnalytics
+                  projectId={project.id}
+                  projectName={project.name}
+                />
               )
             },
             {

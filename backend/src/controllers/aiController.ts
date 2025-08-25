@@ -5,8 +5,9 @@
 
 import { Request, Response } from 'express';
 import { z } from 'zod';
-import axios, { AxiosResponse } from 'axios';
-import logger from '../utils/logger';
+import axios from 'axios';
+import { logger } from '../utils/logger';
+import { AuthenticatedRequest } from '../middleware/auth';
 
 // ML Service configuration
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8001';
@@ -15,7 +16,7 @@ const ML_API_KEY = process.env.ML_API_KEY || '';
 // Request schemas
 const PredictionRequestSchema = z.object({
   project_ids: z.array(z.number()).optional(),
-  features: z.record(z.any()).optional(),
+  features: z.record(z.string(), z.any()).optional(),
   confidence_level: z.number().min(0.5).max(0.99).optional(),
   prediction_horizon: z.number().optional(),
 });
@@ -29,7 +30,7 @@ const BatchPredictionRequestSchema = z.object({
 const ExplanationRequestSchema = z.object({
   project_id: z.number(),
   model_type: z.enum(['completion_time', 'budget_variance', 'risk_score']),
-  features: z.record(z.any()).optional(),
+  features: z.record(z.string(), z.any()).optional(),
 });
 
 // ML Service HTTP client
@@ -68,12 +69,12 @@ class MLServiceClient {
         timeout: 30000, // 30 seconds
       };
 
-      const response: AxiosResponse<T> = await axios(config);
+      const response = await axios(config);
       return response.data;
-    } catch (error) {
-      if (axios.isAxiosError(error)) {
-        const status = error.response?.status;
-        const message = error.response?.data?.detail || error.message;
+    } catch (error: any) {
+      if (error.response) {
+        const status = error.response.status;
+        const message = error.response.data?.detail || error.message;
         throw new Error(`ML Service error (${status}): ${message}`);
       }
       throw error;
@@ -178,7 +179,7 @@ export const getModelsInfo = async (req: Request, res: Response) => {
 /**
  * Predict project completion time
  */
-export const predictCompletionTime = async (req: Request, res: Response) => {
+export const predictCompletionTime = async (req: Request, res: Response): Promise<Response | void> => {
   try {
     const validatedData = PredictionRequestSchema.parse(req.body);
     
@@ -193,7 +194,7 @@ export const predictCompletionTime = async (req: Request, res: Response) => {
       return res.status(400).json({
         success: false,
         error: 'Invalid request data',
-        details: error.errors
+        details: error.issues
       });
     }
     
@@ -210,7 +211,7 @@ export const predictCompletionTime = async (req: Request, res: Response) => {
 /**
  * Predict budget variance
  */
-export const predictBudgetVariance = async (req: Request, res: Response) => {
+export const predictBudgetVariance = async (req: Request, res: Response): Promise<Response | void> => {
   try {
     const validatedData = PredictionRequestSchema.parse(req.body);
     
@@ -225,7 +226,7 @@ export const predictBudgetVariance = async (req: Request, res: Response) => {
       return res.status(400).json({
         success: false,
         error: 'Invalid request data',
-        details: error.errors
+        details: error.issues
       });
     }
     
@@ -242,7 +243,7 @@ export const predictBudgetVariance = async (req: Request, res: Response) => {
 /**
  * Predict project risk score
  */
-export const predictRiskScore = async (req: Request, res: Response) => {
+export const predictRiskScore = async (req: Request, res: Response): Promise<Response | void> => {
   try {
     const validatedData = PredictionRequestSchema.parse(req.body);
     
@@ -257,7 +258,7 @@ export const predictRiskScore = async (req: Request, res: Response) => {
       return res.status(400).json({
         success: false,
         error: 'Invalid request data',
-        details: error.errors
+        details: error.issues
       });
     }
     
@@ -274,7 +275,7 @@ export const predictRiskScore = async (req: Request, res: Response) => {
 /**
  * Batch predictions for multiple projects
  */
-export const batchPredict = async (req: Request, res: Response) => {
+export const batchPredict = async (req: Request, res: Response): Promise<Response | void> => {
   try {
     const validatedData = BatchPredictionRequestSchema.parse(req.body);
     
@@ -289,7 +290,7 @@ export const batchPredict = async (req: Request, res: Response) => {
       return res.status(400).json({
         success: false,
         error: 'Invalid request data',
-        details: error.errors
+        details: error.issues
       });
     }
     
@@ -306,7 +307,7 @@ export const batchPredict = async (req: Request, res: Response) => {
 /**
  * Get prediction explanation using SHAP
  */
-export const explainPrediction = async (req: Request, res: Response) => {
+export const explainPrediction = async (req: Request, res: Response): Promise<Response | void> => {
   try {
     const validatedData = ExplanationRequestSchema.parse(req.body);
     
@@ -321,7 +322,7 @@ export const explainPrediction = async (req: Request, res: Response) => {
       return res.status(400).json({
         success: false,
         error: 'Invalid request data',
-        details: error.errors
+        details: error.issues
       });
     }
     
@@ -338,7 +339,7 @@ export const explainPrediction = async (req: Request, res: Response) => {
 /**
  * Get comprehensive project analytics
  */
-export const getProjectAnalytics = async (req: Request, res: Response) => {
+export const getProjectAnalytics = async (req: Request, res: Response): Promise<Response | void> => {
   try {
     const projectId = parseInt(req.params.id);
     
@@ -367,11 +368,11 @@ export const getProjectAnalytics = async (req: Request, res: Response) => {
     
     const analytics = {
       project_id: projectId,
-      predictions: predictions.project_predictions?.[projectId] || {},
+      predictions: (predictions as any).data?.project_predictions?.[projectId] || {},
       explanations: {
-        completion_time: explanations[0].status === 'fulfilled' ? explanations[0].value : null,
-        budget_variance: explanations[1].status === 'fulfilled' ? explanations[1].value : null,
-        risk_score: explanations[2].status === 'fulfilled' ? explanations[2].value : null,
+        completion_time: explanations[0].status === 'fulfilled' ? (explanations[0].value as any)?.data : null,
+        budget_variance: explanations[1].status === 'fulfilled' ? (explanations[1].value as any)?.data : null,
+        risk_score: explanations[2].status === 'fulfilled' ? (explanations[2].value as any)?.data : null,
       },
       generated_at: new Date().toISOString()
     };
@@ -464,7 +465,7 @@ export const getPerformanceMetrics = async (req: Request, res: Response) => {
  * Trigger model retraining
  * Note: This is a privileged operation that should be restricted
  */
-export const triggerRetraining = async (req: Request, res: Response) => {
+export const triggerRetraining = async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
   try {
     // Check user permissions (should be admin/team_lead only)
     if (req.user?.role !== 'team_lead') {
