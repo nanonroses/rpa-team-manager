@@ -301,6 +301,88 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
     console.log('📋 Projects list:', projects.map((p: any) => ({id: p.id, name: p.name})));
   }, [projects]);
 
+  // State corruption detection and recovery watchdog
+  useEffect(() => {
+    console.log('🐕 State watchdog check:', {
+      selectedProjectId,
+      hasGanttData: !!ganttData,
+      ganttLoading,
+      projectsCount: projects.length,
+      dashboardProjectsCount: dashboardData?.projects?.length || 0
+    });
+
+    // If we have a selected project but no gantt data and we're not loading, something went wrong
+    if (selectedProjectId && !ganttData && !ganttLoading && projects.length > 0) {
+      console.log('🚨 State corruption detected: have selectedProjectId but no ganttData');
+      console.log('🔧 Attempting automatic recovery...');
+      
+      // Give it a moment, then try to reload
+      setTimeout(() => {
+        if (selectedProjectId && !ganttData && !ganttLoading) {
+          console.log('🔧 Auto-recovery: Reloading gantt data');
+          loadGanttData(selectedProjectId);
+        }
+      }, 1000);
+    }
+
+    // If projects is empty but we should have data, try to reload
+    if (projects.length === 0 && !loading && selectedProjectId) {
+      console.log('🚨 Projects array is empty but we have selectedProjectId - reloading dropdown data');
+      loadDropdownData();
+    }
+  }, [selectedProjectId, ganttData, ganttLoading, projects.length, dashboardData]);
+
+  // Window error handler to catch unhandled JavaScript errors
+  useEffect(() => {
+    const handleWindowError = (event: ErrorEvent) => {
+      console.error('🚨 UNHANDLED WINDOW ERROR:', event.error);
+      console.error('🚨 Error details:', {
+        message: event.message,
+        filename: event.filename,
+        lineno: event.lineno,
+        colno: event.colno,
+        stack: event.error?.stack
+      });
+
+      // If this happens during editing, try to recover
+      if (editModalVisible || editingItem) {
+        console.log('🚨 Error during editing - attempting to recover modal state');
+        setEditModalVisible(false);
+        setEditingItem(null);
+        editForm.resetFields();
+        message.error('Error detectado - modal cerrado por seguridad');
+      }
+
+      // Don't let the error propagate and break React
+      event.preventDefault();
+      return false;
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      console.error('🚨 UNHANDLED PROMISE REJECTION:', event.reason);
+      console.error('🚨 Rejection details:', event);
+      
+      // Try to handle common promise rejections gracefully
+      if (event.reason?.response?.status === 401) {
+        message.error('Sesión expirada - por favor inicia sesión nuevamente');
+      } else if (event.reason?.message) {
+        message.error(`Error de conexión: ${event.reason.message}`);
+      }
+
+      // Prevent the unhandled rejection from crashing the app
+      event.preventDefault();
+      return false;
+    };
+
+    window.addEventListener('error', handleWindowError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener('error', handleWindowError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, [editModalVisible, editingItem]);
+
   const loadDashboardData = async () => {
     if (loadingDashboard.current) return;
     
@@ -395,33 +477,82 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   };
 
   const loadGanttData = async (projectId: number) => {
-    if (loadingGantt.current) return;
+    if (loadingGantt.current) {
+      console.log('⚠️ loadGanttData already in progress, skipping...');
+      return;
+    }
     
     try {
       loadingGantt.current = true;
       setGanttLoading(true);
-      console.log('Loading Gantt data for project:', projectId);
+      console.log('🔄 Loading Gantt data for project:', projectId);
+      
+      // Validate projectId
+      if (!projectId || isNaN(projectId)) {
+        throw new Error(`Invalid project ID: ${projectId}`);
+      }
+      
       const data = await apiService.getPMOProjectGantt(projectId);
-      console.log('Gantt data received:', data);
-      console.log('Data structure:', {
+      console.log('📊 Gantt data received:', data);
+      console.log('🔍 Data structure validation:', {
         hasProject: !!data?.project,
+        projectId: data?.project?.id,
         projectName: data?.project?.name,
         milestoneCount: data?.milestones?.length || 0,
         taskCount: data?.tasks?.length || 0,
-        isDataTruthy: !!data
+        isDataTruthy: !!data,
+        dataKeys: data ? Object.keys(data) : 'null'
       });
+      
+      // Validate the data structure before setting it
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid data structure received from API');
+      }
+      
+      if (!data.project && (!data.milestones || data.milestones.length === 0) && (!data.tasks || data.tasks.length === 0)) {
+        console.log('⚠️ Empty project data, but this might be valid for new projects');
+      }
+      
       setGanttData(data);
-      console.log('Gantt data state set - data is:', !!data ? 'truthy' : 'falsy');
-      console.log('Gantt data loaded successfully for project:', data.project?.name || projectId);
+      console.log('✅ Gantt data state set successfully - data is:', !!data ? 'truthy' : 'falsy');
+      console.log('✅ Gantt data loaded successfully for project:', data.project?.name || projectId);
+      
+      // Validate that the state was actually set
+      setTimeout(() => {
+        console.log('🔍 Post-update state validation');
+      }, 100);
+      
     } catch (error: any) {
-      console.error('Error loading Gantt data:', error);
+      console.error('❌ CRITICAL ERROR loading Gantt data:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        stack: error.stack,
+        response: error.response?.data,
+        status: error.response?.status,
+        projectId: projectId
+      });
+      
       const errorMessage = error.response?.data?.error || error.message || 'Error al cargar datos del cronograma';
-      message.error(errorMessage);
+      
+      // Don't show error if it's just a network issue and we're retrying
+      if (error.response?.status !== 401 && error.response?.status !== 403) {
+        message.error(errorMessage);
+      }
+      
+      // Set to null, but preserve selectedProjectId so user can retry
       setGanttData(null);
-      console.log('Set ganttData to null due to error');
+      console.log('❌ Set ganttData to null due to error');
+      
+      // If it's an auth error, might need to re-login
+      if (error.response?.status === 401) {
+        console.log('🚨 Auth error detected, might need to re-login');
+        message.error('Sesión expirada. Por favor inicia sesión nuevamente.');
+      }
+      
     } finally {
       setGanttLoading(false);
       loadingGantt.current = false;
+      console.log('🏁 loadGanttData finally block completed');
     }
   };
 
@@ -484,12 +615,15 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
 
   const handleSaveEdit = async (values: any) => {
     try {
+      console.log('🔄 Starting update for:', editingItem?.type, editingItem?.id, 'with values:', values);
+      
       if (editingItem.type === 'milestone') {
         const updateData = {
           ...values,
           planned_date: values.planned_date ? values.planned_date.format('YYYY-MM-DD') : values.planned_date,
           actual_date: values.actual_date ? values.actual_date.format('YYYY-MM-DD') : null
         };
+        console.log('🎯 Updating milestone with data:', updateData);
         await apiService.updateMilestone(editingItem.id, updateData);
         message.success(`Hito actualizado: ${values.name}`);
       } else {
@@ -499,20 +633,68 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
           start_date: values.start_date ? values.start_date.format('YYYY-MM-DD') : null,
           due_date: values.due_date ? values.due_date.format('YYYY-MM-DD') : null
         };
-        console.log('🔄 Updating task with data:', updateData);
+        console.log('🎯 Updating task with data:', updateData);
         await apiService.updateTask(editingItem.id, updateData);
         message.success(`Tarea actualizada: ${values.title}`);
       }
+      
+      console.log('✅ Update successful, closing modal and reloading data');
       setEditModalVisible(false);
       setEditingItem(null);
       editForm.resetFields();
-      // Reload gantt data
+      
+      // Reload gantt data with error protection
       if (selectedProjectId) {
-        loadGanttData(selectedProjectId);
+        console.log('🔄 Reloading Gantt data for project:', selectedProjectId);
+        await loadGanttData(selectedProjectId);
+        console.log('✅ Gantt data reloaded successfully');
       }
-    } catch (error) {
-      console.error('Error updating item:', error);
-      message.error('Error al actualizar elemento');
+    } catch (error: any) {
+      console.error('❌ CRITICAL ERROR in handleSaveEdit:', error);
+      console.error('❌ Error stack:', error.stack);
+      console.error('❌ Error response:', error.response?.data);
+      
+      // Try to recover gracefully
+      try {
+        console.log('🚨 Attempting to recover from error...');
+        // Close modal safely
+        setEditModalVisible(false);
+        setEditingItem(null);
+        editForm.resetFields();
+        
+        // Try to reload dashboard data
+        await loadDashboardData();
+        await loadDropdownData();
+        
+        // If we have a selected project, try to reload its data
+        if (selectedProjectId) {
+          console.log('🔄 Recovery: Reloading Gantt data for project:', selectedProjectId);
+          await loadGanttData(selectedProjectId);
+        }
+        
+        message.error(`Error al actualizar: ${error.message || 'Error desconocido'}`);
+        console.log('✅ Recovery completed');
+      } catch (recoveryError) {
+        console.error('❌ RECOVERY FAILED:', recoveryError);
+        // Last resort: clear everything and start fresh
+        console.log('🚨 Last resort recovery: clearing state...');
+        setSelectedProjectId(null);
+        setGanttData(null);
+        setEditModalVisible(false);
+        setEditingItem(null);
+        editForm.resetFields();
+        
+        // Clear localStorage as user mentioned this fixes the issue
+        try {
+          localStorage.removeItem('auth-storage');
+          sessionStorage.clear();
+          console.log('🧹 Local storage cleared');
+        } catch (e) {
+          console.error('Failed to clear localStorage:', e);
+        }
+        
+        message.error('Error crítico: Por favor recarga la página (F5)');
+      }
     }
   };
 
@@ -1702,7 +1884,13 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                     <div>Preparando vista Gantt del proyecto</div>
                   </div>
                 </Card>
-              ) : (console.log('Render condition check - ganttData:', !!ganttData, 'ganttLoading:', ganttLoading), ganttData) ? (
+              ) : (console.log('🎨 Render condition check:', { 
+                hasGanttData: !!ganttData, 
+                ganttLoading, 
+                selectedProjectId,
+                projectsCount: projects.length,
+                dataStructure: ganttData ? Object.keys(ganttData) : 'null'
+              }), ganttData) ? (
                 <div>
                   {/* Header con controles principales */}
                   <Card size="small" style={{ marginBottom: '10px' }}>
