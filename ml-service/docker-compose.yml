@@ -1,0 +1,214 @@
+version: '3.8'
+
+services:
+  # ML Service API
+  ml-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: rpa-ml-service
+    ports:
+      - "8001:8001"
+    environment:
+      - ML_API_HOST=0.0.0.0
+      - ML_API_PORT=8001
+      - DEBUG=false
+      - LOG_LEVEL=INFO
+      - DATABASE_URL=sqlite:////app/data/database.sqlite
+      - MLFLOW_TRACKING_URI=sqlite:////app/mlruns/mlflow.db
+      - MODEL_STORAGE_PATH=/app/models/trained
+      - FEATURE_STORE_PATH=/app/features
+      - MLFLOW_ARTIFACT_PATH=/app/artifacts
+      - ENABLE_HYPERPARAMETER_TUNING=true
+      - MAX_TRIALS=50
+      - MIN_TRAINING_SAMPLES=20
+    volumes:
+      - ../backend/data:/app/data:ro  # Read-only access to main database
+      - ml-models:/app/models
+      - ml-features:/app/features
+      - ml-artifacts:/app/artifacts
+      - ml-mlruns:/app/mlruns
+      - ml-logs:/app/logs
+    networks:
+      - rpa-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    depends_on:
+      - mlflow-server
+
+  # ML Service Development
+  ml-service-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: rpa-ml-service-dev
+    ports:
+      - "8001:8001"
+    environment:
+      - ML_API_HOST=0.0.0.0
+      - ML_API_PORT=8001
+      - DEBUG=true
+      - LOG_LEVEL=DEBUG
+      - DATABASE_URL=sqlite:////app/data/database.sqlite
+      - MLFLOW_TRACKING_URI=http://mlflow-server:5000
+      - MODEL_STORAGE_PATH=/app/models/trained
+      - ENABLE_HYPERPARAMETER_TUNING=false  # Faster for dev
+      - MAX_TRIALS=10
+    volumes:
+      - .:/home/ml_user  # Mount entire source for development
+      - ../backend/data:/app/data:ro
+      - ml-models-dev:/app/models
+      - ml-features-dev:/app/features
+    networks:
+      - rpa-network
+    profiles:
+      - dev
+
+  # MLflow Tracking Server
+  mlflow-server:
+    image: python:3.11-slim
+    container_name: rpa-mlflow-server
+    ports:
+      - "5000:5000"
+    environment:
+      - MLFLOW_BACKEND_STORE_URI=sqlite:////mlflow/mlflow.db
+      - MLFLOW_DEFAULT_ARTIFACT_ROOT=/mlflow/artifacts
+    volumes:
+      - ml-mlflow-db:/mlflow
+    networks:
+      - rpa-network
+    command: >
+      sh -c "
+        pip install mlflow[extras]==2.8.1 &&
+        mlflow server 
+        --backend-store-uri sqlite:////mlflow/mlflow.db 
+        --default-artifact-root /mlflow/artifacts 
+        --host 0.0.0.0 
+        --port 5000
+      "
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Model Training Job (run on-demand)
+  model-trainer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: rpa-model-trainer
+    environment:
+      - DATABASE_URL=sqlite:////app/data/database.sqlite
+      - MLFLOW_TRACKING_URI=http://mlflow-server:5000
+      - MODEL_STORAGE_PATH=/app/models/trained
+      - ENABLE_HYPERPARAMETER_TUNING=true
+      - MAX_TRIALS=100
+    volumes:
+      - ../backend/data:/app/data:ro
+      - ml-models:/app/models
+      - ml-features:/app/features
+      - ml-artifacts:/app/artifacts
+    networks:
+      - rpa-network
+    command: python -m src.training.train_models --all --optimize
+    profiles:
+      - training
+    depends_on:
+      - mlflow-server
+
+  # Model Monitoring Dashboard (Prometheus + Grafana)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: rpa-ml-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    networks:
+      - rpa-network
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: rpa-ml-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - rpa-network
+    profiles:
+      - monitoring
+    depends_on:
+      - prometheus
+
+  # Jupyter Notebook for ML Development
+  jupyter:
+    build:
+      context: .
+      dockerfile: Dockerfile.jupyter
+    container_name: rpa-ml-jupyter
+    ports:
+      - "8888:8888"
+    environment:
+      - JUPYTER_ENABLE_LAB=yes
+      - JUPYTER_TOKEN=ml-development
+    volumes:
+      - .:/home/jovyan/work
+      - ../backend/data:/home/jovyan/data:ro
+      - ml-notebooks:/home/jovyan/notebooks
+    networks:
+      - rpa-network
+    profiles:
+      - dev
+
+# Named volumes for persistent data
+volumes:
+  ml-models:
+    driver: local
+  ml-features:
+    driver: local
+  ml-artifacts:
+    driver: local
+  ml-mlruns:
+    driver: local
+  ml-logs:
+    driver: local
+  ml-mlflow-db:
+    driver: local
+  ml-models-dev:
+    driver: local
+  ml-features-dev:
+    driver: local
+  ml-notebooks:
+    driver: local
+  prometheus-data:
+    driver: local
+  grafana-data:
+    driver: local
+
+# Network for communication between services
+networks:
+  rpa-network:
+    driver: bridge

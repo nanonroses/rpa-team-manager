@@ -1,0 +1,40 @@
+# Prometheus configuration for ML Service monitoring
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  # ML Service metrics
+  - job_name: 'ml-service'
+    static_configs:
+      - targets: ['ml-service:8001']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # MLflow server monitoring
+  - job_name: 'mlflow'
+    static_configs:
+      - targets: ['mlflow-server:5000']
+    metrics_path: '/metrics'
+    scrape_interval: 60s
+
+# Alerting rules for model performance
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          # - alertmanager:9093
+
+# Rules for ML service alerts
+rule_files:
+  - "ml_alerts.yml"

@@ -21,6 +21,7 @@ import ideaRoutes from './routes/ideaRoutes';
 import fileRoutes from './routes/fileRoutes';
 import supportRoutes from './routes/supportRoutes';
 import pmoRoutes from './routes/pmoRoutes';
+import aiRoutes from './routes/aiRoutes';
 
 // Import database and logger
 import { db } from './database/database';
@@ -136,6 +137,7 @@ class RPATeamManagerServer {
         this.app.use('/api/files', fileRoutes);
         this.app.use('/api/support', supportRoutes);
         this.app.use('/api/pmo', analyticsLimiter, pmoRoutes);
+        this.app.use('/api/ai', aiRoutes);
 
         // API documentation route
         this.app.get('/api', (req, res) => {
@@ -224,6 +226,21 @@ class RPATeamManagerServer {
                         'POST /api/support/tickets/:id/comments': 'Add comment/update to support ticket',
                         'GET /api/support/dashboard': 'Get support dashboard and summary statistics',
                         'GET /api/support/billing-report': 'Get monthly billing report for all companies'
+                    },
+                    ai: {
+                        'GET /api/ai/health': 'Get ML service health status',
+                        'GET /api/ai/models': 'Get available ML models information',
+                        'POST /api/ai/predict/completion-time': 'Predict project completion time',
+                        'POST /api/ai/predict/budget-variance': 'Predict budget variance and cost overruns',
+                        'POST /api/ai/predict/risk-score': 'Predict project risk score (0-100)',
+                        'POST /api/ai/predict/batch': 'Batch predictions for multiple projects',
+                        'POST /api/ai/explain': 'Get SHAP explanation for predictions',
+                        'GET /api/ai/projects/:id/analytics': 'Get comprehensive project analytics',
+                        'POST /api/ai/models/validate': 'Validate models against ground truth',
+                        'GET /api/ai/monitoring/drift': 'Check for data drift',
+                        'GET /api/ai/monitoring/metrics': 'Get model performance metrics',
+                        'POST /api/ai/models/retrain': 'Trigger model retraining (admin only)',
+                        'GET /api/ai/dashboard': 'Get ML dashboard data'
                     }
                 }
             });

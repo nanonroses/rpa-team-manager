@@ -1,0 +1,43 @@
+# Jupyter Notebook for ML Development
+FROM jupyter/scipy-notebook:latest
+
+USER root
+
+# Install additional system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    sqlite3 \
+    && rm -rf /var/lib/apt/lists/*
+
+USER jovyan
+
+# Copy requirements
+COPY requirements.txt /tmp/
+
+# Install ML packages
+RUN pip install --no-cache-dir -r /tmp/requirements.txt
+
+# Install additional development packages
+RUN pip install --no-cache-dir \
+    jupyterlab-git \
+    jupyterlab-lsp \
+    python-lsp-server[all] \
+    plotly \
+    kaleido \
+    ipywidgets \
+    widgetsnbextension
+
+# Enable JupyterLab extensions
+RUN jupyter labextension install @jupyterlab/git
+
+# Create work directories
+RUN mkdir -p /home/jovyan/work /home/jovyan/notebooks /home/jovyan/data
+
+# Set working directory
+WORKDIR /home/jovyan
+
+# Expose Jupyter port
+EXPOSE 8888
+
+# Start Jupyter Lab
+CMD ["start.sh", "jupyter", "lab", "--LabApp.token='ml-development'", "--LabApp.ip='0.0.0.0'", "--LabApp.port=8888", "--LabApp.allow_root=True"]
