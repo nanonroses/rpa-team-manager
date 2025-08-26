@@ -14,7 +14,7 @@ class ApiService {
       headers: {
         'Content-Type': 'application/json',
       },
-      timeout: 30000,
+      timeout: 60000, // Increased to 60 seconds to match batch deletion timeout
     });
 
     this.setupInterceptors();

@@ -31,7 +31,8 @@
       "Bash(git commit:*)",
       "Bash(dir:*)",
       "Bash(npm start)",
-      "Bash(sed:*)"
+      "Bash(sed:*)",
+      "Bash(set PORT=3000)"
     ],
     "deny": [],
     "ask": [],

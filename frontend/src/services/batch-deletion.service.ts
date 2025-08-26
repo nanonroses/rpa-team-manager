@@ -136,24 +136,56 @@ export class BatchDeletionServiceImpl implements BatchDeletionService {
     if (tasks.length > 0) {
       console.log(`🔥 Preparing task deletion for:`, tasks);
       promises.push(
-        apiService.batchDeleteTasks(tasks).then(result => ({
-          success: true,
-          deletedCount: result.deletedCount || 0,
-          deletedIds: result.deletedIds || [],
-          ...result
-        }))
+        apiService.batchDeleteTasks(tasks)
+          .then(result => {
+            console.log('✅ Task deletion API success:', result);
+            return {
+              success: true,
+              deletedCount: result.deletedCount || 0,
+              deletedIds: result.deletedIds || [],
+              ...result
+            };
+          })
+          .catch(error => {
+            console.error('❌ Task deletion API error:', error);
+            // Convert API error to BatchDeletionResult format
+            throw {
+              success: false,
+              deletedCount: 0,
+              deletedIds: [],
+              error: error?.response?.data?.error || error?.message || 'Task deletion failed',
+              code: error?.response?.data?.code || error?.code || 'API_ERROR',
+              originalError: error
+            };
+          })
       );
     }
 
     if (milestones.length > 0) {
       console.log(`🔥 Preparing milestone deletion for:`, milestones);
       promises.push(
-        apiService.batchDeleteMilestones(milestones).then(result => ({
-          success: true,
-          deletedCount: result.deletedCount || 0,
-          deletedIds: result.deletedIds || [],
-          ...result
-        }))
+        apiService.batchDeleteMilestones(milestones)
+          .then(result => {
+            console.log('✅ Milestone deletion API success:', result);
+            return {
+              success: true,
+              deletedCount: result.deletedCount || 0,
+              deletedIds: result.deletedIds || [],
+              ...result
+            };
+          })
+          .catch(error => {
+            console.error('❌ Milestone deletion API error:', error);
+            // Convert API error to BatchDeletionResult format
+            throw {
+              success: false,
+              deletedCount: 0,
+              deletedIds: [],
+              error: error?.response?.data?.error || error?.message || 'Milestone deletion failed',
+              code: error?.response?.data?.code || error?.code || 'API_ERROR',
+              originalError: error
+            };
+          })
       );
     }
 

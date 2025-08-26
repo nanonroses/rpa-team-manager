@@ -74,11 +74,30 @@ export const useBatchDeletion = ({
         message: (error as Error)?.message,
         stack: (error as Error)?.stack,
         selectedItems: selectedItems.size,
-        ganttDataValid: batchDeletionService['isValidGanttData'](ganttData)
+        ganttDataValid: batchDeletionService['isValidGanttData'](ganttData),
+        errorType: error?.constructor?.name,
+        errorCode: (error as any)?.code,
+        response: (error as any)?.response?.data
       });
       
-      const errorMessage = (error as Error)?.message || 'Error desconocido';
-      message.error(`Error en la eliminación masiva: ${errorMessage}. Por favor, inténtalo nuevamente`);
+      // Better error message handling based on error type
+      let userMessage = 'Error desconocido en la eliminación masiva';
+      const errorObj = error as any;
+      
+      if (errorObj?.response?.data?.error) {
+        // Backend API error
+        userMessage = errorObj.response.data.error;
+      } else if (errorObj?.code === 'TIMEOUT') {
+        userMessage = 'La operación tardó demasiado tiempo. Algunos elementos pueden haberse eliminado. Actualiza la página para verificar';
+      } else if (errorObj?.code === 'NETWORK_ERROR' || errorObj?.message?.includes('Network Error')) {
+        userMessage = 'Error de conexión. Verifica tu conexión a internet e inténtalo nuevamente';
+      } else if (errorObj?.message?.includes('Datos del Gantt no válidos')) {
+        userMessage = 'Error en los datos del proyecto. Actualiza la página e inténtalo nuevamente';
+      } else if (errorObj?.message) {
+        userMessage = errorObj.message;
+      }
+      
+      message.error(userMessage);
     } finally {
       setIsDeleting(false);
     }

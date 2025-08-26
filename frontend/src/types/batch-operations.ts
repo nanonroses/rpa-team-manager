@@ -70,7 +70,7 @@ export enum BatchErrorCode {
 
 // Configuration constants
 export const BATCH_DELETION_CONFIG: BatchDeletionConfig = {
-  TIMEOUT_MS: 30000,
+  TIMEOUT_MS: 60000, // Increased to 60 seconds for more reliable batch operations
   RELOAD_DELAY_MS: 1000,
   MAX_CONCURRENT_OPERATIONS: 2
 } as const;
