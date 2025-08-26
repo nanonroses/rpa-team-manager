@@ -119,6 +119,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   const loadingGantt = useRef(false);
   const deletingItems = useRef(new Set<number>()); // Track items being deleted
   const pendingReload = useRef<NodeJS.Timeout | null>(null); // Debounced reload
+  const lastGanttLoadTime = useRef<number>(0); // Rate limiter for gantt data loading
 
   // Helper function to safely validate ganttData structure
   const isValidGanttData = (data: any): boolean => {
@@ -318,6 +319,10 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       dashboardProjectsCount: dashboardData?.projects?.length || 0
     });
 
+    // EMERGENCY FIX: Disable auto-recovery to prevent infinite loop
+    // The auto-recovery mechanism was causing infinite loops when API returns 429 errors
+    // TODO: Implement proper retry logic with backoff and circuit breaker
+    /*
     // If we have a selected project but no gantt data and we're not loading, something went wrong
     if (selectedProjectId && !ganttData && !ganttLoading && projects.length > 0) {
       console.log('🚨 State corruption detected: have selectedProjectId but no ganttData');
@@ -331,6 +336,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
         }
       }, 1000);
     }
+    */
 
     // If projects is empty but we should have data, try to reload
     if (projects.length === 0 && !loading && selectedProjectId) {
@@ -415,6 +421,10 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
         console.log('✅ Debounced reload completed successfully');
       } catch (error) {
         console.error('❌ Error in debounced reload:', error);
+        // EMERGENCY FIX: Disable recovery retry to prevent infinite loops
+        // This was also contributing to the 429 rate limiting issues
+        // TODO: Implement proper retry logic with backoff and limits
+        /*
         // Try recovery if reload fails
         if (selectedProjectId) {
           setTimeout(() => {
@@ -424,6 +434,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
             }
           }, 2000);
         }
+        */
       } finally {
         pendingReload.current = null;
       }
@@ -528,6 +539,18 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       console.log('⚠️ loadGanttData already in progress, skipping...');
       return;
     }
+
+    // EMERGENCY FIX: Rate limiter to prevent infinite loops
+    const now = Date.now();
+    const timeSinceLastLoad = now - lastGanttLoadTime.current;
+    const minInterval = 1000; // Minimum 1 second between calls
+    
+    if (timeSinceLastLoad < minInterval) {
+      console.log(`🚦 Rate limited: loadGanttData called too soon (${timeSinceLastLoad}ms ago). Minimum interval: ${minInterval}ms`);
+      return;
+    }
+    
+    lastGanttLoadTime.current = now;
     
     try {
       loadingGantt.current = true;
@@ -605,12 +628,14 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
 
   useEffect(() => {
     console.log('selectedProjectId changed to:', selectedProjectId);
-    if (selectedProjectId) {
+    if (selectedProjectId && !loadingGantt.current) {
       console.log('Loading Gantt data for selected project:', selectedProjectId);
       loadGanttData(selectedProjectId);
-    } else {
+    } else if (!selectedProjectId) {
       console.log('No project selected, clearing Gantt data');
       setGanttData(null);
+    } else {
+      console.log('⚠️ Gantt data already loading, skipping duplicate request');
     }
   }, [selectedProjectId]);
 
@@ -819,9 +844,11 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
         await loadDashboardData();
         await loadDropdownData();
         
-        // If we have a selected project, try to reload its data
-        if (selectedProjectId) {
+        // If we have a selected project, try to reload its data (with safeguards)
+        if (selectedProjectId && !loadingGantt.current) {
           console.log('🔄 Recovery: Reloading Gantt data for project:', selectedProjectId);
+          // Add small delay to prevent immediate retry conflicts
+          await new Promise(resolve => setTimeout(resolve, 500));
           await loadGanttData(selectedProjectId);
         }
         
