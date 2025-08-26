@@ -24,7 +24,8 @@ import {
   Tooltip,
   Upload,
   Drawer,
-  Spin
+  Spin,
+  Checkbox
 } from 'antd';
 import {
   ProjectOutlined,
@@ -114,6 +115,11 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   const [activeTab, setActiveTab] = useState(ganttMode ? 'gantt' : 'overview');
   const [mermaidDrawerVisible, setMermaidDrawerVisible] = useState(false);
   const [mermaidCode, setMermaidCode] = useState('');
+  
+  // Multi-selection state for batch deletion
+  const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [batchDeleting, setBatchDeleting] = useState(false);
   
   // Refs to prevent multiple simultaneous API calls
   const loadingDashboard = useRef(false);
@@ -810,6 +816,154 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
           // Always remove from deletion tracking
           deletingItems.current.delete(record.id);
           console.log(`✅ Removed ${record.id} from deletion tracking`);
+        }
+      }
+    });
+  };
+
+  // Multi-selection handlers for batch deletion
+  const handleItemSelect = (id: number) => {
+    const newSelected = new Set(selectedItems);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedItems(newSelected);
+  };
+
+  const handleSelectAll = () => {
+    if (!isValidGanttData(ganttData)) return;
+    
+    const allItemIds = new Set<number>();
+    
+    // Add all milestone IDs
+    (ganttData.milestones || []).forEach((milestone: any) => {
+      if (milestone.id) allItemIds.add(milestone.id);
+    });
+    
+    // Add all task IDs
+    (ganttData.tasks || []).forEach((task: any) => {
+      if (task.id) allItemIds.add(task.id);
+    });
+    
+    setSelectedItems(allItemIds);
+  };
+
+  const handleSelectNone = () => {
+    setSelectedItems(new Set());
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedItems.size === 0) {
+      message.warning('No hay elementos seleccionados para eliminar');
+      return;
+    }
+
+    Modal.confirm({
+      title: `¿Eliminar ${selectedItems.size} elementos seleccionados?`,
+      content: `Esta acción eliminará permanentemente ${selectedItems.size} elementos (tareas y/o hitos). ¿Estás seguro?`,
+      okText: 'Eliminar Todo',
+      okType: 'danger',
+      cancelText: 'Cancelar',
+      onOk: async () => {
+        if (!isValidGanttData(ganttData)) {
+          message.error('Datos del Gantt no válidos');
+          return;
+        }
+
+        setBatchDeleting(true);
+        console.log(`🗑️ Starting batch deletion of ${selectedItems.size} items`);
+        
+        try {
+          // Separate selected items by type
+          const selectedTasks: number[] = [];
+          const selectedMilestones: number[] = [];
+          
+          // Find all selected tasks
+          (ganttData.tasks || []).forEach((task: any) => {
+            if (selectedItems.has(task.id)) {
+              selectedTasks.push(task.id);
+            }
+          });
+          
+          // Find all selected milestones
+          (ganttData.milestones || []).forEach((milestone: any) => {
+            if (selectedItems.has(milestone.id)) {
+              selectedMilestones.push(milestone.id);
+            }
+          });
+          
+          console.log(`📊 Batch deletion breakdown:`, {
+            totalSelected: selectedItems.size,
+            tasks: selectedTasks.length,
+            milestones: selectedMilestones.length
+          });
+          
+          // Perform batch deletions
+          const deletionPromises: Promise<any>[] = [];
+          
+          if (selectedTasks.length > 0) {
+            deletionPromises.push(apiService.batchDeleteTasks(selectedTasks));
+          }
+          
+          if (selectedMilestones.length > 0) {
+            deletionPromises.push(apiService.batchDeleteMilestones(selectedMilestones));
+          }
+          
+          // Execute all batch deletions in parallel with 15 second timeout
+          const results = await Promise.allSettled(
+            deletionPromises.map(promise => 
+              Promise.race([
+                promise,
+                new Promise((_, reject) => 
+                  setTimeout(() => reject(new Error('Batch deletion timeout after 15 seconds')), 15000)
+                )
+              ])
+            )
+          );
+          
+          // Process results
+          let successCount = 0;
+          let errorCount = 0;
+          
+          results.forEach((result, index) => {
+            if (result.status === 'fulfilled') {
+              const deletedCount = result.value?.deletedCount || 0;
+              successCount += deletedCount;
+              console.log(`✅ Batch deletion ${index + 1} successful: ${deletedCount} items deleted`);
+            } else {
+              errorCount++;
+              console.error(`❌ Batch deletion ${index + 1} failed:`, result.reason);
+            }
+          });
+          
+          // Show appropriate message
+          if (errorCount === 0) {
+            message.success(`Eliminación masiva completada: ${successCount} elementos eliminados`);
+          } else if (successCount > 0) {
+            message.warning(`Eliminación parcial: ${successCount} elementos eliminados, ${errorCount} operaciones fallaron`);
+          } else {
+            message.error('Error en la eliminación masiva. Por favor, inténtalo nuevamente');
+          }
+          
+          // Clear selection and exit selection mode
+          setSelectedItems(new Set());
+          setIsSelectionMode(false);
+          
+          // Reload data to reflect changes
+          setTimeout(async () => {
+            if (selectedProjectId) {
+              console.log('🔄 Reloading data after batch deletion');
+              await loadGanttData(selectedProjectId);
+            }
+          }, 1000);
+          
+        } catch (error) {
+          console.error('❌ Batch deletion error:', error);
+          message.error('Error durante la eliminación masiva. Por favor, inténtalo nuevamente');
+        } finally {
+          setBatchDeleting(false);
         }
       }
     });
@@ -2126,18 +2280,58 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                       </Col>
                       <Col>
                         <Space>
-                          <Button 
-                            type="primary" 
-                            icon={<PlusOutlined />}
-                            onClick={() => setMilestoneModalVisible(true)}
-                          >
-                            Nuevo Hito
-                          </Button>
-                          <Button
-                            icon={<PlusOutlined />}
-                            onClick={() => setTaskModalVisible(true)}
-                          >
-                            Nueva Tarea
+                          {!isSelectionMode ? (
+                            <>
+                              <Button 
+                                type="primary" 
+                                icon={<PlusOutlined />}
+                                onClick={() => setMilestoneModalVisible(true)}
+                              >
+                                Nuevo Hito
+                              </Button>
+                              <Button
+                                icon={<PlusOutlined />}
+                                onClick={() => setTaskModalVisible(true)}
+                              >
+                                Nueva Tarea
+                              </Button>
+                              <Button
+                                icon={<DeleteOutlined />}
+                                onClick={() => setIsSelectionMode(true)}
+                                type="dashed"
+                              >
+                                Selección Múltiple
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Text strong>Modo Selección: {selectedItems.size} elementos</Text>
+                              <Button size="small" onClick={handleSelectAll}>
+                                Seleccionar Todo
+                              </Button>
+                              <Button size="small" onClick={handleSelectNone}>
+                                Deseleccionar
+                              </Button>
+                              <Button 
+                                type="primary" 
+                                danger
+                                icon={<DeleteOutlined />}
+                                onClick={handleBatchDelete}
+                                disabled={selectedItems.size === 0 || batchDeleting}
+                                loading={batchDeleting}
+                              >
+                                Eliminar ({selectedItems.size})
+                              </Button>
+                              <Button 
+                                onClick={() => {
+                                  setIsSelectionMode(false);
+                                  setSelectedItems(new Set());
+                                }}
+                              >
+                                Cancelar
+                              </Button>
+                            </>
+                          )}
                           </Button>
                           <Button 
                             icon={<ImportOutlined />}
@@ -2373,37 +2567,50 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                  item.status === 'in_progress' ? '⏳' : '◯'}
                               </Tag>
                               <Space size={2}>
-                                <Button 
-                                  type="text" 
-                                  size="small" 
-                                  icon={<EditOutlined />}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditItem(item);
-                                  }}
-                                  style={{ 
-                                    padding: '2px 4px',
-                                    height: '20px',
-                                    width: '20px',
-                                    fontSize: '10px'
-                                  }}
-                                />
-                                <Button 
-                                  type="text" 
-                                  size="small" 
-                                  icon={<DeleteOutlined />}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteItem(item);
-                                  }}
-                                  style={{ 
-                                    padding: '2px 4px',
-                                    height: '20px',
-                                    width: '20px',
-                                    fontSize: '10px',
-                                    color: '#ff4d4f'
-                                  }}
-                                />
+                                {isSelectionMode ? (
+                                  <Checkbox
+                                    checked={selectedItems.has(item.id)}
+                                    onChange={(e) => {
+                                      e.stopPropagation();
+                                      handleItemSelect(item.id);
+                                    }}
+                                    style={{ marginRight: '8px' }}
+                                  />
+                                ) : (
+                                  <>
+                                    <Button 
+                                      type="text" 
+                                      size="small" 
+                                      icon={<EditOutlined />}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleEditItem(item);
+                                      }}
+                                      style={{ 
+                                        padding: '2px 4px',
+                                        height: '20px',
+                                        width: '20px',
+                                        fontSize: '10px'
+                                      }}
+                                    />
+                                    <Button 
+                                      type="text" 
+                                      size="small" 
+                                      icon={<DeleteOutlined />}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteItem(item);
+                                      }}
+                                      style={{ 
+                                        padding: '2px 4px',
+                                        height: '20px',
+                                        width: '20px',
+                                        fontSize: '10px',
+                                        color: '#ff4d4f'
+                                      }}
+                                    />
+                                  </>
+                                )}
                               </Space>
                             </div>
                           </div>

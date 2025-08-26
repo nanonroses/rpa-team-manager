@@ -188,6 +188,13 @@ class ApiService {
     return response.data;
   }
 
+  async batchDeleteTasks(taskIds: number[]): Promise<any> {
+    const response = await this.api.delete('/tasks/batch', {
+      data: { taskIds }
+    });
+    return response.data;
+  }
+
   async moveTask(taskId: number, moveData: { column_id: number; position: number }): Promise<any> {
     const response = await this.api.post(`/tasks/${taskId}/move`, moveData);
     return response.data;
@@ -461,6 +468,13 @@ class ApiService {
 
   async deleteMilestone(milestoneId: number): Promise<any> {
     const response = await this.api.delete(`/pmo/milestones/${milestoneId}`);
+    return response.data;
+  }
+
+  async batchDeleteMilestones(milestoneIds: number[]): Promise<any> {
+    const response = await this.api.delete('/pmo/milestones/batch', {
+      data: { milestoneIds }
+    });
     return response.data;
   }
 

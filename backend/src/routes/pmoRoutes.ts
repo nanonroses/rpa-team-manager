@@ -41,6 +41,9 @@ router.put('/milestones/:id', pmoController.updateMilestone);
 // DELETE /api/pmo/milestones/:id - Delete milestone
 router.delete('/milestones/:id', pmoController.deleteMilestone);
 
+// DELETE /api/pmo/milestones/batch - Delete multiple milestones
+router.delete('/milestones/batch', pmoController.batchDeleteMilestones);
+
 // ========================================
 // PROJECT METRICS ROUTES
 // ========================================

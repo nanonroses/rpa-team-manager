@@ -471,6 +471,88 @@ export class PMOController {
         }
     };
 
+    // DELETE /api/pmo/milestones/batch - Delete multiple milestones in a single transaction
+    batchDeleteMilestones = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const { milestoneIds } = req.body;
+            const userId = req.user?.id;
+
+            if (!Array.isArray(milestoneIds) || milestoneIds.length === 0) {
+                res.status(400).json({ error: 'Milestone IDs array is required and cannot be empty' });
+                return;
+            }
+
+            // Validate all milestone IDs are numbers
+            const validMilestoneIds = milestoneIds.filter(id => 
+                typeof id === 'number' || (typeof id === 'string' && !isNaN(parseInt(id)))
+            );
+            if (validMilestoneIds.length === 0) {
+                res.status(400).json({ error: 'No valid milestone IDs provided' });
+                return;
+            }
+
+            // Use IMMEDIATE transaction for batch deletion (less restrictive than EXCLUSIVE)
+            await db.beginTransaction('IMMEDIATE');
+            
+            try {
+                const deletedMilestoneIds: number[] = [];
+                const milestoneNames: string[] = [];
+                
+                // Process each milestone deletion in the same transaction
+                for (const milestoneId of validMilestoneIds) {
+                    // Verify milestone exists and get name before deletion
+                    const milestoneCheck = await db.get(`
+                        SELECT id, name FROM project_milestones WHERE id = ?
+                    `, [milestoneId]);
+
+                    if (milestoneCheck) {
+                        // Delete the milestone
+                        const deleteResult = await db.run(`DELETE FROM project_milestones WHERE id = ?`, [milestoneId]);
+                        
+                        if (deleteResult.changes > 0) {
+                            deletedMilestoneIds.push(parseInt(milestoneId.toString()));
+                            milestoneNames.push(milestoneCheck.name);
+                            logger.info(`Milestone ${milestoneId} (${milestoneCheck.name}) marked for deletion in batch operation`);
+                        }
+                    } else {
+                        logger.warn(`Milestone ${milestoneId} not found during batch deletion`);
+                    }
+                }
+
+                await db.commit();
+                
+                logger.info(`Batch milestone deletion completed: ${deletedMilestoneIds.length} milestones deleted by user ${userId}`);
+                res.json({ 
+                    success: true,
+                    message: `Successfully deleted ${deletedMilestoneIds.length} milestones`,
+                    deletedIds: deletedMilestoneIds,
+                    deletedCount: deletedMilestoneIds.length,
+                    deletedNames: milestoneNames
+                });
+                
+            } catch (transactionError) {
+                await db.rollback();
+                logger.error('Batch milestone deletion transaction error:', transactionError);
+                throw transactionError;
+            }
+        } catch (error) {
+            logger.error('Batch delete milestones error:', error);
+            
+            const errorMessage = (error as Error)?.message || 'Unknown error';
+            if (errorMessage.includes('database is locked') || errorMessage.includes('SQLITE_BUSY')) {
+                res.status(409).json({ 
+                    error: 'Database temporarily locked, please try again',
+                    code: 'DATABASE_LOCKED'
+                });
+            } else {
+                res.status(500).json({ 
+                    error: 'Failed to delete milestones in batch',
+                    code: 'BATCH_DELETE_ERROR'
+                });
+            }
+        }
+    };
+
     // POST /api/pmo/projects/:id/metrics - Update PMO metrics for project
     updateProjectMetrics = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {

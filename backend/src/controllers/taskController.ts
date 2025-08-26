@@ -645,6 +645,102 @@ export class TaskController {
     }
   };
 
+  // DELETE /api/tasks/batch - Delete multiple tasks in a single transaction
+  batchDeleteTasks = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskIds } = req.body;
+      const userId = req.user?.id;
+
+      if (!Array.isArray(taskIds) || taskIds.length === 0) {
+        res.status(400).json({ error: 'Task IDs array is required and cannot be empty' });
+        return;
+      }
+
+      // Validate all task IDs are numbers
+      const validTaskIds = taskIds.filter(id => typeof id === 'number' || (typeof id === 'string' && !isNaN(parseInt(id))));
+      if (validTaskIds.length === 0) {
+        res.status(400).json({ error: 'No valid task IDs provided' });
+        return;
+      }
+
+      // Use IMMEDIATE transaction for batch deletion (less restrictive than EXCLUSIVE)
+      await db.beginTransaction('IMMEDIATE');
+      
+      try {
+        const deletedTaskIds: number[] = [];
+        const columnsToReorder: Set<number> = new Set();
+        
+        // Process each task deletion in the same transaction
+        for (const taskId of validTaskIds) {
+          // Verify user access and get task position info before deletion
+          const taskCheck = await db.get(`
+            SELECT t.id, t.column_id, t.position, tb.project_id, p.assigned_to, p.created_by
+            FROM tasks t
+            LEFT JOIN task_boards tb ON t.board_id = tb.id
+            LEFT JOIN projects p ON tb.project_id = p.id
+            WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ?)
+          `, [taskId, userId, userId]);
+
+          if (taskCheck) {
+            // Delete the task
+            const deleteResult = await db.run(`DELETE FROM tasks WHERE id = ?`, [taskId]);
+            
+            if (deleteResult.changes > 0) {
+              deletedTaskIds.push(parseInt(taskId.toString()));
+              columnsToReorder.add(taskCheck.column_id);
+              logger.info(`Task ${taskId} marked for deletion in batch operation`);
+            }
+          } else {
+            logger.warn(`Task ${taskId} not found or access denied for user ${userId}`);
+          }
+        }
+
+        // Reorder positions for all affected columns at once
+        for (const columnId of columnsToReorder) {
+          await db.run(`
+            UPDATE tasks 
+            SET position = (
+              SELECT COUNT(*) + 1 
+              FROM tasks t2 
+              WHERE t2.column_id = ? AND t2.id < tasks.id
+            ), updated_at = CURRENT_TIMESTAMP
+            WHERE column_id = ?
+          `, [columnId, columnId]);
+        }
+
+        await db.commit();
+        
+        logger.info(`Batch deletion completed: ${deletedTaskIds.length} tasks deleted by user ${userId}`);
+        res.json({ 
+          success: true,
+          message: `Successfully deleted ${deletedTaskIds.length} tasks`,
+          deletedIds: deletedTaskIds,
+          deletedCount: deletedTaskIds.length
+        });
+        
+      } catch (transactionError) {
+        await db.rollback();
+        logger.error('Batch deletion transaction error:', transactionError);
+        throw transactionError;
+      }
+    } catch (error) {
+      logger.error('Batch delete tasks error:', error);
+      
+      const errorMessage = (error as Error)?.message || 'Unknown error';
+      if (errorMessage.includes('database is locked') || errorMessage.includes('SQLITE_BUSY')) {
+        res.status(409).json({ 
+          error: 'Database temporarily locked, please try again',
+          code: 'DATABASE_LOCKED'
+        });
+      } else {
+        res.status(500).json({ 
+          error: 'Failed to delete tasks in batch',
+          code: 'BATCH_DELETE_ERROR'
+        });
+      }
+    }
+  };
+
   // GET /api/tasks/project/:projectId - Get recent tasks for a specific project
   getProjectTasks = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
