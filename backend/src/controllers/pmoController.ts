@@ -391,19 +391,28 @@ export class PMOController {
             const { id } = req.params;
             const userId = req.user?.id;
 
-            // Use EXCLUSIVE transaction to prevent concurrent access
+            // Use EXCLUSIVE transaction to prevent all concurrent access during deletion
             await db.beginTransaction('EXCLUSIVE');
             
             try {
-                // Re-check milestone existence within transaction for consistency
-                const milestone = await db.get('SELECT * FROM project_milestones WHERE id = ?', [id]);
-                if (!milestone) {
+                // First, perform atomic existence check
+                const existsCheck = await db.get(`
+                    SELECT id, name FROM project_milestones WHERE id = ?
+                `, [id]);
+
+                if (!existsCheck) {
                     await db.rollback();
-                    res.status(404).json({ error: 'Milestone not found or already deleted' });
+                    res.status(404).json({ 
+                        error: 'Milestone not found or already deleted',
+                        code: 'MILESTONE_NOT_FOUND'
+                    });
                     return;
                 }
 
-                // Perform atomic deletion with existence check
+                // Store milestone name for logging before deletion
+                const milestoneName = existsCheck.name;
+
+                // Perform atomic deletion with double-verification to prevent race conditions
                 const deleteResult = await db.run(`
                     DELETE FROM project_milestones 
                     WHERE id = ? AND id IN (SELECT id FROM project_milestones WHERE id = ?)
@@ -411,13 +420,16 @@ export class PMOController {
                 
                 if (deleteResult.changes === 0) {
                     await db.rollback();
-                    res.status(404).json({ error: 'Milestone not found or already deleted' });
+                    res.status(409).json({ 
+                        error: 'Concurrent modification detected - milestone may have been deleted by another process',
+                        code: 'CONCURRENT_MODIFICATION'
+                    });
                     return;
                 }
 
                 await db.commit();
                 
-                logger.info(`Milestone deleted successfully: ${id} (${milestone.name}) by user ${userId}`);
+                logger.info(`Milestone deleted successfully: ${id} (${milestoneName}) by user ${userId}`);
                 res.json({ 
                     success: true, 
                     message: 'Milestone deleted successfully',
@@ -433,14 +445,28 @@ export class PMOController {
         } catch (error) {
             logger.error('Delete milestone error:', error);
             
-            // Provide specific error messages
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            if (errorMessage.includes('database is locked')) {
-                res.status(409).json({ error: 'Database temporarily locked, please try again' });
-            } else if (errorMessage.includes('no such table')) {
-                res.status(500).json({ error: 'Database schema error' });
+            // Provide specific error codes for frontend handling
+            const errorMessage = (error as Error)?.message || 'Unknown error';
+            if (errorMessage.includes('database is locked') || errorMessage.includes('SQLITE_BUSY')) {
+                res.status(409).json({ 
+                    error: 'Database temporarily locked, please try again',
+                    code: 'DATABASE_LOCKED'
+                });
+            } else if (errorMessage.includes('no such table') || errorMessage.includes('SQLITE_ERROR')) {
+                res.status(500).json({ 
+                    error: 'Database schema error',
+                    code: 'DATABASE_SCHEMA_ERROR'
+                });
+            } else if (errorMessage.includes('FOREIGN KEY constraint failed')) {
+                res.status(409).json({ 
+                    error: 'Cannot delete milestone due to existing dependencies',
+                    code: 'DEPENDENCY_CONSTRAINT'
+                });
             } else {
-                res.status(500).json({ error: 'Failed to delete milestone' });
+                res.status(500).json({ 
+                    error: 'Failed to delete milestone',
+                    code: 'INTERNAL_ERROR'
+                });
             }
         }
     };

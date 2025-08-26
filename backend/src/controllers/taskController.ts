@@ -434,22 +434,28 @@ export class TaskController {
       await db.beginTransaction('EXCLUSIVE');
       
       try {
-        // Re-check task existence and access within transaction for consistency
-        const task = await db.get(`
-          SELECT t.*, tb.project_id, p.assigned_to, p.created_by
+        // First, perform atomic existence check with user access verification
+        const existsCheck = await db.get(`
+          SELECT t.id, t.column_id, t.position, tb.project_id, p.assigned_to, p.created_by
           FROM tasks t
           LEFT JOIN task_boards tb ON t.board_id = tb.id
           LEFT JOIN projects p ON tb.project_id = p.id
           WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ?)
         `, [id, userId, userId]);
 
-        if (!task) {
+        if (!existsCheck) {
           await db.rollback();
-          res.status(404).json({ error: 'Task not found or access denied' });
+          res.status(404).json({ 
+            error: 'Task not found or already deleted',
+            code: 'TASK_NOT_FOUND'
+          });
           return;
         }
 
-        // Perform atomic deletion with row existence check
+        // Store task details for position reordering before deletion
+        const { column_id, position } = existsCheck;
+
+        // Perform atomic deletion with double-verification to prevent race conditions
         const deleteResult = await db.run(`
           DELETE FROM tasks 
           WHERE id = ? AND id IN (
@@ -462,7 +468,10 @@ export class TaskController {
         
         if (deleteResult.changes === 0) {
           await db.rollback();
-          res.status(404).json({ error: 'Task not found or already deleted' });
+          res.status(409).json({ 
+            error: 'Concurrent modification detected - task may have been deleted by another process',
+            code: 'CONCURRENT_MODIFICATION'
+          });
           return;
         }
 
@@ -471,12 +480,16 @@ export class TaskController {
           UPDATE tasks 
           SET position = position - 1, updated_at = CURRENT_TIMESTAMP
           WHERE column_id = ? AND position > ?
-        `, [task.column_id, task.position]);
+        `, [column_id, position]);
 
         await db.commit();
         
         logger.info(`Task ${id} deleted successfully by user ${userId}`);
-        res.json({ message: 'Task deleted successfully', deletedId: id });
+        res.json({ 
+          success: true,
+          message: 'Task deleted successfully', 
+          deletedId: id 
+        });
         
       } catch (transactionError) {
         await db.rollback();
@@ -486,14 +499,28 @@ export class TaskController {
     } catch (error) {
       logger.error('Delete task error:', error);
       
-      // Provide more specific error messages
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      if (errorMessage.includes('database is locked')) {
-        res.status(409).json({ error: 'Database temporarily locked, please try again' });
-      } else if (errorMessage.includes('no such table')) {
-        res.status(500).json({ error: 'Database schema error' });
+      // Provide specific error codes for frontend handling
+      const errorMessage = (error as Error)?.message || 'Unknown error';
+      if (errorMessage.includes('database is locked') || errorMessage.includes('SQLITE_BUSY')) {
+        res.status(409).json({ 
+          error: 'Database temporarily locked, please try again',
+          code: 'DATABASE_LOCKED'
+        });
+      } else if (errorMessage.includes('no such table') || errorMessage.includes('SQLITE_ERROR')) {
+        res.status(500).json({ 
+          error: 'Database schema error',
+          code: 'DATABASE_SCHEMA_ERROR'
+        });
+      } else if (errorMessage.includes('FOREIGN KEY constraint failed')) {
+        res.status(409).json({ 
+          error: 'Cannot delete task due to existing dependencies',
+          code: 'DEPENDENCY_CONSTRAINT'
+        });
       } else {
-        res.status(500).json({ error: 'Failed to delete task' });
+        res.status(500).json({ 
+          error: 'Failed to delete task',
+          code: 'INTERNAL_ERROR'
+        });
       }
     }
   };
