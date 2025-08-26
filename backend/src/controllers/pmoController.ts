@@ -389,22 +389,59 @@ export class PMOController {
     deleteMilestone = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             const { id } = req.params;
+            const userId = req.user?.id;
 
-            // Check if milestone exists
-            const milestone = await db.get('SELECT * FROM project_milestones WHERE id = ?', [id]);
-            if (!milestone) {
-                res.status(404).json({ error: 'Milestone not found' });
-                return;
+            // Use EXCLUSIVE transaction to prevent concurrent access
+            await db.beginTransaction('EXCLUSIVE');
+            
+            try {
+                // Re-check milestone existence within transaction for consistency
+                const milestone = await db.get('SELECT * FROM project_milestones WHERE id = ?', [id]);
+                if (!milestone) {
+                    await db.rollback();
+                    res.status(404).json({ error: 'Milestone not found or already deleted' });
+                    return;
+                }
+
+                // Perform atomic deletion with existence check
+                const deleteResult = await db.run(`
+                    DELETE FROM project_milestones 
+                    WHERE id = ? AND id IN (SELECT id FROM project_milestones WHERE id = ?)
+                `, [id, id]);
+                
+                if (deleteResult.changes === 0) {
+                    await db.rollback();
+                    res.status(404).json({ error: 'Milestone not found or already deleted' });
+                    return;
+                }
+
+                await db.commit();
+                
+                logger.info(`Milestone deleted successfully: ${id} (${milestone.name}) by user ${userId}`);
+                res.json({ 
+                    success: true, 
+                    message: 'Milestone deleted successfully',
+                    deletedId: id
+                });
+                
+            } catch (transactionError) {
+                await db.rollback();
+                logger.error('Transaction error during milestone deletion:', transactionError);
+                throw transactionError;
             }
-
-            // Delete the milestone
-            await db.run('DELETE FROM project_milestones WHERE id = ?', [id]);
-
-            logger.info(`Milestone deleted: ${id} (${milestone.name})`);
-            res.json({ success: true, message: 'Milestone deleted successfully' });
+            
         } catch (error) {
             logger.error('Delete milestone error:', error);
-            res.status(500).json({ error: 'Failed to delete milestone' });
+            
+            // Provide specific error messages
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            if (errorMessage.includes('database is locked')) {
+                res.status(409).json({ error: 'Database temporarily locked, please try again' });
+            } else if (errorMessage.includes('no such table')) {
+                res.status(500).json({ error: 'Database schema error' });
+            } else {
+                res.status(500).json({ error: 'Failed to delete milestone' });
+            }
         }
     };
 

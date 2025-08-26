@@ -636,53 +636,81 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       okType: 'danger',
       cancelText: 'Cancelar',
       onOk: async () => {
-        // Mark item as being deleted
+        // Mark item as being deleted immediately
         deletingItems.current.add(record.id);
         console.log(`🗑️ Starting deletion of ${record.type}:`, record.id, record.name || record.title);
-        console.log(`📊 Items currently being deleted:`, Array.from(deletingItems.current));
+        
+        // Optimistically update UI to prevent visual inconsistency
+        if (ganttData) {
+          const optimisticData = ganttData.filter((item: any) => item.id !== record.id);
+          setGanttData(optimisticData);
+          console.log('✨ Optimistically removed item from UI');
+        }
         
         try {
-          if (record.type === 'milestone') {
-            await apiService.deleteMilestone(record.id);
-            message.success(`Hito "${record.name}" eliminado exitosamente`);
-            console.log('✅ Milestone deleted successfully:', record.id);
-          } else {
-            await apiService.deleteTask(record.id);
-            message.success(`Tarea "${record.title || record.name}" eliminada exitosamente`);
-            console.log('✅ Task deleted successfully:', record.id);
-          }
+          // Perform deletion with timeout to prevent hanging requests
+          const deletePromise = record.type === 'milestone' 
+            ? apiService.deleteMilestone(record.id)
+            : apiService.deleteTask(record.id);
           
-          // Use debounced reload instead of immediate reload
-          console.log('📅 Scheduling reload after deletion');
-          scheduleReload();
+          // Add 10 second timeout for deletion requests
+          await Promise.race([
+            deletePromise,
+            new Promise((_, reject) => 
+              setTimeout(() => reject(new Error('Deletion timeout after 10 seconds')), 10000)
+            )
+          ]);
+          
+          message.success(`${record.type === 'milestone' ? 'Hito' : 'Tarea'} "${record.name || record.title}" eliminado exitosamente`);
+          console.log(`✅ ${record.type} deleted successfully:`, record.id);
+          
+          // Confirm deletion with fresh data after a short delay
+          setTimeout(() => {
+            if (selectedProjectId && !loadingGantt.current) {
+              console.log('🔄 Refreshing data after successful deletion');
+              loadGanttData(selectedProjectId);
+            }
+          }, 500);
           
         } catch (error: any) {
-          console.error('❌ CRITICAL ERROR deleting item:', error);
-          console.error('❌ Deletion error details:', {
+          console.error('❌ DELETION FAILED:', {
             itemType: record.type,
             itemId: record.id,
             itemName: record.name || record.title,
             error: error.message,
-            stack: error.stack,
+            status: error.response?.status,
             response: error.response?.data
           });
           
-          message.error(`Error al eliminar ${record.type === 'milestone' ? 'hito' : 'tarea'}: ${error.message || 'Error desconocido'}`);
+          // Handle specific error cases
+          let errorMessage = 'Error desconocido';
+          if (error.response?.status === 404) {
+            errorMessage = 'El elemento ya fue eliminado o no existe';
+            console.log('ℹ️ Item already deleted, continuing normally');
+            // Don't show error for already deleted items
+          } else if (error.response?.status === 409) {
+            errorMessage = 'Base de datos temporalmente bloqueada, intente nuevamente';
+          } else if (error.message?.includes('timeout')) {
+            errorMessage = 'Tiempo de espera agotado, verifique si la eliminación se completó';
+          } else {
+            errorMessage = error.message || 'Error interno del servidor';
+          }
           
-          // Try recovery if deletion failed
-          console.log('🚨 Attempting recovery after failed deletion');
-          setTimeout(() => {
-            if (selectedProjectId && !loadingGantt.current) {
-              console.log('🔄 Recovery: Reloading Gantt data');
-              loadGanttData(selectedProjectId);
-            }
-          }, 1000);
+          // Only show error message if it's not a 404 (already deleted)
+          if (error.response?.status !== 404) {
+            message.error(`Error al eliminar ${record.type === 'milestone' ? 'hito' : 'tarea'}: ${errorMessage}`);
+          }
+          
+          // Always reload fresh data on error to restore correct state
+          console.log('🔄 Reloading fresh data due to deletion error');
+          if (selectedProjectId) {
+            loadGanttData(selectedProjectId);
+          }
           
         } finally {
           // Always remove from deletion tracking
           deletingItems.current.delete(record.id);
           console.log(`✅ Removed ${record.id} from deletion tracking`);
-          console.log(`📊 Items still being deleted:`, Array.from(deletingItems.current));
         }
       }
     });

@@ -430,26 +430,35 @@ export class TaskController {
       const { id } = req.params;
       const userId = req.user?.id;
 
-      // Check if user has access to delete task
-      const task = await db.get(`
-        SELECT t.*, tb.project_id, p.assigned_to, p.created_by
-        FROM tasks t
-        LEFT JOIN task_boards tb ON t.board_id = tb.id
-        LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ?)
-      `, [id, userId, userId]);
-
-      if (!task) {
-        res.status(404).json({ error: 'Task not found or access denied' });
-        return;
-      }
-
-      // Use transaction with immediate mode to prevent deadlocks during concurrent deletes
-      await db.beginTransaction('IMMEDIATE');
+      // Use EXCLUSIVE transaction to prevent all concurrent access during deletion
+      await db.beginTransaction('EXCLUSIVE');
       
       try {
-        // Delete task first
-        const deleteResult = await db.run(`DELETE FROM tasks WHERE id = ?`, [id]);
+        // Re-check task existence and access within transaction for consistency
+        const task = await db.get(`
+          SELECT t.*, tb.project_id, p.assigned_to, p.created_by
+          FROM tasks t
+          LEFT JOIN task_boards tb ON t.board_id = tb.id
+          LEFT JOIN projects p ON tb.project_id = p.id
+          WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ?)
+        `, [id, userId, userId]);
+
+        if (!task) {
+          await db.rollback();
+          res.status(404).json({ error: 'Task not found or access denied' });
+          return;
+        }
+
+        // Perform atomic deletion with row existence check
+        const deleteResult = await db.run(`
+          DELETE FROM tasks 
+          WHERE id = ? AND id IN (
+            SELECT t.id FROM tasks t
+            LEFT JOIN task_boards tb ON t.board_id = tb.id
+            LEFT JOIN projects p ON tb.project_id = p.id
+            WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ?)
+          )
+        `, [id, id, userId, userId]);
         
         if (deleteResult.changes === 0) {
           await db.rollback();
@@ -457,23 +466,35 @@ export class TaskController {
           return;
         }
 
-        // Reorder remaining tasks in column in a single atomic operation
+        // Reorder remaining tasks in column atomically
         await db.run(`
           UPDATE tasks 
-          SET position = position - 1 
+          SET position = position - 1, updated_at = CURRENT_TIMESTAMP
           WHERE column_id = ? AND position > ?
         `, [task.column_id, task.position]);
 
         await db.commit();
         
-        res.json({ message: 'Task deleted successfully' });
+        logger.info(`Task ${id} deleted successfully by user ${userId}`);
+        res.json({ message: 'Task deleted successfully', deletedId: id });
+        
       } catch (transactionError) {
         await db.rollback();
+        logger.error('Transaction error during task deletion:', transactionError);
         throw transactionError;
       }
     } catch (error) {
       logger.error('Delete task error:', error);
-      res.status(500).json({ error: 'Failed to delete task' });
+      
+      // Provide more specific error messages
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      if (errorMessage.includes('database is locked')) {
+        res.status(409).json({ error: 'Database temporarily locked, please try again' });
+      } else if (errorMessage.includes('no such table')) {
+        res.status(500).json({ error: 'Database schema error' });
+      } else {
+        res.status(500).json({ error: 'Failed to delete task' });
+      }
     }
   };
 
