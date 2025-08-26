@@ -415,8 +415,12 @@ export class DatabaseManager {
         });
     }
 
-    public async beginTransaction(): Promise<void> {
-        await this.run('BEGIN TRANSACTION');
+    public async beginTransaction(mode?: 'IMMEDIATE' | 'EXCLUSIVE'): Promise<void> {
+        if (mode) {
+            await this.run(`BEGIN ${mode} TRANSACTION`);
+        } else {
+            await this.run('BEGIN TRANSACTION');
+        }
     }
 
     public async commit(): Promise<void> {

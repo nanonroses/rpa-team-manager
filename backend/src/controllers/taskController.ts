@@ -444,17 +444,33 @@ export class TaskController {
         return;
       }
 
-      // Delete task
-      await db.run(`DELETE FROM tasks WHERE id = ?`, [id]);
+      // Use transaction with immediate mode to prevent deadlocks during concurrent deletes
+      await db.beginTransaction('IMMEDIATE');
+      
+      try {
+        // Delete task first
+        const deleteResult = await db.run(`DELETE FROM tasks WHERE id = ?`, [id]);
+        
+        if (deleteResult.changes === 0) {
+          await db.rollback();
+          res.status(404).json({ error: 'Task not found or already deleted' });
+          return;
+        }
 
-      // Reorder remaining tasks in column
-      await db.run(`
-        UPDATE tasks 
-        SET position = position - 1 
-        WHERE column_id = ? AND position > ?
-      `, [task.column_id, task.position]);
+        // Reorder remaining tasks in column in a single atomic operation
+        await db.run(`
+          UPDATE tasks 
+          SET position = position - 1 
+          WHERE column_id = ? AND position > ?
+        `, [task.column_id, task.position]);
 
-      res.json({ message: 'Task deleted successfully' });
+        await db.commit();
+        
+        res.json({ message: 'Task deleted successfully' });
+      } catch (transactionError) {
+        await db.rollback();
+        throw transactionError;
+      }
     } catch (error) {
       logger.error('Delete task error:', error);
       res.status(500).json({ error: 'Failed to delete task' });
@@ -487,48 +503,58 @@ export class TaskController {
         return;
       }
 
-      // If moving to same column, just reorder
-      if (column_id === task.column_id) {
-        if (position < task.position) {
-          // Moving up
-          await db.run(`
-            UPDATE tasks 
-            SET position = position + 1 
-            WHERE column_id = ? AND position >= ? AND position < ?
-          `, [column_id, position, task.position]);
-        } else if (position > task.position) {
-          // Moving down
+      // Use transaction to ensure atomic move operations
+      await db.beginTransaction('IMMEDIATE');
+      
+      try {
+        // If moving to same column, just reorder
+        if (column_id === task.column_id) {
+          if (position < task.position) {
+            // Moving up
+            await db.run(`
+              UPDATE tasks 
+              SET position = position + 1 
+              WHERE column_id = ? AND position >= ? AND position < ?
+            `, [column_id, position, task.position]);
+          } else if (position > task.position) {
+            // Moving down
+            await db.run(`
+              UPDATE tasks 
+              SET position = position - 1 
+              WHERE column_id = ? AND position > ? AND position <= ?
+            `, [column_id, task.position, position]);
+          }
+        } else {
+          // Moving to different column
+          // Remove from old column
           await db.run(`
             UPDATE tasks 
             SET position = position - 1 
-            WHERE column_id = ? AND position > ? AND position <= ?
-          `, [column_id, task.position, position]);
+            WHERE column_id = ? AND position > ?
+          `, [task.column_id, task.position]);
+
+          // Make space in new column
+          await db.run(`
+            UPDATE tasks 
+            SET position = position + 1 
+            WHERE column_id = ? AND position >= ?
+          `, [column_id, position]);
         }
-      } else {
-        // Moving to different column
-        // Remove from old column
-        await db.run(`
-          UPDATE tasks 
-          SET position = position - 1 
-          WHERE column_id = ? AND position > ?
-        `, [task.column_id, task.position]);
 
-        // Make space in new column
+        // Update task position and column
         await db.run(`
           UPDATE tasks 
-          SET position = position + 1 
-          WHERE column_id = ? AND position >= ?
-        `, [column_id, position]);
+          SET column_id = ?, position = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?
+        `, [column_id, position, id]);
+
+        await db.commit();
+        
+        res.json({ message: 'Task moved successfully' });
+      } catch (transactionError) {
+        await db.rollback();
+        throw transactionError;
       }
-
-      // Update task position and column
-      await db.run(`
-        UPDATE tasks 
-        SET column_id = ?, position = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-      `, [column_id, position, id]);
-
-      res.json({ message: 'Task moved successfully' });
     } catch (error) {
       logger.error('Move task error:', error);
       res.status(500).json({ error: 'Failed to move task' });
