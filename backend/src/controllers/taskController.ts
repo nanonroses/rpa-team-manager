@@ -2,6 +2,12 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { db } from '../database/database';
 import { logger } from '../utils/logger';
+import { 
+  validateBatchDeletionInput,
+  handleBatchDeletionError,
+  createBatchDeletionResponse,
+  reorderColumnPositions
+} from '../utils/batch-deletion.utils';
 
 export class TaskController {
 
@@ -647,21 +653,27 @@ export class TaskController {
 
   // DELETE /api/tasks/batch - Delete multiple tasks in a single transaction
   batchDeleteTasks = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const operationName = 'batchDeleteTasks';
+    
     try {
+      logger.info('🔥 Batch delete tasks called with body:', req.body);
       const { taskIds } = req.body;
       const userId = req.user?.id;
 
-      if (!Array.isArray(taskIds) || taskIds.length === 0) {
-        res.status(400).json({ error: 'Task IDs array is required and cannot be empty' });
+      logger.info(`🔥 Received taskIds: ${JSON.stringify(taskIds)}, userId: ${userId}`);
+
+      // Validate input using centralized validation
+      const validation = validateBatchDeletionInput(taskIds);
+      if (!validation.isValid) {
+        logger.error('❌ Invalid taskIds array:', taskIds);
+        res.status(400).json({ 
+          error: validation.error,
+          code: 'INVALID_INPUT'
+        });
         return;
       }
 
-      // Validate all task IDs are numbers
-      const validTaskIds = taskIds.filter(id => typeof id === 'number' || (typeof id === 'string' && !isNaN(parseInt(id))));
-      if (validTaskIds.length === 0) {
-        res.status(400).json({ error: 'No valid task IDs provided' });
-        return;
-      }
+      const validTaskIds = validation.validIds;
 
       // Use IMMEDIATE transaction for batch deletion (less restrictive than EXCLUSIVE)
       await db.beginTransaction('IMMEDIATE');
@@ -695,28 +707,14 @@ export class TaskController {
           }
         }
 
-        // Reorder positions for all affected columns at once
-        for (const columnId of columnsToReorder) {
-          await db.run(`
-            UPDATE tasks 
-            SET position = (
-              SELECT COUNT(*) + 1 
-              FROM tasks t2 
-              WHERE t2.column_id = ? AND t2.id < tasks.id
-            ), updated_at = CURRENT_TIMESTAMP
-            WHERE column_id = ?
-          `, [columnId, columnId]);
-        }
+        // Reorder positions for all affected columns using centralized utility
+        await reorderColumnPositions(db, columnsToReorder, 'tasks');
 
         await db.commit();
         
+        const response = createBatchDeletionResponse(deletedTaskIds, 'tasks');
         logger.info(`Batch deletion completed: ${deletedTaskIds.length} tasks deleted by user ${userId}`);
-        res.json({ 
-          success: true,
-          message: `Successfully deleted ${deletedTaskIds.length} tasks`,
-          deletedIds: deletedTaskIds,
-          deletedCount: deletedTaskIds.length
-        });
+        res.json(response);
         
       } catch (transactionError) {
         await db.rollback();
@@ -724,20 +722,7 @@ export class TaskController {
         throw transactionError;
       }
     } catch (error) {
-      logger.error('Batch delete tasks error:', error);
-      
-      const errorMessage = (error as Error)?.message || 'Unknown error';
-      if (errorMessage.includes('database is locked') || errorMessage.includes('SQLITE_BUSY')) {
-        res.status(409).json({ 
-          error: 'Database temporarily locked, please try again',
-          code: 'DATABASE_LOCKED'
-        });
-      } else {
-        res.status(500).json({ 
-          error: 'Failed to delete tasks in batch',
-          code: 'BATCH_DELETE_ERROR'
-        });
-      }
+      handleBatchDeletionError(error as Error, res, operationName);
     }
   };
 

@@ -54,6 +54,7 @@ import {
 import { useAuthStore } from '@/store/authStore';
 import apiService from '@/services/api';
 import dayjs from 'dayjs';
+import { useBatchDeletion } from '../../hooks/useBatchDeletion';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -119,7 +120,19 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   // Multi-selection state for batch deletion
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
-  const [batchDeleting, setBatchDeleting] = useState(false);
+  
+  // Use the custom hook for batch deletion operations
+  const { isDeleting: batchDeleting, handleBatchDelete } = useBatchDeletion({
+    ganttData,
+    selectedItems,
+    onSuccess: () => {
+      // Clear selection and exit selection mode
+      setSelectedItems(new Set());
+      setIsSelectionMode(false);
+    },
+    onLoadGanttData: loadGanttData,
+    selectedProjectId
+  });
   
   // Refs to prevent multiple simultaneous API calls
   const loadingDashboard = useRef(false);
@@ -854,134 +867,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
     setSelectedItems(new Set());
   };
 
-  const handleBatchDelete = async () => {
-    if (selectedItems.size === 0) {
-      message.warning('No hay elementos seleccionados para eliminar');
-      return;
-    }
-
-    Modal.confirm({
-      title: `¿Eliminar ${selectedItems.size} elementos seleccionados?`,
-      content: `Esta acción eliminará permanentemente ${selectedItems.size} elementos (tareas y/o hitos). ¿Estás seguro?`,
-      okText: 'Eliminar Todo',
-      okType: 'danger',
-      cancelText: 'Cancelar',
-      onOk: async () => {
-        if (!isValidGanttData(ganttData)) {
-          message.error('Datos del Gantt no válidos');
-          return;
-        }
-
-        setBatchDeleting(true);
-        console.log(`🗑️ Starting batch deletion of ${selectedItems.size} items`);
-        
-        try {
-          // Separate selected items by type
-          const selectedTasks: number[] = [];
-          const selectedMilestones: number[] = [];
-          
-          // Find all selected tasks
-          (ganttData.tasks || []).forEach((task: any) => {
-            if (selectedItems.has(task.id)) {
-              selectedTasks.push(task.id);
-            }
-          });
-          
-          // Find all selected milestones
-          (ganttData.milestones || []).forEach((milestone: any) => {
-            if (selectedItems.has(milestone.id)) {
-              selectedMilestones.push(milestone.id);
-            }
-          });
-          
-          console.log(`📊 Batch deletion breakdown:`, {
-            totalSelected: selectedItems.size,
-            tasks: selectedTasks.length,
-            milestones: selectedMilestones.length
-          });
-          
-          // Perform batch deletions
-          const deletionPromises: Promise<any>[] = [];
-          
-          if (selectedTasks.length > 0) {
-            console.log(`🔥 About to call batchDeleteTasks with:`, selectedTasks);
-            deletionPromises.push(apiService.batchDeleteTasks(selectedTasks));
-          }
-          
-          if (selectedMilestones.length > 0) {
-            deletionPromises.push(apiService.batchDeleteMilestones(selectedMilestones));
-          }
-          
-          // Execute all batch deletions in parallel with extended timeout
-          console.log(`🔄 Executing ${deletionPromises.length} batch deletion operations...`);
-          const results = await Promise.allSettled(
-            deletionPromises.map((promise, index) => 
-              Promise.race([
-                promise.then(result => {
-                  console.log(`✅ Batch deletion ${index + 1} completed:`, result);
-                  return result;
-                }),
-                new Promise((_, reject) => 
-                  setTimeout(() => reject(new Error(`Batch deletion ${index + 1} timeout after 30 seconds`)), 30000)
-                )
-              ])
-            )
-          );
-          
-          console.log(`📄 All batch deletion operations completed. Results:`, results);
-          
-          // Process results
-          let successCount = 0;
-          let errorCount = 0;
-          
-          results.forEach((result, index) => {
-            if (result.status === 'fulfilled') {
-              const deletedCount = result.value?.deletedCount || 0;
-              successCount += deletedCount;
-              console.log(`✅ Batch deletion ${index + 1} successful: ${deletedCount} items deleted`, result.value);
-            } else {
-              errorCount++;
-              console.error(`❌ Batch deletion ${index + 1} failed:`, result.reason);
-            }
-          });
-          
-          // Show appropriate message
-          if (errorCount === 0) {
-            message.success(`Eliminación masiva completada: ${successCount} elementos eliminados`);
-          } else if (successCount > 0) {
-            message.warning(`Eliminación parcial: ${successCount} elementos eliminados, ${errorCount} operaciones fallaron`);
-          } else {
-            message.error('Error en la eliminación masiva. Por favor, inténtalo nuevamente');
-          }
-          
-          // Clear selection and exit selection mode
-          setSelectedItems(new Set());
-          setIsSelectionMode(false);
-          
-          // Reload data to reflect changes
-          setTimeout(async () => {
-            if (selectedProjectId) {
-              console.log('🔄 Reloading data after batch deletion');
-              await loadGanttData(selectedProjectId);
-            }
-          }, 1000);
-          
-        } catch (error) {
-          console.error('❌ Batch deletion operation failed:', error);
-          console.error('Error details:', {
-            message: error.message,
-            stack: error.stack,
-            selectedItems: selectedItems.size,
-            selectedTasks: (ganttData.tasks || []).filter((task: any) => selectedItems.has(task.id)).length,
-            selectedMilestones: (ganttData.milestones || []).filter((milestone: any) => selectedItems.has(milestone.id)).length
-          });
-          message.error(`Error en la eliminación masiva: ${error.message || 'Error desconocido'}. Por favor, inténtalo nuevamente`);
-        } finally {
-          setBatchDeleting(false);
-        }
-      }
-    });
-  };
+  // The handleBatchDelete function is now provided by the useBatchDeletion hook
 
   const handleSaveEdit = async (values: any) => {
     try {

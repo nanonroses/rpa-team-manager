@@ -13,9 +13,13 @@ router.post('/tasks/boards', authenticate, taskController.createBoard);
 // Tasks CRUD
 router.get('/tasks', authenticate, taskController.getTasks);
 router.post('/tasks', authenticate, taskController.createTask);
+
+// Specific routes MUST come before parameterized routes
+router.delete('/tasks/batch', authenticate, taskController.batchDeleteTasks);
+
+// Parameterized routes come after specific routes
 router.put('/tasks/:id', authenticate, taskController.updateTask);
 router.delete('/tasks/:id', authenticate, taskController.deleteTask);
-router.delete('/tasks/batch', authenticate, taskController.batchDeleteTasks);
 
 // Task operations
 router.post('/tasks/:id/move', authenticate, taskController.moveTask);

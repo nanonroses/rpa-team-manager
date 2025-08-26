@@ -29,9 +29,14 @@
       "Bash(mcp__ide__getDiagnostics:*)",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(npm start)",
+      "Bash(sed:*)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "C:\\c\\Users\\nanon\\OneDrive\\Documentos\\GitHub\\rpa-team-manager"
+    ]
   }
 }

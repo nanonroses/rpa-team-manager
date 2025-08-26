@@ -189,9 +189,11 @@ class ApiService {
   }
 
   async batchDeleteTasks(taskIds: number[]): Promise<any> {
+    console.log(`🚀 API Service: batchDeleteTasks called with:`, taskIds);
     const response = await this.api.delete('/tasks/batch', {
       data: { taskIds }
     });
+    console.log(`✅ API Service: batchDeleteTasks response:`, response.data);
     return response.data;
   }
 
