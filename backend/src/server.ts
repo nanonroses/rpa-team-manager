@@ -36,7 +36,7 @@ class RPATeamManagerServer {
 
     constructor() {
         this.app = express();
-        this.port = parseInt(process.env.PORT || '5001');
+        this.port = parseInt(process.env.PORT || '8001');
         
         this.initializeMiddleware();
         this.initializeRoutes();
