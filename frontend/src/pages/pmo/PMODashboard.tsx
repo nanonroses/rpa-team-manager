@@ -120,6 +120,11 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   const deletingItems = useRef(new Set<number>()); // Track items being deleted
   const pendingReload = useRef<NodeJS.Timeout | null>(null); // Debounced reload
 
+  // Helper function to safely validate ganttData structure
+  const isValidGanttData = (data: any): boolean => {
+    return data && typeof data === 'object' && (Array.isArray(data.milestones) || Array.isArray(data.tasks));
+  };
+
   // Parse Mermaid code and extract tasks/milestones
   const parseMermaidCode = (mermaidCode: string) => {
     const lines = mermaidCode.split('\n').map(line => line.trim()).filter(line => line);
@@ -641,10 +646,16 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
         console.log(`🗑️ Starting deletion of ${record.type}:`, record.id, record.name || record.title);
         
         // Optimistically update UI to prevent visual inconsistency
-        if (ganttData) {
-          const optimisticData = ganttData.filter((item: any) => item.id !== record.id);
+        if (isValidGanttData(ganttData)) {
+          const optimisticData = {
+            ...ganttData,
+            milestones: (ganttData.milestones || []).filter((item: any) => item.id !== record.id),
+            tasks: (ganttData.tasks || []).filter((item: any) => item.id !== record.id)
+          };
           setGanttData(optimisticData);
           console.log('✨ Optimistically removed item from UI');
+        } else {
+          console.warn('⚠️ Cannot perform optimistic update: invalid ganttData structure', ganttData);
         }
         
         try {
@@ -679,32 +690,71 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
             itemName: record.name || record.title,
             error: error.message,
             status: error.response?.status,
-            response: error.response?.data
+            response: error.response?.data,
+            errorCode: error.response?.data?.code
           });
           
-          // Handle specific error cases
+          // Handle specific error cases with improved error codes
           let errorMessage = 'Error desconocido';
-          if (error.response?.status === 404) {
-            errorMessage = 'El elemento ya fue eliminado o no existe';
-            console.log('ℹ️ Item already deleted, continuing normally');
-            // Don't show error for already deleted items
-          } else if (error.response?.status === 409) {
-            errorMessage = 'Base de datos temporalmente bloqueada, intente nuevamente';
-          } else if (error.message?.includes('timeout')) {
-            errorMessage = 'Tiempo de espera agotado, verifique si la eliminación se completó';
-          } else {
-            errorMessage = error.message || 'Error interno del servidor';
+          let shouldShowError = true;
+          const errorCode = error.response?.data?.code;
+          
+          switch (error.response?.status) {
+            case 404:
+              if (errorCode === 'TASK_NOT_FOUND') {
+                errorMessage = 'La tarea ya fue eliminada o no existe';
+              } else if (errorCode === 'MILESTONE_NOT_FOUND') {
+                errorMessage = 'El hito ya fue eliminado o no existe';
+              } else {
+                errorMessage = 'El elemento ya fue eliminado o no existe';
+              }
+              console.log('ℹ️ Item already deleted, continuing normally');
+              shouldShowError = false; // Don't show error for already deleted items
+              break;
+              
+            case 409:
+              if (errorCode === 'DATABASE_LOCKED') {
+                errorMessage = 'Base de datos temporalmente bloqueada, intente nuevamente en unos segundos';
+              } else if (errorCode === 'CONCURRENT_MODIFICATION') {
+                errorMessage = 'El elemento fue modificado por otro usuario, actualizando datos...';
+              } else if (errorCode === 'DEPENDENCY_CONSTRAINT') {
+                errorMessage = 'No se puede eliminar: el elemento tiene dependencias activas';
+              } else {
+                errorMessage = 'Conflicto de concurrencia, intente nuevamente';
+              }
+              break;
+              
+            case 500:
+              if (errorCode === 'DATABASE_SCHEMA_ERROR') {
+                errorMessage = 'Error de esquema de base de datos. Contacte al administrador.';
+              } else if (errorCode === 'INTERNAL_ERROR') {
+                errorMessage = 'Error interno del servidor';
+              } else {
+                errorMessage = 'Error interno del servidor';
+              }
+              break;
+              
+            default:
+              if (error.message?.includes('timeout')) {
+                errorMessage = 'Tiempo de espera agotado, verifique si la eliminación se completó';
+              } else {
+                errorMessage = error.message || 'Error interno del servidor';
+              }
           }
           
-          // Only show error message if it's not a 404 (already deleted)
-          if (error.response?.status !== 404) {
+          // Show error message based on shouldShowError flag
+          if (shouldShowError) {
             message.error(`Error al eliminar ${record.type === 'milestone' ? 'hito' : 'tarea'}: ${errorMessage}`);
           }
           
-          // Always reload fresh data on error to restore correct state
+          // Always reload fresh data on error to restore correct UI state
           console.log('🔄 Reloading fresh data due to deletion error');
           if (selectedProjectId) {
-            loadGanttData(selectedProjectId);
+            // Add small delay for concurrent modification errors to allow other operations to complete
+            const reloadDelay = errorCode === 'CONCURRENT_MODIFICATION' ? 1000 : 100;
+            setTimeout(() => {
+              loadGanttData(selectedProjectId);
+            }, reloadDelay);
           }
           
         } finally {
