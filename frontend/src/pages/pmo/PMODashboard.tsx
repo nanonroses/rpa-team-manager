@@ -23,7 +23,8 @@ import {
   Typography,
   Tooltip,
   Upload,
-  Drawer
+  Drawer,
+  Spin
 } from 'antd';
 import {
   ProjectOutlined,
@@ -276,9 +277,32 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       
       // Reload data with a slight delay to ensure backend processes the data
       setTimeout(async () => {
-        await loadDashboardData();
-        await loadGanttData(selectedProjectId);
+        try {
+          console.log('🔄 Reloading data after Mermaid import...');
+          await loadDashboardData();
+          if (selectedProjectId) {
+            await loadGanttData(selectedProjectId);
+          }
+          console.log('✅ Data reload after Mermaid import completed successfully');
+        } catch (error) {
+          console.error('❌ Error reloading data after Mermaid import:', error);
+          // Ensure loading states are cleared even if reload fails
+          setLoading(false);
+          setGanttLoading(false);
+          loadingDashboard.current = false;
+          loadingGantt.current = false;
+          message.warning('Los datos se importaron correctamente, pero hubo un problema al actualizar la vista. Recarga la página si es necesario.');
+        }
       }, 500);
+      
+      // Safety timeout to ensure loading state doesn't get stuck
+      setTimeout(() => {
+        if (loading || loadingDashboard.current) {
+          console.warn('⚠️ Loading state timeout after Mermaid import - forcing recovery');
+          setLoading(false);
+          loadingDashboard.current = false;
+        }
+      }, 10000); // 10 second timeout
       
     } catch (error) {
       console.error('Error importing Mermaid:', error);
@@ -1011,7 +1035,17 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   ];
 
   if (loading) {
-    return <div>Cargando...</div>;
+    return (
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '400px',
+        padding: '24px'
+      }}>
+        <Spin size="large" tip="Cargando PMO Dashboard..." />
+      </div>
+    );
   }
 
   return (
