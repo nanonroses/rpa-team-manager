@@ -904,6 +904,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
           const deletionPromises: Promise<any>[] = [];
           
           if (selectedTasks.length > 0) {
+            console.log(`🔥 About to call batchDeleteTasks with:`, selectedTasks);
             deletionPromises.push(apiService.batchDeleteTasks(selectedTasks));
           }
           
@@ -911,17 +912,23 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
             deletionPromises.push(apiService.batchDeleteMilestones(selectedMilestones));
           }
           
-          // Execute all batch deletions in parallel with 15 second timeout
+          // Execute all batch deletions in parallel with extended timeout
+          console.log(`🔄 Executing ${deletionPromises.length} batch deletion operations...`);
           const results = await Promise.allSettled(
-            deletionPromises.map(promise => 
+            deletionPromises.map((promise, index) => 
               Promise.race([
-                promise,
+                promise.then(result => {
+                  console.log(`✅ Batch deletion ${index + 1} completed:`, result);
+                  return result;
+                }),
                 new Promise((_, reject) => 
-                  setTimeout(() => reject(new Error('Batch deletion timeout after 15 seconds')), 15000)
+                  setTimeout(() => reject(new Error(`Batch deletion ${index + 1} timeout after 30 seconds`)), 30000)
                 )
               ])
             )
           );
+          
+          console.log(`📄 All batch deletion operations completed. Results:`, results);
           
           // Process results
           let successCount = 0;
@@ -931,7 +938,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
             if (result.status === 'fulfilled') {
               const deletedCount = result.value?.deletedCount || 0;
               successCount += deletedCount;
-              console.log(`✅ Batch deletion ${index + 1} successful: ${deletedCount} items deleted`);
+              console.log(`✅ Batch deletion ${index + 1} successful: ${deletedCount} items deleted`, result.value);
             } else {
               errorCount++;
               console.error(`❌ Batch deletion ${index + 1} failed:`, result.reason);
@@ -960,8 +967,15 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
           }, 1000);
           
         } catch (error) {
-          console.error('❌ Batch deletion error:', error);
-          message.error('Error durante la eliminación masiva. Por favor, inténtalo nuevamente');
+          console.error('❌ Batch deletion operation failed:', error);
+          console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            selectedItems: selectedItems.size,
+            selectedTasks: (ganttData.tasks || []).filter((task: any) => selectedItems.has(task.id)).length,
+            selectedMilestones: (ganttData.milestones || []).filter((milestone: any) => selectedItems.has(milestone.id)).length
+          });
+          message.error(`Error en la eliminación masiva: ${error.message || 'Error desconocido'}. Por favor, inténtalo nuevamente`);
         } finally {
           setBatchDeleting(false);
         }
@@ -2332,7 +2346,8 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                               </Button>
                             </>
                           )}
-                          </Button>
+                        </Space>
+                        <Space style={{ marginLeft: 8 }}>
                           <Button 
                             icon={<ImportOutlined />}
                             onClick={() => setMermaidDrawerVisible(true)}
