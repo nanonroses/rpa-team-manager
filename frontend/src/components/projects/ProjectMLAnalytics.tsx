@@ -228,7 +228,7 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
       {error && (
         <Alert
           message="Prediction Error"
-          description={error}
+          description={typeof error === 'string' ? error : error?.message || 'Unknown error occurred'}
           type="error"
           style={{ marginBottom: '24px' }}
           closable

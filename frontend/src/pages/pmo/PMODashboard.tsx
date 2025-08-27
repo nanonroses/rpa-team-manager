@@ -55,6 +55,7 @@ import { useAuthStore } from '@/store/authStore';
 import apiService from '@/services/api';
 import dayjs from 'dayjs';
 import { useBatchDeletion } from '../../hooks/useBatchDeletion';
+import { useGanttData } from '../../hooks/useGanttData';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -106,8 +107,9 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   const [users, setUsers] = useState([]);
   const [projects, setProjects] = useState([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
-  const [ganttData, setGanttData] = useState<any>(null);
-  const [ganttLoading, setGanttLoading] = useState(false);
+  
+  // Use the enhanced Gantt data hook for better state management
+  const { ganttData, ganttLoading, error: ganttError, loadGanttData, clearError: clearGanttError, refreshGanttData } = useGanttData(selectedProjectId);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editForm] = Form.useForm();
@@ -123,10 +125,8 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   
   // Refs to prevent multiple simultaneous API calls
   const loadingDashboard = useRef(false);
-  const loadingGantt = useRef(false);
   const deletingItems = useRef(new Set<number>()); // Track items being deleted
   const pendingReload = useRef<NodeJS.Timeout | null>(null); // Debounced reload
-  const lastGanttLoadTime = useRef<number>(0); // Rate limiter for gantt data loading
 
   // Helper function to safely validate ganttData structure
   const isValidGanttData = (data: any): boolean => {
@@ -138,49 +138,104 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
     const lines = mermaidCode.split('\n').map(line => line.trim()).filter(line => line);
     const tasks: any[] = [];
     const milestones: any[] = [];
+    const taskRegistry = new Map(); // Para resolver dependencias "after"
+    
+    // Helper function to parse date or calculate from dependencies
+    const parseDate = (dateStr: string, taskId?: string): string | null => {
+      if (!dateStr) return null;
+      
+      // Direct date format YYYY-MM-DD
+      if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        return dateStr;
+      }
+      
+      // Handle "after taskId" dependencies
+      if (dateStr.startsWith('after ')) {
+        const refTaskId = dateStr.replace('after ', '').trim();
+        const refTask = taskRegistry.get(refTaskId);
+        if (refTask && refTask.endDate) {
+          return dayjs(refTask.endDate).add(1, 'day').format('YYYY-MM-DD');
+        }
+        // Fallback si no encuentra la referencia
+        return dayjs().add(1, 'day').format('YYYY-MM-DD');
+      }
+      
+      return null;
+    };
+
+    // Helper function to calculate end date from start date and duration
+    const calculateEndDate = (startDate: string, duration: string): string => {
+      if (!duration || duration === '0d') return startDate;
+      
+      const days = parseInt(duration.replace(/\D/g, '')) || 1;
+      return dayjs(startDate).add(days - 1, 'day').format('YYYY-MM-DD');
+    };
     
     for (const line of lines) {
-      // Skip header and empty lines
-      if (line.startsWith('gantt') || line.startsWith('title') || line.startsWith('dateFormat') || !line) {
+      // Skip header lines and configuration
+      if (line.startsWith('gantt') || line.startsWith('title') || 
+          line.startsWith('dateFormat') || line.startsWith('axisFormat') ||
+          line.startsWith('excludes') || !line) {
         continue;
       }
       
       // Parse section headers as milestones
       if (line.startsWith('section ')) {
         const sectionName = line.replace('section ', '').trim();
+        const milestoneDate = dayjs().add(milestones.length * 14, 'days').format('YYYY-MM-DD');
+        
         milestones.push({
           name: sectionName,
-          description: `Hito generado desde diagrama Mermaid: ${sectionName}`,
+          description: `Hito de sección generado desde diagrama Mermaid: ${sectionName}`,
           milestone_type: 'delivery',
           priority: 'medium',
-          impact_on_timeline: 'medium'
+          impact_on_timeline: 'medium',
+          planned_date: milestoneDate
         });
         continue;
       }
       
-      // Parse task lines (format: "Task name :done/active, task-id, start-date, duration")
-      const taskMatch = line.match(/([^:]+)\s*:\s*(done|active|crit)?,?\s*([^,]*),?\s*([^,]*),?\s*([^,]*)/);
-      if (taskMatch) {
-        const [, taskName, status, taskId, startDate, duration] = taskMatch;
-        tasks.push({
-          title: taskName.trim(),
-          description: `Tarea generada desde diagrama Mermaid`,
-          task_type: 'feature',
-          priority: status === 'crit' ? 'high' : 'medium',
-          status: status === 'done' ? 'completed' : 'pending',
-          estimated_hours: duration ? parseInt(duration.replace(/\D/g, '')) || 8 : 8
+      // Parse task/milestone lines in Mermaid format
+      // Format: "Task name :status, task-id, start-date, duration"
+      const lineMatch = line.match(/([^:]+)\s*:\s*([^,]*),?\s*([^,]*),?\s*([^,]*),?\s*([^,]*)/);
+      if (lineMatch) {
+        const [, taskName, status, taskId, startParam, durationParam] = lineMatch.map(s => s?.trim() || '');
+        
+        // Determine if it's a milestone
+        const isMilestone = status === 'milestone' || durationParam === '0d';
+        
+        // Calculate dates
+        const startDate = parseDate(startParam, taskId) || dayjs().format('YYYY-MM-DD');
+        const duration = durationParam || (isMilestone ? '0d' : '5d');
+        const endDate = calculateEndDate(startDate, duration);
+        
+        // Register task for dependency resolution
+        taskRegistry.set(taskId, {
+          name: taskName.trim(),
+          startDate,
+          endDate,
+          isMilestone
         });
-      } else if (line.includes(':')) {
-        // Simple task format: "Task name : status"
-        const [taskName, status] = line.split(':').map(s => s.trim());
-        if (taskName) {
+        
+        if (isMilestone) {
+          milestones.push({
+            name: taskName.trim(),
+            description: `Hito generado desde diagrama Mermaid`,
+            milestone_type: 'delivery',
+            priority: status === 'crit' ? 'high' : 'medium',
+            impact_on_timeline: 'high',
+            planned_date: startDate
+          });
+        } else {
           tasks.push({
-            title: taskName,
+            title: taskName.trim(),
             description: `Tarea generada desde diagrama Mermaid`,
             task_type: 'feature',
-            priority: 'medium',
+            priority: status === 'crit' ? 'high' : 'medium',
             status: status === 'done' ? 'completed' : 'pending',
-            estimated_hours: 8
+            start_date: startDate,
+            due_date: endDate,
+            estimated_hours: parseInt(duration.replace(/\D/g, '')) * 8 || 40
           });
         }
       }
@@ -201,31 +256,64 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       return;
     }
     
+    // Show loading modal with progress
+    const hideLoading = message.loading('Analizando código Mermaid...', 0);
+    
     try {
       const { tasks, milestones } = parseMermaidCode(mermaidCode);
       
       if (tasks.length === 0 && milestones.length === 0) {
+        hideLoading();
         message.warning('No se encontraron tareas ni hitos válidos en el código Mermaid');
         return;
       }
+
+      const totalItems = tasks.length + milestones.length;
+      let completedItems = 0;
+
+      // Helper function to update progress
+      const updateProgress = (message: string) => {
+        hideLoading();
+        const progress = Math.round((completedItems / totalItems) * 100);
+        message.loading(`${message} (${progress}%)`, 0);
+      };
       
-      // Create milestones first
+      // Create milestones in parallel for better performance
       let createdMilestones = 0;
-      for (const milestone of milestones) {
-        try {
-          await apiService.createMilestone({
-            ...milestone,
-            project_id: selectedProjectId,
-            responsible_user_id: user?.id,
-            planned_date: dayjs().add(30, 'days').format('YYYY-MM-DD')
+      if (milestones.length > 0) {
+        updateProgress(`Creando ${milestones.length} hitos...`);
+        
+        // Process milestones in batches of 5 for better performance
+        const milestoneBatches = [];
+        for (let i = 0; i < milestones.length; i += 5) {
+          milestoneBatches.push(milestones.slice(i, i + 5));
+        }
+        
+        for (const batch of milestoneBatches) {
+          const milestonePromises = batch.map(async (milestone) => {
+            const milestoneData = {
+              ...milestone,
+              project_id: selectedProjectId,
+              responsible_user_id: user?.id,
+              planned_date: milestone.planned_date || dayjs().add(30, 'days').format('YYYY-MM-DD')
+            };
+            console.log('Creating milestone with dates:', milestoneData);
+            return apiService.createMilestone(milestoneData);
           });
-          createdMilestones++;
-        } catch (error) {
-          console.error('Error creating milestone:', error);
+
+          try {
+            await Promise.all(milestonePromises);
+            createdMilestones += batch.length;
+            completedItems += batch.length;
+            updateProgress(`Creando hitos... (${createdMilestones}/${milestones.length})`);
+          } catch (error) {
+            console.error('Error creating milestone batch:', error);
+          }
         }
       }
       
-      // Get project board info first using apiService
+      // Get project board info once for all tasks (optimization)
+      updateProgress('Obteniendo información del tablero...');
       let boardId = null;
       let columnId = null;
       try {
@@ -252,31 +340,61 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
         console.error('Error getting board info:', error);
       }
 
-      // Create tasks
+      // Create tasks using optimized batch operations
       let createdTasks = 0;
       if (!boardId || !columnId) {
         console.error('Cannot create tasks: missing boardId or columnId', { boardId, columnId });
         message.warning('No se pudieron crear las tareas: falta información del tablero');
-      } else {
-        for (const task of tasks) {
-          try {
-            const taskData = {
-              ...task,
-              project_id: selectedProjectId,
-              board_id: boardId,
-              column_id: columnId,
-              assignee_id: user?.id,
-              due_date: dayjs().add(14, 'days').format('YYYY-MM-DD')
-            };
-            console.log('Creating task:', taskData);
-            await apiService.createTask(taskData);
-            createdTasks++;
-          } catch (error) {
-            console.error('Error creating task:', error);
+        completedItems += tasks.length; // Mark as completed for progress
+      } else if (tasks.length > 0) {
+        updateProgress(`Creando ${tasks.length} tareas...`);
+        
+        try {
+          console.log(`📦 Creating ${tasks.length} tasks in batch...`);
+          const tasksData = tasks.map(task => ({
+            ...task,
+            project_id: selectedProjectId,
+            board_id: boardId,
+            column_id: columnId,
+            assignee_id: user?.id,
+            // Use dates from Mermaid parsing, fallback to defaults if not provided
+            start_date: task.start_date || dayjs().format('YYYY-MM-DD'),
+            due_date: task.due_date || dayjs().add(14, 'days').format('YYYY-MM-DD')
+          }));
+          
+          console.log('Creating tasks with dates:', tasksData);
+          
+          // If batch operation exists, use it, otherwise fall back to parallel individual calls
+          if (apiService.batchCreateTasks) {
+            const batchResult = await apiService.batchCreateTasks(tasksData, boardId);
+            createdTasks = batchResult.createdCount || 0;
+          } else {
+            // Fallback: Process in parallel batches of 10
+            const taskBatches = [];
+            for (let i = 0; i < tasksData.length; i += 10) {
+              taskBatches.push(tasksData.slice(i, i + 10));
+            }
+            
+            for (const batch of taskBatches) {
+              const taskPromises = batch.map(taskData => apiService.createTask(taskData));
+              await Promise.all(taskPromises);
+              createdTasks += batch.length;
+              completedItems += batch.length;
+              updateProgress(`Creando tareas... (${createdTasks}/${tasks.length})`);
+            }
           }
+          
+          completedItems += tasks.length;
+          console.log(`✅ Task creation completed: ${createdTasks} tasks created`);
+        } catch (error) {
+          console.error('Error creating tasks:', error);
+          message.warning('Algunas tareas no pudieron ser creadas');
+          completedItems += tasks.length; // Mark as completed for progress
         }
       }
       
+      // Hide loading and show completion
+      hideLoading();
       message.success(`Importación completada: ${createdTasks} tareas y ${createdMilestones} hitos creados`);
       setMermaidDrawerVisible(false);
       setMermaidCode('');
@@ -287,7 +405,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
           console.log('🔄 Reloading data after Mermaid import...');
           await loadDashboardData();
           if (selectedProjectId) {
-            await loadGanttData(selectedProjectId);
+            await loadGanttData(selectedProjectId, true);
           }
           console.log('✅ Data reload after Mermaid import completed successfully');
         } catch (error) {
@@ -312,6 +430,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       
     } catch (error) {
       console.error('Error importing Mermaid:', error);
+      hideLoading();
       message.error('Error al importar el diagrama Mermaid');
     }
   };
@@ -362,7 +481,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       setTimeout(() => {
         if (selectedProjectId && !ganttData && !ganttLoading) {
           console.log('🔧 Auto-recovery: Reloading gantt data');
-          loadGanttData(selectedProjectId);
+          loadGanttData(selectedProjectId, true);
         }
       }, 1000);
     }
@@ -444,9 +563,9 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
         await loadDashboardData();
         
         // Then reload gantt data if we have a selected project
-        if (selectedProjectId && !loadingGantt.current) {
+        if (selectedProjectId && !ganttLoading) {
           console.log('🔄 Reloading Gantt data after deletion');
-          await loadGanttData(selectedProjectId);
+          await loadGanttData(selectedProjectId, true);
         }
         console.log('✅ Debounced reload completed successfully');
       } catch (error) {
@@ -459,8 +578,8 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
         if (selectedProjectId) {
           setTimeout(() => {
             console.log('🔄 Retry reload after error');
-            if (selectedProjectId && !loadingGantt.current) {
-              loadGanttData(selectedProjectId);
+            if (selectedProjectId && !ganttLoading) {
+              loadGanttData(selectedProjectId, true);
             }
           }, 2000);
         }
@@ -543,7 +662,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       loadDashboardData();
       // Reload gantt data if we're in gantt view
       if (selectedProjectId) {
-        loadGanttData(selectedProjectId);
+        loadGanttData(selectedProjectId, true);
       }
     } catch (error) {
       console.error('Error creating milestone:', error);
@@ -564,7 +683,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       taskForm.resetFields();
       // Reload gantt data
       if (selectedProjectId) {
-        loadGanttData(selectedProjectId);
+        loadGanttData(selectedProjectId, true);
       }
     } catch (error) {
       console.error('Error creating task:', error);
@@ -572,99 +691,9 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
     }
   };
 
-  const loadGanttData = async (projectId: number) => {
-    if (loadingGantt.current) {
-      console.log('⚠️ loadGanttData already in progress, skipping...');
-      return;
-    }
+  // The loadGanttData function is now provided by the useGanttData hook
 
-    // EMERGENCY FIX: Rate limiter to prevent infinite loops
-    const now = Date.now();
-    const timeSinceLastLoad = now - lastGanttLoadTime.current;
-    const minInterval = 1000; // Minimum 1 second between calls
-    
-    if (timeSinceLastLoad < minInterval) {
-      console.log(`🚦 Rate limited: loadGanttData called too soon (${timeSinceLastLoad}ms ago). Minimum interval: ${minInterval}ms`);
-      return;
-    }
-    
-    lastGanttLoadTime.current = now;
-    
-    try {
-      loadingGantt.current = true;
-      setGanttLoading(true);
-      console.log('🔄 Loading Gantt data for project:', projectId);
-      
-      // Validate projectId
-      if (!projectId || isNaN(projectId)) {
-        throw new Error(`Invalid project ID: ${projectId}`);
-      }
-      
-      const data = await apiService.getPMOProjectGantt(projectId);
-      console.log('📊 Gantt data received:', data);
-      console.log('🔍 Data structure validation:', {
-        hasProject: !!data?.project,
-        projectId: data?.project?.id,
-        projectName: data?.project?.name,
-        milestoneCount: data?.milestones?.length || 0,
-        taskCount: data?.tasks?.length || 0,
-        isDataTruthy: !!data,
-        dataKeys: data ? Object.keys(data) : 'null'
-      });
-      
-      // Validate the data structure before setting it
-      if (!data || typeof data !== 'object') {
-        throw new Error('Invalid data structure received from API');
-      }
-      
-      if (!data.project && (!data.milestones || data.milestones.length === 0) && (!data.tasks || data.tasks.length === 0)) {
-        console.log('⚠️ Empty project data, but this might be valid for new projects');
-      }
-      
-      setGanttData(data);
-      console.log('✅ Gantt data state set successfully - data is:', !!data ? 'truthy' : 'falsy');
-      console.log('✅ Gantt data loaded successfully for project:', data.project?.name || projectId);
-      
-      // Validate that the state was actually set
-      setTimeout(() => {
-        console.log('🔍 Post-update state validation');
-      }, 100);
-      
-    } catch (error: any) {
-      console.error('❌ CRITICAL ERROR loading Gantt data:', error);
-      console.error('❌ Error details:', {
-        message: error.message,
-        stack: error.stack,
-        response: error.response?.data,
-        status: error.response?.status,
-        projectId: projectId
-      });
-      
-      const errorMessage = error.response?.data?.error || error.message || 'Error al cargar datos del cronograma';
-      
-      // Don't show error if it's just a network issue and we're retrying
-      if (error.response?.status !== 401 && error.response?.status !== 403) {
-        message.error(errorMessage);
-      }
-      
-      // Set to null, but preserve selectedProjectId so user can retry
-      setGanttData(null);
-      console.log('❌ Set ganttData to null due to error');
-      
-      // If it's an auth error, might need to re-login
-      if (error.response?.status === 401) {
-        console.log('🚨 Auth error detected, might need to re-login');
-        message.error('Sesión expirada. Por favor inicia sesión nuevamente.');
-      }
-      
-    } finally {
-      setGanttLoading(false);
-      loadingGantt.current = false;
-      console.log('🏁 loadGanttData finally block completed');
-    }
-  };
-
-  // Use the custom hook for batch deletion operations (must be after loadGanttData definition)
+  // Use the custom hook for batch deletion operations
   const { isDeleting: batchDeleting, handleBatchDelete } = useBatchDeletion({
     ganttData,
     selectedItems,
@@ -673,25 +702,29 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       setSelectedItems(new Set());
       setIsSelectionMode(false);
     },
-    onLoadGanttData: loadGanttData,
+    onLoadGanttData: (projectId) => loadGanttData(projectId, true), // Force reload after deletion
     selectedProjectId
   });
 
   useEffect(() => {
     console.log('selectedProjectId changed to:', selectedProjectId);
-    if (selectedProjectId && !loadingGantt.current) {
+    if (selectedProjectId) {
       console.log('Loading Gantt data for selected project:', selectedProjectId);
       loadGanttData(selectedProjectId);
-    } else if (!selectedProjectId) {
-      console.log('No project selected, clearing Gantt data');
-      setGanttData(null);
-    } else {
-      console.log('⚠️ Gantt data already loading, skipping duplicate request');
     }
-  }, [selectedProjectId]);
+    // The useGanttData hook automatically handles clearing data when selectedProjectId changes
+  }, [selectedProjectId, loadGanttData]);
 
   const handleEditItem = (record: any) => {
     setEditingItem(record);
+    console.log('🔍 Setting form values for edit:', {
+      type: record.type,
+      planned_date: record.planned_date,
+      actual_date: record.actual_date,
+      start_date: record.start_date,
+      due_date: record.due_date
+    });
+    
     editForm.setFieldsValue({
       ...record,
       planned_date: record.planned_date ? dayjs(record.planned_date) : null,
@@ -753,9 +786,9 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
           
           // Confirm deletion with fresh data after a short delay
           setTimeout(() => {
-            if (selectedProjectId && !loadingGantt.current) {
+            if (selectedProjectId && !ganttLoading) {
               console.log('🔄 Refreshing data after successful deletion');
-              loadGanttData(selectedProjectId);
+              loadGanttData(selectedProjectId, true);
             }
           }, 500);
           
@@ -829,7 +862,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
             // Add small delay for concurrent modification errors to allow other operations to complete
             const reloadDelay = errorCode === 'CONCURRENT_MODIFICATION' ? 1000 : 100;
             setTimeout(() => {
-              loadGanttData(selectedProjectId);
+              loadGanttData(selectedProjectId, true);
             }, reloadDelay);
           }
           
@@ -884,7 +917,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       if (editingItem.type === 'milestone') {
         const updateData = {
           ...values,
-          planned_date: values.planned_date ? values.planned_date.format('YYYY-MM-DD') : values.planned_date,
+          planned_date: values.planned_date ? values.planned_date.format('YYYY-MM-DD') : null,
           actual_date: values.actual_date ? values.actual_date.format('YYYY-MM-DD') : null
         };
         console.log('🎯 Updating milestone with data:', updateData);
@@ -910,7 +943,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       // Reload gantt data with error protection
       if (selectedProjectId) {
         console.log('🔄 Reloading Gantt data for project:', selectedProjectId);
-        await loadGanttData(selectedProjectId);
+        await loadGanttData(selectedProjectId, true);
         console.log('✅ Gantt data reloaded successfully');
       }
     } catch (error: any) {
@@ -931,11 +964,11 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
         await loadDropdownData();
         
         // If we have a selected project, try to reload its data (with safeguards)
-        if (selectedProjectId && !loadingGantt.current) {
+        if (selectedProjectId && !ganttLoading) {
           console.log('🔄 Recovery: Reloading Gantt data for project:', selectedProjectId);
           // Add small delay to prevent immediate retry conflicts
           await new Promise(resolve => setTimeout(resolve, 500));
-          await loadGanttData(selectedProjectId);
+          await loadGanttData(selectedProjectId, true);
         }
         
         message.error(`Error al actualizar: ${error.message || 'Error desconocido'}`);
@@ -2159,6 +2192,29 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                     <Title level={4}>Cargando cronograma...</Title>
                     <div>Preparando vista Gantt del proyecto</div>
                   </div>
+                </Card>
+              ) : ganttError ? (
+                <Card>
+                  <Alert
+                    message="Error loading project timeline"
+                    description={ganttError}
+                    type="error"
+                    showIcon
+                    action={
+                      <Button 
+                        size="small" 
+                        type="primary" 
+                        onClick={() => {
+                          clearGanttError();
+                          if (selectedProjectId) {
+                            loadGanttData(selectedProjectId, true);
+                          }
+                        }}
+                      >
+                        Retry
+                      </Button>
+                    }
+                  />
                 </Card>
               ) : (console.log('🎨 Render condition check:', { 
                 hasGanttData: !!ganttData, 

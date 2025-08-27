@@ -2,9 +2,29 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { LoginCredentials, LoginResponse, User } from '@/types/auth';
 import { Project } from '@/types/project';
 
+interface RequestCache {
+  [key: string]: {
+    promise: Promise<any>;
+    timestamp: number;
+  };
+}
+
+interface RateLimitState {
+  [endpoint: string]: {
+    count: number;
+    resetTime: number;
+    retryAfter?: number;
+  };
+}
+
 class ApiService {
   private api: AxiosInstance;
   private baseURL: string;
+  private requestCache: RequestCache = {};
+  private rateLimitState: RateLimitState = {};
+  private readonly CACHE_TTL = 1000; // 1 second cache for deduplication
+  private readonly RATE_LIMIT_WINDOW = 60000; // 1 minute window
+  private readonly MAX_REQUESTS_PER_WINDOW = 50; // Max requests per endpoint per window
 
   constructor() {
     this.baseURL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8001';
@@ -37,8 +57,36 @@ class ApiService {
 
     // Response interceptor for error handling
     this.api.interceptors.response.use(
-      (response: AxiosResponse) => response,
+      (response: AxiosResponse) => {
+        // Track successful responses for rate limiting
+        const endpoint = this.getEndpointKey(response.config.url || '', response.config.method || '');
+        this.updateRateLimitState(endpoint, false);
+        return response;
+      },
       (error) => {
+        const endpoint = error.config ? this.getEndpointKey(error.config.url || '', error.config.method || '') : '';
+        
+        // Handle rate limiting (429 errors)
+        if (error.response?.status === 429) {
+          console.warn('🚦 Rate limit exceeded for:', endpoint);
+          const retryAfter = error.response.headers['retry-after'];
+          if (endpoint && retryAfter) {
+            this.rateLimitState[endpoint] = {
+              count: this.MAX_REQUESTS_PER_WINDOW,
+              resetTime: Date.now() + (parseInt(retryAfter) * 1000),
+              retryAfter: parseInt(retryAfter)
+            };
+          }
+          
+          // Create a more user-friendly error
+          const rateLimitError = new Error('Too many requests. Please wait before trying again.');
+          (rateLimitError as any).code = 'RATE_LIMIT_EXCEEDED';
+          (rateLimitError as any).retryAfter = retryAfter;
+          (rateLimitError as any).originalError = error;
+          return Promise.reject(rateLimitError);
+        }
+        
+        // Handle authentication errors
         if (error.response?.status === 401) {
           console.log('🔴 401 Unauthorized - Token expired or invalid, clearing auth data');
           // Clear all auth data from multiple storage locations
@@ -69,9 +117,156 @@ class ApiService {
             window.location.href = '/login';
           }
         }
-        return Promise.reject(error);
+        
+        // Enhance error object with better structure
+        const enhancedError = this.enhanceError(error);
+        return Promise.reject(enhancedError);
       }
     );
+  }
+
+  // Enhanced request methods with deduplication and rate limiting
+  private getEndpointKey(url: string, method: string): string {
+    return `${method.toUpperCase()}:${url}`;
+  }
+
+  private getCacheKey(url: string, method: string, data?: any): string {
+    const dataString = data ? JSON.stringify(data) : '';
+    return `${method.toUpperCase()}:${url}:${dataString}`;
+  }
+
+  private updateRateLimitState(endpoint: string, increment: boolean = true): void {
+    const now = Date.now();
+    
+    if (!this.rateLimitState[endpoint]) {
+      this.rateLimitState[endpoint] = {
+        count: 0,
+        resetTime: now + this.RATE_LIMIT_WINDOW
+      };
+    }
+
+    const state = this.rateLimitState[endpoint];
+    
+    // Reset if window has passed
+    if (now > state.resetTime) {
+      state.count = 0;
+      state.resetTime = now + this.RATE_LIMIT_WINDOW;
+      delete state.retryAfter;
+    }
+
+    if (increment) {
+      state.count++;
+    }
+  }
+
+  private isRateLimited(endpoint: string): boolean {
+    const state = this.rateLimitState[endpoint];
+    if (!state) return false;
+
+    const now = Date.now();
+    
+    // Check if we're still in retry period
+    if (state.retryAfter && now < state.resetTime) {
+      return true;
+    }
+
+    // Reset if window has passed
+    if (now > state.resetTime) {
+      state.count = 0;
+      state.resetTime = now + this.RATE_LIMIT_WINDOW;
+      delete state.retryAfter;
+      return false;
+    }
+
+    return state.count >= this.MAX_REQUESTS_PER_WINDOW;
+  }
+
+  private cleanupCache(): void {
+    const now = Date.now();
+    Object.keys(this.requestCache).forEach(key => {
+      if (now - this.requestCache[key].timestamp > this.CACHE_TTL) {
+        delete this.requestCache[key];
+      }
+    });
+  }
+
+  private enhanceError(error: any): Error {
+    const enhanced = new Error();
+    
+    if (error.response?.data?.error) {
+      enhanced.message = error.response.data.error;
+    } else if (error.message) {
+      enhanced.message = error.message;
+    } else {
+      enhanced.message = 'An unexpected error occurred';
+    }
+
+    // Add structured properties
+    (enhanced as any).code = error.response?.data?.code || error.code || 'UNKNOWN_ERROR';
+    (enhanced as any).status = error.response?.status;
+    (enhanced as any).timestamp = new Date().toISOString();
+    (enhanced as any).originalError = error;
+
+    return enhanced;
+  }
+
+  private async makeRequest<T>(
+    method: 'get' | 'post' | 'put' | 'delete',
+    url: string,
+    data?: any,
+    config?: AxiosRequestConfig,
+    enableCache: boolean = true
+  ): Promise<T> {
+    // Clean up old cache entries
+    this.cleanupCache();
+
+    const endpoint = this.getEndpointKey(url, method);
+    
+    // Check rate limiting
+    if (this.isRateLimited(endpoint)) {
+      const state = this.rateLimitState[endpoint];
+      const waitTime = Math.ceil((state.resetTime - Date.now()) / 1000);
+      throw new Error(`Rate limit exceeded. Please wait ${waitTime} seconds before trying again.`);
+    }
+
+    // Check request cache for deduplication (only for GET requests or if explicitly enabled)
+    if (enableCache && (method === 'get' || method === 'post')) {
+      const cacheKey = this.getCacheKey(url, method, data);
+      const cached = this.requestCache[cacheKey];
+      
+      if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+        console.log(`🎯 Using cached request for: ${endpoint}`);
+        return cached.promise;
+      }
+
+      // Update rate limit state
+      this.updateRateLimitState(endpoint);
+
+      // Create and cache the request
+      const promise = this.api[method](url, method === 'get' ? config : data, method === 'get' ? undefined : config)
+        .then(response => response.data);
+
+      this.requestCache[cacheKey] = {
+        promise,
+        timestamp: Date.now()
+      };
+
+      // Clean up cache entry after completion
+      promise.finally(() => {
+        setTimeout(() => {
+          delete this.requestCache[cacheKey];
+        }, this.CACHE_TTL);
+      });
+
+      return promise;
+    }
+
+    // Update rate limit state
+    this.updateRateLimitState(endpoint);
+
+    // Make the request directly
+    const response = await this.api[method](url, method === 'get' ? config : data, method === 'get' ? undefined : config);
+    return response.data;
   }
 
   // Utility methods for fileService
@@ -209,6 +404,16 @@ class ApiService {
 
   async deleteTask(taskId: number): Promise<any> {
     const response = await this.api.delete(`/tasks/${taskId}`);
+    return response.data;
+  }
+
+  async batchCreateTasks(tasks: any[], boardId: number): Promise<any> {
+    console.log(`🚀 API Service: batchCreateTasks called with ${tasks.length} tasks for board ${boardId}`);
+    const response = await this.api.post('/tasks/batch', {
+      tasks,
+      board_id: boardId
+    });
+    console.log(`✅ API Service: batchCreateTasks response:`, response.data);
     return response.data;
   }
 
@@ -473,13 +678,11 @@ class ApiService {
   }
 
   async getPMOAnalytics(): Promise<any> {
-    const response = await this.api.get('/pmo/analytics');
-    return response.data;
+    return this.makeRequest<any>('get', '/pmo/analytics', undefined, undefined, true);
   }
 
   async getPMOProjectGantt(projectId: number): Promise<any> {
-    const response = await this.api.get(`/pmo/projects/${projectId}/gantt`);
-    return response.data;
+    return this.makeRequest<any>('get', `/pmo/projects/${projectId}/gantt`, undefined, undefined, true);
   }
 
   async createMilestone(milestoneData: any): Promise<any> {
@@ -494,6 +697,16 @@ class ApiService {
 
   async deleteMilestone(milestoneId: number): Promise<any> {
     const response = await this.api.delete(`/pmo/milestones/${milestoneId}`);
+    return response.data;
+  }
+
+  async batchCreateMilestones(milestones: any[], projectId: number): Promise<any> {
+    console.log(`🚀 API Service: batchCreateMilestones called with ${milestones.length} milestones for project ${projectId}`);
+    const response = await this.api.post('/pmo/milestones/batch', {
+      milestones,
+      project_id: projectId
+    });
+    console.log(`✅ API Service: batchCreateMilestones response:`, response.data);
     return response.data;
   }
 

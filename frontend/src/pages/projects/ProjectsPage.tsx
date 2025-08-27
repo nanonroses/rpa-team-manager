@@ -138,7 +138,7 @@ export const ProjectsPage: React.FC = () => {
       <div style={{ padding: '24px' }}>
         <Alert
           message="Failed to load projects"
-          description={error}
+          description={typeof error === 'string' ? error : error?.message || 'Unknown error occurred'}
           type="error"
           showIcon
           action={
