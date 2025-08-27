@@ -121,19 +121,6 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   
-  // Use the custom hook for batch deletion operations
-  const { isDeleting: batchDeleting, handleBatchDelete } = useBatchDeletion({
-    ganttData,
-    selectedItems,
-    onSuccess: () => {
-      // Clear selection and exit selection mode
-      setSelectedItems(new Set());
-      setIsSelectionMode(false);
-    },
-    onLoadGanttData: loadGanttData,
-    selectedProjectId
-  });
-  
   // Refs to prevent multiple simultaneous API calls
   const loadingDashboard = useRef(false);
   const loadingGantt = useRef(false);
@@ -676,6 +663,19 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       console.log('🏁 loadGanttData finally block completed');
     }
   };
+
+  // Use the custom hook for batch deletion operations (must be after loadGanttData definition)
+  const { isDeleting: batchDeleting, handleBatchDelete } = useBatchDeletion({
+    ganttData,
+    selectedItems,
+    onSuccess: () => {
+      // Clear selection and exit selection mode
+      setSelectedItems(new Set());
+      setIsSelectionMode(false);
+    },
+    onLoadGanttData: loadGanttData,
+    selectedProjectId
+  });
 
   useEffect(() => {
     console.log('selectedProjectId changed to:', selectedProjectId);
