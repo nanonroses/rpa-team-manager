@@ -500,6 +500,14 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       setDashboardData(data);
     } catch (error: any) {
       console.error('❌ Error loading PMO dashboard:', error);
+      
+      // Handle authentication errors specifically
+      if (error.response?.status === 401) {
+        console.log('🔴 PMODashboard: Authentication error detected, user will be redirected to login');
+        message.error('Su sesión ha expirado. Será redirigido al login...');
+        return; // Don't show additional error message as user will be redirected
+      }
+      
       const errorMessage = error.response?.data?.error || error.message || 'Error al cargar el dashboard PMO';
       message.error(errorMessage);
     } finally {

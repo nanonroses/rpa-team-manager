@@ -31,12 +31,20 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   useEffect(() => {
     // If we have a token but no user data, fetch user profile
     if (!isLoading && token && !user) {
-      getCurrentUser().catch(() => {
-        // If getCurrentUser fails (e.g., token expired), logout
+      console.log('🔍 ProtectedRoute: Token exists but no user data, fetching user profile...');
+      getCurrentUser().catch((error) => {
+        console.log('❌ ProtectedRoute: getCurrentUser failed:', error?.response?.status || error.message);
+        // If getCurrentUser fails (e.g., token expired), logout immediately
         logout();
       });
     }
-  }, [isLoading, user, token, getCurrentUser, logout]);
+    
+    // Additional check: if we have expired or invalid auth state, clear it
+    if (!isLoading && token && user && !isAuthenticated) {
+      console.log('🔴 ProtectedRoute: Inconsistent auth state detected, logging out...');
+      logout();
+    }
+  }, [isLoading, user, token, isAuthenticated, getCurrentUser, logout]);
 
   // Show loading spinner while checking authentication
   if (isLoading) {

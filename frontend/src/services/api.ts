@@ -40,10 +40,34 @@ class ApiService {
       (response: AxiosResponse) => response,
       (error) => {
         if (error.response?.status === 401) {
-          // Clear auth data and redirect to login
+          console.log('🔴 401 Unauthorized - Token expired or invalid, clearing auth data');
+          // Clear all auth data from multiple storage locations
           localStorage.removeItem('rpa_token');
           localStorage.removeItem('rpa_user');
-          window.location.href = '/login';
+          localStorage.removeItem('rpa-auth-storage');
+          
+          // Clear the auth store by dispatching a logout action
+          // This ensures the Zustand store is also cleared
+          const authStoreStr = localStorage.getItem('rpa-auth-storage');
+          if (authStoreStr) {
+            try {
+              const authStore = JSON.parse(authStoreStr);
+              if (authStore.state) {
+                authStore.state.user = null;
+                authStore.state.token = null;
+                authStore.state.permissions = [];
+                authStore.state.isAuthenticated = false;
+                localStorage.setItem('rpa-auth-storage', JSON.stringify(authStore));
+              }
+            } catch (e) {
+              console.error('Error clearing auth store:', e);
+            }
+          }
+          
+          // Only redirect if not already on login page
+          if (window.location.pathname !== '/login') {
+            window.location.href = '/login';
+          }
         }
         return Promise.reject(error);
       }
