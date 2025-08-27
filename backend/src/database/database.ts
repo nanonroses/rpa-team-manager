@@ -11,10 +11,13 @@ export class DatabaseManager {
     private static instance: DatabaseManager;
     private db: Database | null = null;
     private dbPath: string;
+    private isClosing: boolean = false;
+    private connectionTimeout: NodeJS.Timeout | null = null;
 
     private constructor() {
         this.dbPath = process.env.DB_PATH || path.join(process.cwd(), 'data', 'database.sqlite');
         this.ensureDataDirectory();
+        this.setupGracefulShutdown();
     }
 
     public static getInstance(): DatabaseManager {
@@ -22,6 +25,23 @@ export class DatabaseManager {
             DatabaseManager.instance = new DatabaseManager();
         }
         return DatabaseManager.instance;
+    }
+
+    private setupGracefulShutdown(): void {
+        const handleShutdown = async (signal: string) => {
+            logger.info(`Received ${signal}, closing database connection...`);
+            try {
+                await this.close();
+                process.exit(0);
+            } catch (error) {
+                logger.error('Error during graceful shutdown:', error);
+                process.exit(1);
+            }
+        };
+
+        process.on('SIGINT', () => handleShutdown('SIGINT'));
+        process.on('SIGTERM', () => handleShutdown('SIGTERM'));
+        process.on('SIGUSR2', () => handleShutdown('SIGUSR2')); // nodemon
     }
 
     private ensureDataDirectory(): void {
@@ -54,25 +74,38 @@ export class DatabaseManager {
     private setupPragmas(): void {
         if (!this.db) return;
 
-        // Set encoding to UTF-8 for proper character support
-        this.db.run('PRAGMA encoding = "UTF-8"');
+        try {
+            // Set encoding to UTF-8 for proper character support
+            this.db.run('PRAGMA encoding = "UTF-8"');
 
-        // Enable foreign key constraints
-        this.db.run('PRAGMA foreign_keys = ON');
-        
-        // Set journal mode to WAL for better concurrency
-        this.db.run('PRAGMA journal_mode = WAL');
-        
-        // Set synchronous mode to NORMAL for better performance
-        this.db.run('PRAGMA synchronous = NORMAL');
-        
-        // Set cache size to 64MB
-        this.db.run('PRAGMA cache_size = -64000');
-        
-        // Set temp store to memory
-        this.db.run('PRAGMA temp_store = MEMORY');
+            // Enable foreign key constraints
+            this.db.run('PRAGMA foreign_keys = ON');
+            
+            // Set journal mode to WAL for better concurrency
+            this.db.run('PRAGMA journal_mode = WAL');
+            
+            // Set synchronous mode to NORMAL for better performance with reliability
+            this.db.run('PRAGMA synchronous = NORMAL');
+            
+            // Set cache size to 64MB
+            this.db.run('PRAGMA cache_size = -64000');
+            
+            // Set temp store to memory
+            this.db.run('PRAGMA temp_store = MEMORY');
 
-        logger.info('SQLite pragmas configured for optimal performance with UTF-8 encoding');
+            // Set busy timeout for lock handling (30 seconds)
+            this.db.run('PRAGMA busy_timeout = 30000');
+            
+            // Set WAL auto-checkpoint to prevent bloating
+            this.db.run('PRAGMA wal_autocheckpoint = 1000');
+            
+            // Force immediate checkpoint to recover from bloated WAL
+            this.db.run('PRAGMA wal_checkpoint(TRUNCATE)');
+
+            logger.info('SQLite pragmas configured for optimal performance with UTF-8 encoding and WAL recovery');
+        } catch (error) {
+            logger.error('Error setting up SQLite pragmas:', error);
+        }
     }
 
     public async initializeSchema(): Promise<void> {
@@ -362,6 +395,7 @@ export class DatabaseManager {
     }
 
     public async query(sql: string, params: any[] = []): Promise<any[]> {
+        const startTime = Date.now();
         return new Promise((resolve, reject) => {
             if (!this.db) {
                 reject(new Error('Database not connected'));
@@ -369,10 +403,15 @@ export class DatabaseManager {
             }
 
             this.db.all(sql, params, (err, rows) => {
+                const duration = Date.now() - startTime;
+                
                 if (err) {
-                    logger.error('Database query error:', err);
+                    logger.error(`Database query error (${duration}ms):`, { error: err.message, sql: sql.substring(0, 100) });
                     reject(err);
                 } else {
+                    if (duration > 1000) { // Log slow queries
+                        logger.warn(`Slow query detected (${duration}ms):`, { sql: sql.substring(0, 100), rowCount: rows.length });
+                    }
                     resolve(rows);
                 }
             });
@@ -380,6 +419,7 @@ export class DatabaseManager {
     }
 
     public async run(sql: string, params: any[] = []): Promise<{ id?: number; changes: number }> {
+        const startTime = Date.now();
         return new Promise((resolve, reject) => {
             if (!this.db) {
                 reject(new Error('Database not connected'));
@@ -387,10 +427,15 @@ export class DatabaseManager {
             }
 
             this.db.run(sql, params, function(err) {
+                const duration = Date.now() - startTime;
+                
                 if (err) {
-                    logger.error('Database run error:', err);
+                    logger.error(`Database run error (${duration}ms):`, { error: err.message, sql: sql.substring(0, 100) });
                     reject(err);
                 } else {
+                    if (duration > 500) { // Log slow writes
+                        logger.warn(`Slow write operation detected (${duration}ms):`, { sql: sql.substring(0, 100), changes: this.changes });
+                    }
                     resolve({ id: this.lastID, changes: this.changes });
                 }
             });
@@ -432,30 +477,62 @@ export class DatabaseManager {
     }
 
     public async close(): Promise<void> {
-        if (this.db) {
+        if (this.db && !this.isClosing) {
+            this.isClosing = true;
+            
+            if (this.connectionTimeout) {
+                clearTimeout(this.connectionTimeout);
+                this.connectionTimeout = null;
+            }
+
             return new Promise((resolve, reject) => {
-                this.db!.close((err) => {
-                    if (err) {
-                        logger.error('Error closing database:', err);
-                        reject(err);
-                    } else {
-                        logger.info('Database connection closed');
-                        this.db = null;
-                        resolve();
+                // Force WAL checkpoint before closing
+                this.db!.run('PRAGMA wal_checkpoint(TRUNCATE)', (checkpointErr) => {
+                    if (checkpointErr) {
+                        logger.warn('Warning: WAL checkpoint failed during close:', checkpointErr);
                     }
+                    
+                    this.db!.close((err) => {
+                        if (err) {
+                            logger.error('Error closing database:', err);
+                            reject(err);
+                        } else {
+                            logger.info('Database connection closed gracefully');
+                            this.db = null;
+                            this.isClosing = false;
+                            resolve();
+                        }
+                    });
                 });
             });
         }
+        return Promise.resolve(); // Return resolved promise if db is null or already closing
     }
 
-    public async healthCheck(): Promise<{ status: string; size?: string; tables?: number }> {
+    public async healthCheck(): Promise<{ 
+        status: string; 
+        size?: string; 
+        tables?: number; 
+        walSize?: string; 
+        connections?: number;
+        pragmas?: Record<string, any>;
+    }> {
         try {
+            const startTime = Date.now();
+            
             // Test basic connectivity
             await this.query('SELECT 1');
 
-            // Get database size
-            const stats = fs.statSync(this.dbPath);
-            const sizeInMB = (stats.size / (1024 * 1024)).toFixed(2);
+            // Get database file sizes
+            const dbStats = fs.statSync(this.dbPath);
+            const dbSizeInMB = (dbStats.size / (1024 * 1024)).toFixed(2);
+            
+            let walSizeInMB = 'N/A';
+            const walPath = `${this.dbPath}-wal`;
+            if (fs.existsSync(walPath)) {
+                const walStats = fs.statSync(walPath);
+                walSizeInMB = (walStats.size / (1024 * 1024)).toFixed(2);
+            }
 
             // Count tables
             const tables = await this.query(`
@@ -464,14 +541,55 @@ export class DatabaseManager {
                 WHERE type='table' AND name NOT LIKE 'sqlite_%'
             `);
 
+            // Get important pragma values
+            const pragmas = {
+                journal_mode: (await this.query('PRAGMA journal_mode'))[0]?.journal_mode,
+                synchronous: (await this.query('PRAGMA synchronous'))[0]?.synchronous,
+                wal_autocheckpoint: (await this.query('PRAGMA wal_autocheckpoint'))[0]?.wal_autocheckpoint,
+                busy_timeout: (await this.query('PRAGMA busy_timeout'))[0]?.busy_timeout,
+                cache_size: (await this.query('PRAGMA cache_size'))[0]?.cache_size
+            };
+
+            const responseTime = Date.now() - startTime;
+
             return {
-                status: 'healthy',
-                size: `${sizeInMB} MB`,
-                tables: tables[0]?.count || 0
+                status: responseTime < 2000 && parseFloat(walSizeInMB) < 50 ? 'healthy' : 'degraded',
+                size: `${dbSizeInMB} MB`,
+                walSize: `${walSizeInMB} MB`,
+                tables: tables[0]?.count || 0,
+                connections: 1, // SQLite is single-connection
+                pragmas: pragmas
             };
         } catch (error) {
             logger.error('Database health check failed:', error);
             return { status: 'unhealthy' };
+        }
+    }
+
+    public async forceCheckpoint(): Promise<void> {
+        try {
+            await this.run('PRAGMA wal_checkpoint(TRUNCATE)');
+            logger.info('Manual WAL checkpoint completed');
+        } catch (error) {
+            logger.error('Failed to perform manual checkpoint:', error);
+            throw error;
+        }
+    }
+
+    public async getDatabaseStats(): Promise<any> {
+        try {
+            const stats = await this.query(`
+                SELECT name, count(*) as row_count 
+                FROM sqlite_master m 
+                JOIN pragma_table_info(m.name) p 
+                WHERE m.type = 'table' AND m.name NOT LIKE 'sqlite_%' 
+                GROUP BY name 
+                ORDER BY row_count DESC
+            `);
+            return stats;
+        } catch (error) {
+            logger.error('Failed to get database stats:', error);
+            return [];
         }
     }
 }
