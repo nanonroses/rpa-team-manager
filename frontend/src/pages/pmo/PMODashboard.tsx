@@ -109,7 +109,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   
   // Use the enhanced Gantt data hook for better state management
-  const { ganttData, ganttLoading, error: ganttError, loadGanttData, clearError: clearGanttError, refreshGanttData } = useGanttData(selectedProjectId);
+  const { ganttData, ganttLoading, error: ganttError, loadGanttData, clearError: clearGanttError, refreshGanttData, setGanttData } = useGanttData(selectedProjectId);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editForm] = Form.useForm();
@@ -270,12 +270,16 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
 
       const totalItems = tasks.length + milestones.length;
       let completedItems = 0;
+      let currentLoading: any = null;
 
       // Helper function to update progress
-      const updateProgress = (message: string) => {
-        hideLoading();
+      const updateProgress = (progressMessage: string) => {
+        // Clean up previous loading message
+        if (currentLoading) {
+          currentLoading();
+        }
         const progress = Math.round((completedItems / totalItems) * 100);
-        message.loading(`${message} (${progress}%)`, 0);
+        currentLoading = message.loading(`${progressMessage} (${progress}%)`, 0);
       };
       
       // Create milestones in parallel for better performance
@@ -394,6 +398,9 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       }
       
       // Hide loading and show completion
+      if (currentLoading) {
+        currentLoading();
+      }
       hideLoading();
       message.success(`Importación completada: ${createdTasks} tareas y ${createdMilestones} hitos creados`);
       setMermaidDrawerVisible(false);
@@ -430,6 +437,9 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       
     } catch (error) {
       console.error('Error importing Mermaid:', error);
+      if (currentLoading) {
+        currentLoading();
+      }
       hideLoading();
       message.error('Error al importar el diagrama Mermaid');
     }

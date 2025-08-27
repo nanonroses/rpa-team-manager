@@ -12,6 +12,7 @@ interface UseGanttDataReturn extends UseGanttDataState {
   loadGanttData: (projectId: number, force?: boolean) => Promise<void>;
   clearError: () => void;
   refreshGanttData: () => Promise<void>;
+  setGanttData: (data: any) => void;
 }
 
 /**
@@ -200,6 +201,7 @@ export const useGanttData = (selectedProjectId: number | null): UseGanttDataRetu
     error,
     loadGanttData,
     clearError,
-    refreshGanttData
+    refreshGanttData,
+    setGanttData
   };
 };
