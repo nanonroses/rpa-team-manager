@@ -43,12 +43,12 @@ cp .env.example .env
 
 3. **Start Development Server**
 ```bash
-python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8001 --reload
+python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8002 --reload
 ```
 
 4. **Access API Documentation**
-- API Docs: http://localhost:8001/docs
-- Health Check: http://localhost:8001/health
+- API Docs: http://localhost:8002/docs
+- Health Check: http://localhost:8002/health
 
 ### Docker Deployment
 

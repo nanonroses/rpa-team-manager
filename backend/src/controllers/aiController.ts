@@ -10,7 +10,7 @@ import { logger } from '../utils/logger';
 import { AuthenticatedRequest } from '../middleware/auth';
 
 // ML Service configuration
-const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8001';
+const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8002';
 const ML_API_KEY = process.env.ML_API_KEY || '';
 
 // Request schemas

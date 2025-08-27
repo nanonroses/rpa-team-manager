@@ -364,7 +364,7 @@ async def get_metrics(model_type: Optional[str] = None, days: Optional[int] = 30
 if __name__ == "__main__":
     print("Starting Simple ML Service for RPA Team Manager...")
     print("This service provides mock AI predictions for demonstration")
-    print("Available at: http://localhost:8001")
-    print("API Documentation: http://localhost:8001/docs")
+    print("Available at: http://localhost:8002")
+    print("API Documentation: http://localhost:8002/docs")
     
-    uvicorn.run(app, host="0.0.0.0", port=8001, reload=True)
+    uvicorn.run(app, host="0.0.0.0", port=8002, reload=True)

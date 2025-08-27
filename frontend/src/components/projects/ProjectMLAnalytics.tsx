@@ -152,7 +152,7 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
       <div style={{ padding: '24px' }}>
         <Alert
           message="ML Service Unavailable"
-          description="The AI/ML service is currently offline. Please ensure the ML service is running on port 8001 or contact your administrator."
+          description="The AI/ML service is currently offline. Please ensure the ML service is running on port 8002 or contact your administrator."
           type="warning"
           showIcon
           action={

@@ -19,7 +19,7 @@ class MLSettings(BaseSettings):
     
     # API Settings
     api_host: str = Field(default="0.0.0.0", env="ML_API_HOST")
-    api_port: int = Field(default=8001, env="ML_API_PORT")
+    api_port: int = Field(default=8002, env="ML_API_PORT")
     api_prefix: str = Field(default="/api/v1", env="ML_API_PREFIX")
     
     # Database Settings
