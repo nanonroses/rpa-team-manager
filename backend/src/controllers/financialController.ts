@@ -224,7 +224,7 @@ export class FinancialController {
             const clientDelayHours = clientDelays?.total_delay_hours || 0;
 
             // CALCULATIONS BASED ON YOUR LOGIC
-            const plannedHours = project.hours_budgeted || 100; // Default if not set
+            const plannedHours = project.budgeted_hours || 100; // Default if not set
             const hourlyRateUF = project.hourly_rate || 1.2; // Default if not set
             
             // 1. SALE PRICE (VENTA)
@@ -258,15 +258,15 @@ export class FinancialController {
                 INSERT OR REPLACE INTO project_financials (
                     project_id, sale_price, sale_price_currency,
                     hourly_rate, hourly_rate_currency,
-                    hours_budgeted, hours_spent,
+                    budgeted_hours, budgeted_cost,
                     budget_allocated, actual_cost,
                     profit_margin, roi_percentage,
                     updated_at
                 ) VALUES (?, ?, 'CLP', ?, 'UF', ?, ?, ?, ?, ?, ?, datetime('now'))
             `, [
                 projectId, salePrice, hourlyRateUF,
-                plannedHours, realHours,
-                plannedCost, realCost,
+                plannedHours, plannedCost,
+                salePrice, realCost,
                 plannedProfit, plannedROI
             ]);
 
@@ -337,14 +337,14 @@ export class FinancialController {
                 // Update existing record
                 await db.run(`
                     UPDATE project_financials 
-                    SET sale_price = ?, budget_allocated = ?, hours_budgeted = ?
+                    SET sale_price = ?, budget_allocated = ?, budgeted_hours = ?
                     WHERE project_id = ?
                 `, [sale_price, budget_allocated, hours_budgeted, project_id]);
             } else {
                 // Create new record
                 await db.run(`
                     INSERT INTO project_financials (
-                        project_id, sale_price, budget_allocated, hours_budgeted
+                        project_id, sale_price, budget_allocated, budgeted_hours
                     ) VALUES (?, ?, ?, ?)
                 `, [project_id, sale_price, budget_allocated, hours_budgeted]);
             }
