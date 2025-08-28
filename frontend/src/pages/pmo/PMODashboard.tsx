@@ -339,6 +339,35 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
           console.log('Using column ID:', columnId);
         } else {
           console.warn('No boards found for project');
+          console.log('Creating default board for Mermaid import...');
+          
+          // Create default board for this project
+          try {
+            const projectName = projects.find(p => p.id === selectedProjectId)?.name || 'Project';
+            const newBoard = await apiService.createTaskBoard({
+              project_id: selectedProjectId,
+              name: `${projectName} Board`,
+              description: `Main kanban board for ${projectName}`,
+              board_type: 'kanban'
+            });
+            
+            console.log('Created new board:', newBoard);
+            boardId = newBoard.id;
+            
+            // Get the newly created board with its columns
+            const boardData = await apiService.getTaskBoard(boardId);
+            console.log('New board data:', boardData);
+            
+            // Use "To Do" column or first available column
+            const todoColumn = boardData.columns.find((col: any) => col.name === 'To Do');
+            columnId = todoColumn ? todoColumn.id : boardData.columns[0]?.id;
+            console.log('Using column ID from new board:', columnId);
+            
+            message.success('Tablero creado automáticamente para importación Mermaid');
+          } catch (createError) {
+            console.error('Error creating default board:', createError);
+            message.error('Error al crear tablero por defecto');
+          }
         }
       } catch (error) {
         console.error('Error getting board info:', error);
