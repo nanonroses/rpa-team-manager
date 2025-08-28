@@ -109,25 +109,202 @@ export class DatabaseManager {
     }
 
     public async initializeSchema(): Promise<void> {
-        const schemaPath = path.join(__dirname, 'schema.sql');
-        const schema = fs.readFileSync(schemaPath, 'utf-8');
+        try {
+            // Use migration manager
+            const migrationManager = new MigrationManager();
+            await migrationManager.init(this.dbPath);
+            await migrationManager.runMigrations(migrations);
+            await migrationManager.close();
+            
+            // Manual fix for files table if it doesn't have the required columns
+            await this.fixFilesTableIfNeeded();
+            
+            logger.info('Database schema initialized successfully through migrations');
+        } catch (error) {
+            logger.error('Error initializing database schema:', error);
+            throw error;
+        }
+    }
 
-        return new Promise((resolve, reject) => {
-            if (!this.db) {
-                reject(new Error('Database not connected'));
-                return;
+    private async fixFilesTableIfNeeded(): Promise<void> {
+        try {
+            // Check if files table exists and has is_public column
+            const tableInfo = await this.query("PRAGMA table_info(files)");
+            const hasIsPublicColumn = tableInfo.some((col: any) => col.name === 'is_public');
+            
+            if (tableInfo.length === 0) {
+                // Files table doesn't exist, create it
+                logger.info('Files table not found, creating it...');
+                await this.run(`
+                    CREATE TABLE files (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        filename VARCHAR(255) NOT NULL,
+                        original_filename VARCHAR(255) NOT NULL,
+                        file_path TEXT NOT NULL,
+                        file_size INTEGER NOT NULL,
+                        mime_type VARCHAR(100) NOT NULL,
+                        file_extension VARCHAR(10),
+                        file_hash VARCHAR(64) NOT NULL,
+                        uploaded_by INTEGER NOT NULL,
+                        description TEXT,
+                        is_public BOOLEAN DEFAULT 0,
+                        is_deleted BOOLEAN DEFAULT 0,
+                        upload_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (uploaded_by) REFERENCES users(id)
+                    )
+                `);
+                
+                // Create other file-related tables
+                await this.createFileRelatedTables();
+            } else {
+                // Check if files table has all required columns
+                const hasFileExtension = tableInfo.some((col: any) => col.name === 'file_extension');
+                const hasFileHash = tableInfo.some((col: any) => col.name === 'file_hash');
+                const hasIsDeleted = tableInfo.some((col: any) => col.name === 'is_deleted');
+                const hasUploadDate = tableInfo.some((col: any) => col.name === 'upload_date');
+                
+                if (!hasIsPublicColumn || !hasFileExtension || !hasFileHash || !hasIsDeleted || !hasUploadDate) {
+                    logger.info('Files table exists but missing required columns, recreating...');
+                    // Drop and recreate the table with all required columns
+                    await this.run('DROP TABLE IF EXISTS files');
+                    await this.run(`
+                        CREATE TABLE files (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            filename VARCHAR(255) NOT NULL,
+                            original_filename VARCHAR(255) NOT NULL,
+                            file_path TEXT NOT NULL,
+                            file_size INTEGER NOT NULL,
+                            mime_type VARCHAR(100) NOT NULL,
+                            file_extension VARCHAR(10),
+                            file_hash VARCHAR(64) NOT NULL,
+                            uploaded_by INTEGER NOT NULL,
+                            description TEXT,
+                            is_public BOOLEAN DEFAULT 0,
+                            is_deleted BOOLEAN DEFAULT 0,
+                            upload_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (uploaded_by) REFERENCES users(id)
+                        )
+                    `);
+                } else if (!hasIsPublicColumn) {
+                    // Files table exists but missing only is_public column
+                    logger.info('Adding missing is_public column to files table...');
+                    await this.run('ALTER TABLE files ADD COLUMN is_public BOOLEAN DEFAULT 0');
+                }
             }
 
-            this.db.exec(schema, (err) => {
-                if (err) {
-                    logger.error('Error initializing database schema:', err);
-                    reject(err);
+            // Always check and create file-related tables if they don't exist
+            await this.createFileRelatedTablesIfNeeded();
+        } catch (error) {
+            logger.error('Error fixing files table:', error);
+        }
+    }
+
+    private async createFileRelatedTables(): Promise<void> {
+        const tables = [
+            `CREATE TABLE IF NOT EXISTS file_categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name VARCHAR(100) NOT NULL UNIQUE,
+                description TEXT,
+                allowed_extensions TEXT NOT NULL,
+                max_file_size INTEGER,
+                icon VARCHAR(50) DEFAULT 'file',
+                color VARCHAR(7) DEFAULT '#6b7280',
+                is_active BOOLEAN DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`,
+            `CREATE TABLE IF NOT EXISTS file_associations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_id INTEGER NOT NULL,
+                entity_type VARCHAR(50) NOT NULL,
+                entity_id INTEGER NOT NULL,
+                association_type VARCHAR(50) DEFAULT 'attachment',
+                created_by INTEGER NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
+                FOREIGN KEY (created_by) REFERENCES users(id),
+                UNIQUE(file_id, entity_type, entity_id, association_type)
+            )`,
+            `CREATE TABLE IF NOT EXISTS file_versions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_id INTEGER NOT NULL,
+                version_number INTEGER NOT NULL,
+                filename VARCHAR(255) NOT NULL,
+                file_path TEXT NOT NULL,
+                file_size INTEGER NOT NULL,
+                file_hash VARCHAR(64) NOT NULL,
+                uploaded_by INTEGER NOT NULL,
+                version_notes TEXT,
+                upload_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
+                FOREIGN KEY (uploaded_by) REFERENCES users(id),
+                UNIQUE(file_id, version_number)
+            )`,
+            `CREATE TABLE IF NOT EXISTS file_access_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_id INTEGER NOT NULL,
+                user_id INTEGER NOT NULL,
+                access_type VARCHAR(20) NOT NULL,
+                ip_address VARCHAR(45),
+                user_agent TEXT,
+                access_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
+                FOREIGN KEY (user_id) REFERENCES users(id)
+            )`
+        ];
+
+        for (const tableSQL of tables) {
+            await this.run(tableSQL);
+        }
+
+        // Insert default file categories
+        await this.run(`INSERT OR IGNORE INTO file_categories (name, description, allowed_extensions, max_file_size, icon, color) VALUES 
+            ('Imágenes', 'Archivos de imagen como JPEG, PNG, GIF', '["jpg", "jpeg", "png", "gif", "webp", "svg"]', 10485760, 'image', '#10b981'),
+            ('Documentos', 'Documentos de texto y presentaciones', '["pdf", "doc", "docx", "ppt", "pptx", "txt", "rtf", "odt"]', 52428800, 'file-text', '#3b82f6'),
+            ('Hojas de Cálculo', 'Archivos de hojas de cálculo', '["xls", "xlsx", "csv", "ods"]', 52428800, 'table', '#059669'),
+            ('Archivos Comprimidos', 'Archivos ZIP, RAR y otros comprimidos', '["zip", "rar", "7z", "tar", "gz"]', 104857600, 'archive', '#8b5cf6'),
+            ('Videos', 'Archivos de video', '["mp4", "avi", "mov", "wmv", "flv", "webm"]', 524288000, 'video', '#ef4444'),
+            ('Audio', 'Archivos de audio', '["mp3", "wav", "ogg", "flac", "aac"]', 104857600, 'music', '#f59e0b'),
+            ('Código', 'Archivos de código fuente', '["js", "ts", "py", "java", "cpp", "c", "html", "css", "sql", "json", "xml"]', 10485760, 'code', '#6366f1'),
+            ('Otros', 'Otros tipos de archivo', '["*"]', 104857600, 'file', '#6b7280')
+        `);
+    }
+
+    private async createFileRelatedTablesIfNeeded(): Promise<void> {
+        try {
+            // Check if file_categories table exists
+            const categoriesTableInfo = await this.query("PRAGMA table_info(file_categories)");
+            logger.info(`File categories table info: ${JSON.stringify(categoriesTableInfo)}`);
+            
+            if (categoriesTableInfo.length === 0) {
+                logger.info('Creating missing file-related tables...');
+                await this.createFileRelatedTables();
+            } else {
+                // Check if required columns exist
+                const hasIsActive = categoriesTableInfo.some((col: any) => col.name === 'is_active');
+                const hasAllowedExtensions = categoriesTableInfo.some((col: any) => col.name === 'allowed_extensions');
+                const hasMaxFileSize = categoriesTableInfo.some((col: any) => col.name === 'max_file_size');
+                
+                if (!hasIsActive || !hasAllowedExtensions || !hasMaxFileSize) {
+                    logger.info('File categories table exists but missing required columns, recreating...');
+                    // Drop and recreate the table with all required columns
+                    await this.run('DROP TABLE IF EXISTS file_categories');
+                    await this.createFileRelatedTables();
                 } else {
-                    logger.info('Database schema initialized successfully');
-                    resolve();
+                    logger.info('File categories table already exists with all required columns');
                 }
-            });
-        });
+            }
+        } catch (error) {
+            logger.error('Error checking file-related tables:', error);
+            // If there's an error (like table not found), create the tables anyway
+            try {
+                logger.info('Creating file-related tables due to error...');
+                await this.createFileRelatedTables();
+            } catch (createError) {
+                logger.error('Error creating file-related tables:', createError);
+            }
+        }
     }
 
     public async seedInitialData(): Promise<void> {
@@ -328,11 +505,6 @@ export class DatabaseManager {
                     }
                 ]
             },
-            // Ideas will be created via API after setup
-            // {
-            //     table: 'ideas',
-            //     data: []
-            // },
             {
                 table: 'global_settings',
                 data: [
