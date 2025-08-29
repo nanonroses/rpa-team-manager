@@ -290,6 +290,7 @@ export class PMOController {
                 description,
                 milestone_type,
                 planned_date,
+                end_date,
                 priority,
                 responsible_user_id,
                 impact_on_timeline,
@@ -308,13 +309,13 @@ export class PMOController {
 
             const result = await db.run(`
                 INSERT INTO project_milestones (
-                    project_id, name, description, milestone_type, planned_date, 
+                    project_id, name, description, milestone_type, planned_date, end_date,
                     priority, responsible_user_id, impact_on_timeline, responsibility,
                     blocking_reason, delay_justification, external_contact, 
                     estimated_delay_days, financial_impact, created_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
-                project_id, name, description, milestone_type || 'delivery', planned_date,
+                project_id, name, description, milestone_type || 'delivery', planned_date, end_date || planned_date,
                 priority || 'medium', responsible_user_id, impact_on_timeline || 0, 
                 responsibility || 'internal', blocking_reason, delay_justification, 
                 external_contact, estimated_delay_days || 0, financial_impact || 0, req.user?.id
@@ -471,11 +472,114 @@ export class PMOController {
         }
     };
 
+    // POST /api/pmo/milestones/batch - Create multiple milestones in a single transaction
+    batchCreateMilestones = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const userId = req.user?.id;
+            const { milestones, project_id } = req.body;
+
+            if (!Array.isArray(milestones) || milestones.length === 0) {
+                res.status(400).json({ error: 'Milestones array is required and cannot be empty' });
+                return;
+            }
+
+            if (!project_id) {
+                res.status(400).json({ error: 'Project ID is required' });
+                return;
+            }
+
+            // Verify user access to project once
+            const project = await db.get(`
+                SELECT id, name FROM projects 
+                WHERE id = ?
+            `, [project_id]);
+
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+
+            // Use IMMEDIATE transaction for batch creation
+            await db.beginTransaction('IMMEDIATE');
+            
+            try {
+                const createdMilestones = [];
+                
+                for (let i = 0; i < milestones.length; i++) {
+                    const milestone = milestones[i];
+                    const {
+                        name,
+                        description,
+                        milestone_type = 'delivery',
+                        planned_date,
+                        end_date,
+                        priority = 'medium',
+                        responsible_user_id,
+                        impact_on_timeline = 0,
+                        responsibility = 'internal',
+                        blocking_reason,
+                        delay_justification,
+                        external_contact,
+                        estimated_delay_days = 0,
+                        financial_impact = 0
+                    } = milestone;
+
+                    if (!name || !planned_date) {
+                        continue; // Skip invalid milestones
+                    }
+
+                    // Insert milestone
+                    const result = await db.run(`
+                        INSERT INTO project_milestones (
+                            project_id, name, description, milestone_type, planned_date, end_date,
+                            priority, responsible_user_id, impact_on_timeline, responsibility,
+                            blocking_reason, delay_justification, external_contact, 
+                            estimated_delay_days, financial_impact, created_by
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `, [
+                        project_id, name, description, milestone_type, planned_date, end_date || planned_date,
+                        priority, responsible_user_id, impact_on_timeline, 
+                        responsibility, blocking_reason, delay_justification, 
+                        external_contact, estimated_delay_days, financial_impact, userId
+                    ]);
+
+                    createdMilestones.push({
+                        id: result.id,
+                        name,
+                        planned_date,
+                        milestone_type,
+                        priority
+                    });
+                }
+
+                await db.commit();
+                
+                logger.info(`Batch milestone creation completed: ${createdMilestones.length} milestones created by user ${userId}`);
+                res.status(201).json({ 
+                    success: true,
+                    message: `Successfully created ${createdMilestones.length} milestones`,
+                    createdMilestones,
+                    createdCount: createdMilestones.length
+                });
+                
+            } catch (transactionError) {
+                await db.rollback();
+                logger.error('Batch milestone creation transaction error:', transactionError);
+                throw transactionError;
+            }
+        } catch (error) {
+            logger.error('Batch create milestones error:', error);
+            res.status(500).json({ error: 'Failed to create milestones in batch' });
+        }
+    };
+
     // DELETE /api/pmo/milestones/batch - Delete multiple milestones in a single transaction
     batchDeleteMilestones = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
+            logger.info(`🔥 Batch delete milestones called with body:`, req.body);
             const { milestoneIds } = req.body;
             const userId = req.user?.id;
+            logger.info(`🔥 Received milestoneIds: ${JSON.stringify(milestoneIds)}, userId: ${userId}`);
 
             if (!Array.isArray(milestoneIds) || milestoneIds.length === 0) {
                 res.status(400).json({ error: 'Milestone IDs array is required and cannot be empty' });
@@ -491,15 +595,12 @@ export class PMOController {
                 return;
             }
 
-            // Use IMMEDIATE transaction for batch deletion (less restrictive than EXCLUSIVE)
-            await db.beginTransaction('IMMEDIATE');
-            
-            try {
-                const deletedMilestoneIds: number[] = [];
-                const milestoneNames: string[] = [];
-                
-                // Process each milestone deletion in the same transaction
-                for (const milestoneId of validMilestoneIds) {
+            const deletedMilestoneIds: number[] = [];
+            const milestoneNames: string[] = [];
+
+            // Process each milestone deletion without nested transactions
+            for (const milestoneId of validMilestoneIds) {
+                try {
                     // Verify milestone exists and get name before deletion
                     const milestoneCheck = await db.get(`
                         SELECT id, name FROM project_milestones WHERE id = ?
@@ -512,29 +613,24 @@ export class PMOController {
                         if (deleteResult.changes > 0) {
                             deletedMilestoneIds.push(parseInt(milestoneId.toString()));
                             milestoneNames.push(milestoneCheck.name);
-                            logger.info(`Milestone ${milestoneId} (${milestoneCheck.name}) marked for deletion in batch operation`);
+                            logger.info(`Milestone ${milestoneId} (${milestoneCheck.name}) deleted successfully`);
                         }
                     } else {
                         logger.warn(`Milestone ${milestoneId} not found during batch deletion`);
                     }
+                } catch (deleteError) {
+                    logger.error(`Error deleting milestone ${milestoneId}:`, deleteError);
                 }
-
-                await db.commit();
-                
-                logger.info(`Batch milestone deletion completed: ${deletedMilestoneIds.length} milestones deleted by user ${userId}`);
-                res.json({ 
-                    success: true,
-                    message: `Successfully deleted ${deletedMilestoneIds.length} milestones`,
-                    deletedIds: deletedMilestoneIds,
-                    deletedCount: deletedMilestoneIds.length,
-                    deletedNames: milestoneNames
-                });
-                
-            } catch (transactionError) {
-                await db.rollback();
-                logger.error('Batch milestone deletion transaction error:', transactionError);
-                throw transactionError;
             }
+                
+            logger.info(`Batch milestone deletion completed: ${deletedMilestoneIds.length} milestones deleted by user ${userId}`);
+            res.json({ 
+                success: true,
+                message: `Successfully deleted ${deletedMilestoneIds.length} milestones`,
+                deletedIds: deletedMilestoneIds,
+                deletedCount: deletedMilestoneIds.length,
+                deletedNames: milestoneNames
+            });
         } catch (error) {
             logger.error('Batch delete milestones error:', error);
             

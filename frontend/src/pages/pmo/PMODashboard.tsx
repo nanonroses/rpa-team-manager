@@ -190,7 +190,8 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
           milestone_type: 'delivery',
           priority: 'medium',
           impact_on_timeline: 'medium',
-          planned_date: milestoneDate
+          planned_date: milestoneDate,
+          end_date: milestoneDate
         });
         continue;
       }
@@ -224,7 +225,8 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
             milestone_type: 'delivery',
             priority: status === 'crit' ? 'high' : 'medium',
             impact_on_timeline: 'high',
-            planned_date: startDate
+            planned_date: startDate,
+            end_date: endDate
           });
         } else {
           tasks.push({
@@ -693,6 +695,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       await apiService.createMilestone({
         ...values,
         planned_date: values.planned_date.format('YYYY-MM-DD'),
+        end_date: values.end_date ? values.end_date.format('YYYY-MM-DD') : values.planned_date.format('YYYY-MM-DD'),
         actual_date: values.actual_date ? values.actual_date.format('YYYY-MM-DD') : null
       });
       message.success('Hito creado exitosamente');
@@ -767,6 +770,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
     editForm.setFieldsValue({
       ...record,
       planned_date: record.planned_date ? dayjs(record.planned_date) : null,
+      end_date: record.end_date ? dayjs(record.end_date) : null,
       actual_date: record.actual_date ? dayjs(record.actual_date) : null,
       start_date: record.start_date ? dayjs(record.start_date) : null,
       due_date: record.due_date ? dayjs(record.due_date) : null
@@ -957,6 +961,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
         const updateData = {
           ...values,
           planned_date: values.planned_date ? values.planned_date.format('YYYY-MM-DD') : null,
+          end_date: values.end_date ? values.end_date.format('YYYY-MM-DD') : null,
           actual_date: values.actual_date ? values.actual_date.format('YYYY-MM-DD') : null
         };
         console.log('🎯 Updating milestone with data:', updateData);
@@ -2999,13 +3004,18 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                 <Input.TextArea />
               </Form.Item>
               <Row gutter={16}>
-                <Col span={12}>
-                  <Form.Item name="planned_date" label="Fecha Planificada" rules={[{ required: true }]}>
+                <Col span={8}>
+                  <Form.Item name="planned_date" label="Fecha de Inicio" rules={[{ required: true }]}>
                     <DatePicker style={{ width: '100%' }} />
                   </Form.Item>
                 </Col>
-                <Col span={12}>
-                  <Form.Item name="actual_date" label="Fecha de Finalización">
+                <Col span={8}>
+                  <Form.Item name="end_date" label="Fecha de Fin">
+                    <DatePicker style={{ width: '100%' }} placeholder="Fecha planificada de fin" />
+                  </Form.Item>
+                </Col>
+                <Col span={8}>
+                  <Form.Item name="actual_date" label="Fecha Real">
                     <DatePicker style={{ width: '100%' }} placeholder="Fecha real de finalización" />
                   </Form.Item>
                 </Col>
@@ -3194,17 +3204,22 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
           </Form.Item>
 
           <Row gutter={16}>
-            <Col span={12}>
+            <Col span={8}>
               <Form.Item
                 name="planned_date"
-                label="Fecha Planificada"
+                label="Fecha de Inicio"
                 rules={[{ required: true, message: 'Selecciona una fecha' }]}
               >
                 <DatePicker style={{ width: '100%' }} />
               </Form.Item>
             </Col>
-            <Col span={12}>
-              <Form.Item name="actual_date" label="Fecha de Finalización">
+            <Col span={8}>
+              <Form.Item name="end_date" label="Fecha de Fin">
+                <DatePicker style={{ width: '100%' }} placeholder="Fecha planificada de fin" />
+              </Form.Item>
+            </Col>
+            <Col span={8}>
+              <Form.Item name="actual_date" label="Fecha Real">
                 <DatePicker style={{ width: '100%' }} placeholder="Opcional - fecha real" />
               </Form.Item>
             </Col>
