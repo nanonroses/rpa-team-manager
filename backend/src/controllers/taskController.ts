@@ -726,6 +726,124 @@ export class TaskController {
     }
   };
 
+  // POST /api/tasks/batch - Create multiple tasks in a single transaction
+  batchCreateTasks = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      const { tasks, board_id } = req.body;
+
+      if (!Array.isArray(tasks) || tasks.length === 0) {
+        res.status(400).json({ error: 'Tasks array is required and cannot be empty' });
+        return;
+      }
+
+      if (!board_id) {
+        res.status(400).json({ error: 'Board ID is required' });
+        return;
+      }
+
+      // Verify user access to board once
+      const board = await db.get(`
+        SELECT tb.*, p.assigned_to, p.created_by
+        FROM task_boards tb
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE tb.id = ? AND (p.assigned_to = ? OR p.created_by = ?)
+      `, [board_id, userId, userId]);
+
+      if (!board) {
+        res.status(404).json({ error: 'Board not found or access denied' });
+        return;
+      }
+
+      // Get board columns once and cache column positions
+      const columns = await db.query(`
+        SELECT * FROM task_columns 
+        WHERE board_id = ? 
+        ORDER BY position ASC
+      `, [board_id]);
+
+      const columnMap = new Map();
+      for (const column of columns) {
+        // Get max position for each column once
+        const maxPos = await db.get(`
+          SELECT MAX(position) as max_position 
+          FROM tasks 
+          WHERE column_id = ?
+        `, [column.id]);
+        columnMap.set(column.id, maxPos?.max_position || 0);
+      }
+
+      // Use IMMEDIATE transaction for batch creation
+      await db.beginTransaction('IMMEDIATE');
+      
+      try {
+        const createdTasks = [];
+        
+        for (let i = 0; i < tasks.length; i++) {
+          const task = tasks[i];
+          const {
+            column_id,
+            title,
+            description,
+            task_type = 'task',
+            priority = 'medium',
+            assignee_id,
+            estimated_hours,
+            story_points,
+            start_date,
+            due_date
+          } = task;
+
+          if (!column_id || !title) {
+            continue; // Skip invalid tasks
+          }
+
+          // Get next position for this column
+          const currentMaxPos = columnMap.get(column_id) || 0;
+          const position = currentMaxPos + 1;
+          columnMap.set(column_id, position); // Update for next task
+
+          // Insert task
+          const result = await db.run(`
+            INSERT INTO tasks (
+              board_id, column_id, title, description, task_type, priority,
+              assignee_id, reporter_id, estimated_hours, story_points, 
+              start_date, due_date, position, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+          `, [
+            board_id, column_id, title, description, task_type, priority,
+            assignee_id, userId, estimated_hours, story_points, start_date, due_date, position
+          ]);
+
+          createdTasks.push({
+            id: result.id,
+            title,
+            position,
+            column_id
+          });
+        }
+
+        await db.commit();
+        
+        logger.info(`Batch task creation completed: ${createdTasks.length} tasks created by user ${userId}`);
+        res.status(201).json({ 
+          success: true,
+          message: `Successfully created ${createdTasks.length} tasks`,
+          createdTasks,
+          createdCount: createdTasks.length
+        });
+        
+      } catch (transactionError) {
+        await db.rollback();
+        logger.error('Batch task creation transaction error:', transactionError);
+        throw transactionError;
+      }
+    } catch (error) {
+      logger.error('Batch create tasks error:', error);
+      res.status(500).json({ error: 'Failed to create tasks in batch' });
+    }
+  };
+
   // GET /api/tasks/project/:projectId - Get recent tasks for a specific project
   getProjectTasks = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {

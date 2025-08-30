@@ -1,0 +1,17 @@
+{
+  "name": "RPA Team Manager",
+  "short_name": "RPA Manager",
+  "description": "Team management tool for RPA projects",
+  "theme_color": "#1890ff",
+  "background_color": "#ffffff",
+  "display": "standalone",
+  "scope": "/",
+  "start_url": "/",
+  "icons": [
+    {
+      "src": "vite.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

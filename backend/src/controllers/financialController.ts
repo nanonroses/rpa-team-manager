@@ -259,7 +259,7 @@ export class FinancialController {
                     project_id, sale_price, sale_price_currency,
                     hourly_rate, hourly_rate_currency,
                     budgeted_hours, budgeted_cost,
-                    budget_allocated, actual_cost,
+                    budgeted_cost, actual_cost,
                     profit_margin, roi_percentage,
                     updated_at
                 ) VALUES (?, ?, 'CLP', ?, 'UF', ?, ?, ?, ?, ?, ?, datetime('now'))
@@ -319,7 +319,7 @@ export class FinancialController {
             const { 
                 project_id, 
                 sale_price, 
-                budget_allocated, 
+                budgeted_cost, 
                 hours_budgeted 
             } = req.body;
 
@@ -337,16 +337,16 @@ export class FinancialController {
                 // Update existing record
                 await db.run(`
                     UPDATE project_financials 
-                    SET sale_price = ?, budget_allocated = ?, budgeted_hours = ?
+                    SET sale_price = ?, budgeted_cost = ?, budgeted_hours = ?
                     WHERE project_id = ?
-                `, [sale_price, budget_allocated, hours_budgeted, project_id]);
+                `, [sale_price, budgeted_cost, hours_budgeted, project_id]);
             } else {
                 // Create new record
                 await db.run(`
                     INSERT INTO project_financials (
-                        project_id, sale_price, budget_allocated, budgeted_hours
+                        project_id, sale_price, budgeted_cost, budgeted_hours
                     ) VALUES (?, ?, ?, ?)
-                `, [project_id, sale_price, budget_allocated, hours_budgeted]);
+                `, [project_id, sale_price, budgeted_cost, hours_budgeted]);
             }
 
             // Get updated financial data

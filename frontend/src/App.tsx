@@ -1,6 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider } from 'antd';
+import { ConfigProvider, App as AntdApp } from 'antd';
 import { QueryClient, QueryClientProvider } from 'react-query';
 
 // Components
@@ -58,8 +58,14 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ConfigProvider theme={theme}>
-        <Router>
-          <Routes>
+        <AntdApp>
+          <Router
+            future={{
+              v7_startTransition: true,
+              v7_relativeSplatPath: true
+            }}
+          >
+            <Routes>
             {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
             
@@ -162,8 +168,9 @@ function App() {
                 </button>
               </div>
             } />
-          </Routes>
-        </Router>
+            </Routes>
+          </Router>
+        </AntdApp>
       </ConfigProvider>
     </QueryClientProvider>
   );

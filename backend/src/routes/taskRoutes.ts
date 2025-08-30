@@ -15,6 +15,7 @@ router.get('/tasks', authenticate, taskController.getTasks);
 router.post('/tasks', authenticate, taskController.createTask);
 
 // Specific routes MUST come before parameterized routes
+router.post('/tasks/batch', authenticate, taskController.batchCreateTasks);
 router.delete('/tasks/batch', authenticate, taskController.batchDeleteTasks);
 
 // Parameterized routes come after specific routes

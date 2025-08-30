@@ -307,6 +307,16 @@ export class PMOController {
                 return;
             }
 
+            // Map frontend responsibility values to database values
+            let mappedResponsibility = responsibility;
+            if (responsibility === 'cliente' || responsibility === 'client') {
+                mappedResponsibility = 'external';
+            } else if (responsibility === 'interno' || responsibility === 'internal') {
+                mappedResponsibility = 'internal';
+            } else if (responsibility === 'compartido' || responsibility === 'shared') {
+                mappedResponsibility = 'shared';
+            }
+
             const result = await db.run(`
                 INSERT INTO project_milestones (
                     project_id, name, description, milestone_type, planned_date, end_date,
@@ -317,7 +327,7 @@ export class PMOController {
             `, [
                 project_id, name, description, milestone_type || 'delivery', planned_date, end_date || planned_date,
                 priority || 'medium', responsible_user_id, impact_on_timeline || 0, 
-                responsibility || 'internal', blocking_reason, delay_justification, 
+                mappedResponsibility || 'internal', blocking_reason, delay_justification, 
                 external_contact, estimated_delay_days || 0, financial_impact || 0, req.user?.id
             ]);
 
@@ -347,6 +357,21 @@ export class PMOController {
             delete updates.id;
             delete updates.created_by;
             delete updates.created_at;
+            
+            // Map frontend responsibility values to database values
+            console.log('🔍 Original responsibility value:', updates.responsibility);
+            if (updates.responsibility === 'cliente' || updates.responsibility === 'client') {
+                updates.responsibility = 'external';
+                console.log('✅ Mapped to external');
+            } else if (updates.responsibility === 'interno' || updates.responsibility === 'internal') {
+                updates.responsibility = 'internal';
+                console.log('✅ Mapped to internal');
+            } else if (updates.responsibility === 'compartido' || updates.responsibility === 'shared') {
+                updates.responsibility = 'shared';
+                console.log('✅ Mapped to shared');
+            } else if (updates.responsibility) {
+                console.log('⚠️ Unmapped responsibility value:', updates.responsibility);
+            }
 
             const fields = [];
             const values = [];

@@ -127,21 +127,46 @@ export const TasksPage: React.FC = () => {
   const loadInitialData = async () => {
     try {
       setLoading(true);
+      console.log('📊 TasksPage: Loading initial data...');
+      
       const [projectsData, usersData] = await Promise.all([
-        apiService.getProjects(),
-        apiService.get('/auth/users')
+        apiService.getProjects().catch(err => {
+          console.error('🔴 TasksPage: Failed to load projects:', err);
+          return [];
+        }),
+        apiService.get('/auth/users').catch(err => {
+          console.error('🔴 TasksPage: Failed to load users:', err);
+          return [];
+        })
       ]);
       
-      setProjects(projectsData);
+      console.log('✅ TasksPage: Projects loaded:', projectsData?.length || 0);
+      console.log('✅ TasksPage: Users loaded:', usersData?.length || 0);
+      
+      setProjects(projectsData || []);
       setUsers(usersData || []);
       
       // Auto-select first project if available
-      if (projectsData.length > 0) {
+      if (projectsData && projectsData.length > 0) {
         setSelectedProject(projectsData[0].id);
+        console.log('🎯 TasksPage: Auto-selected project:', projectsData[0].name);
+      } else {
+        console.log('⚠️ TasksPage: No projects available to auto-select');
       }
     } catch (error) {
-      console.error('Error loading initial data:', error);
-      message.error('Error al cargar datos iniciales');
+      console.error('🔴 TasksPage: Error loading initial data:', error);
+      const axiosError = error as any;
+      let errorMessage = 'Error al cargar datos iniciales';
+      
+      if (axiosError?.response?.status === 429) {
+        errorMessage = 'Demasiadas solicitudes. Por favor, espera un momento e intenta de nuevo.';
+      } else if (axiosError?.response?.status >= 500) {
+        errorMessage = 'Error del servidor. Por favor, intenta de nuevo más tarde.';
+      } else if (axiosError?.code === 'NETWORK_ERROR') {
+        errorMessage = 'Error de conexión. Verifica tu conexión a internet.';
+      }
+      
+      message.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -152,18 +177,35 @@ export const TasksPage: React.FC = () => {
     
     try {
       setBoardLoading(true);
+      console.log('📋 TasksPage: Loading boards for project:', selectedProject);
+      
       const boardsData = await apiService.get(`/tasks/boards?project_id=${selectedProject}`);
+      console.log('✅ TasksPage: Boards loaded:', boardsData?.length || 0);
+      
       setBoards(boardsData || []);
       
       // Auto-select first board if available
-      if (boardsData.length > 0) {
+      if (boardsData && boardsData.length > 0) {
+        console.log('🎯 TasksPage: Auto-selecting first board:', boardsData[0].name);
         loadBoard(boardsData[0].id);
       } else {
+        console.log('⚠️ TasksPage: No boards available for project');
         setSelectedBoard(null);
       }
     } catch (error) {
-      console.error('Error loading boards:', error);
-      message.error('Error al cargar boards');
+      console.error('🔴 TasksPage: Error loading boards:', error);
+      const axiosError = error as any;
+      
+      let errorMessage = 'Error al cargar boards';
+      if (axiosError?.response?.status === 404) {
+        errorMessage = 'No se encontraron boards para este proyecto';
+      } else if (axiosError?.response?.status === 429) {
+        errorMessage = 'Demasiadas solicitudes. Por favor, espera un momento e intenta de nuevo.';
+      }
+      
+      message.error(errorMessage);
+      setBoards([]);
+      setSelectedBoard(null);
     } finally {
       setBoardLoading(false);
     }
@@ -172,11 +214,25 @@ export const TasksPage: React.FC = () => {
   const loadBoard = async (boardId: number) => {
     try {
       setBoardLoading(true);
+      console.log('🔧 TasksPage: Loading board details for ID:', boardId);
+      
       const board = await apiService.get(`/tasks/boards/${boardId}`);
+      console.log('✅ TasksPage: Board details loaded:', board?.name, 'with', board?.tasks?.length || 0, 'tasks');
+      
       setSelectedBoard(board);
     } catch (error) {
-      console.error('Error loading board:', error);
-      message.error('Error al cargar board');
+      console.error('🔴 TasksPage: Error loading board:', error);
+      const axiosError = error as any;
+      
+      let errorMessage = 'Error al cargar board';
+      if (axiosError?.response?.status === 404) {
+        errorMessage = 'Board no encontrado';
+      } else if (axiosError?.response?.status === 429) {
+        errorMessage = 'Demasiadas solicitudes. Por favor, espera un momento.';
+      }
+      
+      message.error(errorMessage);
+      setSelectedBoard(null);
     } finally {
       setBoardLoading(false);
     }

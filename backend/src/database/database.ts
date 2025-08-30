@@ -81,6 +81,9 @@ export class DatabaseManager {
             // Enable foreign key constraints
             this.db.run('PRAGMA foreign_keys = ON');
             
+            // Set UTF-8 encoding for all text operations
+            this.db.run('PRAGMA encoding = "UTF-8"');
+            
             // Set journal mode to WAL for better concurrency
             this.db.run('PRAGMA journal_mode = WAL');
             
@@ -120,6 +123,12 @@ export class DatabaseManager {
             await this.fixFilesTableIfNeeded();
             
             logger.info('Database schema initialized successfully through migrations');
+        
+        // Apply UTF-8 character corrections
+        if (this.db) {
+            const { UTF8Fix } = await import('../utils/utf8Fix');
+            await UTF8Fix.ensureUTF8Compliance(this.db);
+        }
         } catch (error) {
             logger.error('Error initializing database schema:', error);
             throw error;

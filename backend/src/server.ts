@@ -5,7 +5,7 @@ import compression from 'compression';
 import dotenv from 'dotenv';
 
 // Import security middleware
-import { apiLimiter, authLimiter, analyticsLimiter } from './middleware/rateLimiter';
+import { apiLimiter, authLimiter, analyticsLimiter, commonEndpointsLimiter } from './middleware/rateLimiter';
 import { globalErrorHandler, notFoundHandler, setupGlobalErrorHandlers, securityErrorHandler } from './middleware/errorHandler';
 import { sanitizeInput, securityHeaders } from './middleware/validation';
 import path from 'path';
@@ -22,6 +22,7 @@ import fileRoutes from './routes/fileRoutes';
 import supportRoutes from './routes/supportRoutes';
 import pmoRoutes from './routes/pmoRoutes';
 import aiRoutes from './routes/aiRoutes';
+// import adminRoutes from './routes/adminRoutes';
 
 // Import database and logger
 import { db } from './database/database';
@@ -36,7 +37,7 @@ class RPATeamManagerServer {
 
     constructor() {
         this.app = express();
-        this.port = parseInt(process.env.PORT || '8001');
+        this.port = parseInt(process.env.PORT || '5001');
         
         this.initializeMiddleware();
         this.initializeRoutes();
@@ -85,9 +86,11 @@ class RPATeamManagerServer {
         this.app.use(express.json({ limit: '10mb' }));
         this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
         
-        // Set charset to UTF-8 for all responses
+        // Set charset to UTF-8 for all responses and requests
         this.app.use((req, res, next) => {
             res.charset = 'utf-8';
+            res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            req.headers['content-type'] = 'application/json; charset=utf-8';
             next();
         });
 
@@ -127,8 +130,10 @@ class RPATeamManagerServer {
         });
 
         // API routes with specific rate limiting
+        // Apply lenient rate limiting to user data endpoints
+        this.app.use('/api/auth/users', commonEndpointsLimiter);
         this.app.use('/api/auth', authLimiter, authRoutes);
-        this.app.use('/api/projects', projectRoutes);
+        this.app.use('/api/projects', commonEndpointsLimiter, projectRoutes);
         this.app.use('/api/financial', financialRoutes);
         this.app.use('/api/settings', settingsRoutes);
         this.app.use('/api', timeRoutes);
@@ -138,6 +143,7 @@ class RPATeamManagerServer {
         this.app.use('/api/support', supportRoutes);
         this.app.use('/api/pmo', analyticsLimiter, pmoRoutes);
         this.app.use('/api/ai', aiRoutes);
+        // this.app.use('/api/admin', commonEndpointsLimiter, adminRoutes);
 
         // API documentation route
         this.app.get('/api', (req, res) => {

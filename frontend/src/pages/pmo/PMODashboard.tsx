@@ -757,6 +757,19 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
     // The useGanttData hook automatically handles clearing data when selectedProjectId changes
   }, [selectedProjectId, loadGanttData]);
 
+  // useEffect to pre-fill milestone form when modal opens and project is selected
+  useEffect(() => {
+    if (milestoneModalVisible && selectedProjectId) {
+      console.log('🎯 Pre-filling milestone form with selectedProjectId:', selectedProjectId);
+      milestoneForm.setFieldsValue({
+        project_id: selectedProjectId
+      });
+    } else if (milestoneModalVisible && !selectedProjectId) {
+      // Clear form when modal opens without selected project
+      milestoneForm.resetFields();
+    }
+  }, [milestoneModalVisible, selectedProjectId, milestoneForm]);
+
   const handleEditItem = (record: any) => {
     setEditingItem(record);
     console.log('🔍 Setting form values for edit:', {
@@ -3156,7 +3169,10 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
 
       {/* Modal crear hito */}
       <Modal
-        title="Crear Nuevo Hito"
+        title={selectedProjectId 
+          ? `Crear Nuevo Hito - ${projects.find(p => p.id === selectedProjectId)?.name || 'Proyecto'}`
+          : "Crear Nuevo Hito"
+        }
         open={milestoneModalVisible}
         onCancel={() => setMilestoneModalVisible(false)}
         footer={null}
@@ -3171,13 +3187,30 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
             label="Proyecto"
             rules={[{ required: true, message: 'Selecciona un proyecto' }]}
           >
-            <Select placeholder="Seleccionar proyecto">
-              {projects.map((project: any) => (
-                <Select.Option key={project.id} value={project.id}>
-                  {project.name}
-                </Select.Option>
-              ))}
-            </Select>
+            {selectedProjectId ? (
+              <div>
+                <Select 
+                  value={selectedProjectId} 
+                  disabled 
+                  style={{ width: '100%' }}
+                >
+                  <Select.Option value={selectedProjectId}>
+                    {projects.find(p => p.id === selectedProjectId)?.name || 'Proyecto Seleccionado'}
+                  </Select.Option>
+                </Select>
+                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                  Proyecto seleccionado desde el Gantt Chart
+                </div>
+              </div>
+            ) : (
+              <Select placeholder="Seleccionar proyecto">
+                {projects.map((project: any) => (
+                  <Select.Option key={project.id} value={project.id}>
+                    {project.name}
+                  </Select.Option>
+                ))}
+              </Select>
+            )}
           </Form.Item>
 
           <Form.Item

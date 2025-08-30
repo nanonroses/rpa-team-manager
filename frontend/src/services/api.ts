@@ -27,7 +27,7 @@ class ApiService {
   private readonly MAX_REQUESTS_PER_WINDOW = 50; // Max requests per endpoint per window
 
   constructor() {
-    this.baseURL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:8001';
+    this.baseURL = (import.meta as any).env?.VITE_API_URL || 'http://localhost:5001';
     
     this.api = axios.create({
       baseURL: `${this.baseURL}/api`,

@@ -60,7 +60,7 @@ export class ProjectController {
                 SELECT p.*, 
                        u1.full_name as created_by_name,
                        u2.full_name as assigned_to_name,
-                       pf.budget_allocated,
+                       pf.budgeted_cost,
                        pf.actual_cost as budget_spent,
                        pf.budgeted_hours as hours_budgeted,
                        0 as hours_spent,
@@ -173,7 +173,7 @@ export class ProjectController {
             if (budget) {
                 await db.run(`
                     INSERT INTO project_financials (
-                        project_id, budget_allocated, hours_budgeted
+                        project_id, budgeted_cost, budgeted_hours
                     ) VALUES (?, ?, ?)
                 `, [projectId, budget, 0]);
             }
@@ -284,7 +284,7 @@ export class ProjectController {
                     project_id: id,
                     budget: updates.budget,
                     sale_price: updates.sale_price,
-                    hours_budgeted: updates.hours_budgeted
+                    budgeted_hours: updates.hours_budgeted
                 });
                 
                 // First, delete any existing financial records for this project
@@ -294,9 +294,9 @@ export class ProjectController {
                 await db.run(`
                     INSERT INTO project_financials (
                         project_id, 
-                        budget_allocated, 
+                        budgeted_cost, 
                         sale_price, 
-                        hours_budgeted,
+                        budgeted_hours,
                         updated_at
                     ) VALUES (?, ?, ?, ?, datetime('now'))
                 `, [
@@ -322,7 +322,7 @@ export class ProjectController {
                 SELECT p.*, 
                        u1.full_name as created_by_name,
                        u2.full_name as assigned_to_name,
-                       pf.budget_allocated,
+                       pf.budgeted_cost,
                        pf.actual_cost as budget_spent,
                        pf.budgeted_hours as hours_budgeted,
                        0 as hours_spent,
@@ -457,8 +457,8 @@ export class ProjectController {
                     p.id, 
                     p.name, 
                     pf.sale_price, 
-                    pf.hours_budgeted,
-                    pf.budget_allocated,
+                    pf.budgeted_hours,
+                    pf.budgeted_cost,
                     pf.updated_at as financial_updated
                 FROM projects p 
                 LEFT JOIN project_financials pf ON p.id = pf.project_id 

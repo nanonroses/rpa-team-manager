@@ -1,0 +1,105 @@
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <rect width="800" height="600" fill="#f8f9fa"/>
+  
+  <!-- Title -->
+  <text x="400" y="50" text-anchor="middle" font-family="Arial, sans-serif" font-size="24" font-weight="bold" fill="#2c3e50">
+    Sistema de Facturación Electrónica
+  </text>
+  <text x="400" y="80" text-anchor="middle" font-family="Arial, sans-serif" font-size="16" fill="#7f8c8d">
+    Arquitectura del Proyecto - Diagrama de Componentes
+  </text>
+  
+  <!-- Backend Section -->
+  <rect x="50" y="120" width="300" height="200" fill="#3498db" stroke="#2980b9" stroke-width="2" rx="10"/>
+  <text x="200" y="145" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="white">
+    Backend Services
+  </text>
+  
+  <!-- Backend components -->
+  <rect x="70" y="160" width="120" height="40" fill="#ecf0f1" stroke="#bdc3c7" rx="5"/>
+  <text x="130" y="185" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#2c3e50">
+    API REST Node.js
+  </text>
+  
+  <rect x="210" y="160" width="120" height="40" fill="#ecf0f1" stroke="#bdc3c7" rx="5"/>
+  <text x="270" y="185" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#2c3e50">
+    Base de Datos
+  </text>
+  
+  <rect x="70" y="220" width="120" height="40" fill="#ecf0f1" stroke="#bdc3c7" rx="5"/>
+  <text x="130" y="245" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#2c3e50">
+    Procesamiento XML
+  </text>
+  
+  <rect x="210" y="220" width="120" height="40" fill="#ecf0f1" stroke="#bdc3c7" rx="5"/>
+  <text x="270" y="245" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#2c3e50">
+    Integración SII
+  </text>
+  
+  <!-- Frontend Section -->
+  <rect x="450" y="120" width="300" height="200" fill="#e74c3c" stroke="#c0392b" stroke-width="2" rx="10"/>
+  <text x="600" y="145" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="white">
+    Frontend Application
+  </text>
+  
+  <!-- Frontend components -->
+  <rect x="470" y="160" width="120" height="40" fill="#ecf0f1" stroke="#bdc3c7" rx="5"/>
+  <text x="530" y="185" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#2c3e50">
+    React Dashboard
+  </text>
+  
+  <rect x="610" y="160" width="120" height="40" fill="#ecf0f1" stroke="#bdc3c7" rx="5"/>
+  <text x="670" y="185" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#2c3e50">
+    Gestión Facturas
+  </text>
+  
+  <rect x="470" y="220" width="120" height="40" fill="#ecf0f1" stroke="#bdc3c7" rx="5"/>
+  <text x="530" y="245" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#2c3e50">
+    Reportes
+  </text>
+  
+  <rect x="610" y="220" width="120" height="40" fill="#ecf0f1" stroke="#bdc3c7" rx="5"/>
+  <text x="670" y="245" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#2c3e50">
+    Configuración
+  </text>
+  
+  <!-- Integration arrows -->
+  <line x1="350" y1="220" x2="450" y2="220" stroke="#34495e" stroke-width="3" marker-end="url(#arrowhead)"/>
+  
+  <!-- External Services -->
+  <rect x="250" y="380" width="300" height="150" fill="#f39c12" stroke="#e67e22" stroke-width="2" rx="10"/>
+  <text x="400" y="405" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="white">
+    Servicios Externos
+  </text>
+  
+  <rect x="270" y="420" width="120" height="40" fill="#ecf0f1" stroke="#bdc3c7" rx="5"/>
+  <text x="330" y="445" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#2c3e50">
+    API SII
+  </text>
+  
+  <rect x="410" y="420" width="120" height="40" fill="#ecf0f1" stroke="#bdc3c7" rx="5"/>
+  <text x="470" y="445" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#2c3e50">
+    Sistemas Contables
+  </text>
+  
+  <rect x="270" y="480" width="260" height="40" fill="#ecf0f1" stroke="#bdc3c7" rx="5"/>
+  <text x="400" y="505" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" fill="#2c3e50">
+    Servicio de Notificaciones Email
+  </text>
+  
+  <!-- Connection lines -->
+  <line x1="200" y1="320" x2="330" y2="380" stroke="#34495e" stroke-width="2"/>
+  <line x1="270" y1="320" x2="470" y2="380" stroke="#34495e" stroke-width="2"/>
+  
+  <!-- Arrow marker definition -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#34495e"/>
+    </marker>
+  </defs>
+  
+  <!-- Legend -->
+  <text x="50" y="580" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#2c3e50">
+    Proyecto: Sistema de Facturación Electrónica | Estado: En Desarrollo | Fecha: Enero 2025
+  </text>
+</svg>

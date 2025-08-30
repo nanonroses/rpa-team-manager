@@ -99,11 +99,14 @@ export const migrations: Migration[] = [
       )`,
       
       `CREATE TABLE IF NOT EXISTS global_settings (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL,
+        setting_key TEXT PRIMARY KEY,
+        setting_value TEXT NOT NULL,
+        setting_type TEXT DEFAULT 'string' CHECK (setting_type IN ('string', 'number', 'decimal', 'boolean')),
         description TEXT,
+        updated_by INTEGER,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (updated_by) REFERENCES users(id)
       )`
     ]
   },
@@ -430,6 +433,43 @@ export const migrations: Migration[] = [
         ('Audio', 'Archivos de audio', '["mp3", "wav", "ogg", "flac", "aac"]', 104857600, 'music', '#f59e0b'),
         ('Código', 'Archivos de código fuente', '["js", "ts", "py", "java", "cpp", "c", "html", "css", "sql", "json", "xml"]', 10485760, 'code', '#6366f1'),
         ('Otros', 'Otros tipos de archivo', '["*"]', 104857600, 'file', '#6b7280')`
+    ]
+  },
+  
+  {
+    version: 12,
+    description: 'Fix global_settings table schema to match controller expectations',
+    up: [
+      // Drop existing table if it has wrong schema
+      `DROP TABLE IF EXISTS global_settings`,
+      
+      // Recreate with correct schema
+      `CREATE TABLE global_settings (
+        setting_key TEXT PRIMARY KEY,
+        setting_value TEXT NOT NULL,
+        setting_type TEXT DEFAULT 'string' CHECK (setting_type IN ('string', 'number', 'decimal', 'boolean')),
+        description TEXT,
+        updated_by INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (updated_by) REFERENCES users(id)
+      )`,
+      
+      // Insert the required seed data
+      `INSERT INTO global_settings (setting_key, setting_value, setting_type, description, updated_by) VALUES 
+        ('usd_rate', '925.50', 'decimal', 'Tipo de cambio USD a CLP (actualizar mensualmente)', 1),
+        ('uf_rate', '37250.85', 'decimal', 'Valor de la UF en CLP (actualizar mensualmente)', 1),
+        ('monthly_hours', '176', 'number', 'Horas laborales mensuales en Chile (44h semanales)', 1),
+        ('weekly_hours', '44', 'number', 'Horas laborales semanales en Chile', 1)`,
+      
+      // Create index and trigger
+      `CREATE INDEX IF NOT EXISTS idx_global_settings_key ON global_settings(setting_key)`,
+      
+      `CREATE TRIGGER IF NOT EXISTS update_global_settings_timestamp 
+        AFTER UPDATE ON global_settings
+        BEGIN
+          UPDATE global_settings SET updated_at = CURRENT_TIMESTAMP WHERE setting_key = NEW.setting_key;
+        END`
     ]
   }
 ];

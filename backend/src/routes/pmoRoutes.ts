@@ -35,14 +35,20 @@ router.get('/projects/:id/metrics', pmoController.getProjectPMOMetrics);
 // POST /api/pmo/milestones - Create new milestone
 router.post('/milestones', pmoController.createMilestone);
 
+// POST /api/pmo/milestones/batch - Create multiple milestones (MUST be before /:id route)
+router.post('/milestones/batch', pmoController.batchCreateMilestones);
+
+// DELETE /api/pmo/milestones/batch - Delete multiple milestones (MUST be before /:id route)
+router.delete('/milestones/batch', (req, res, next) => {
+    console.log('🔥 Route hit: DELETE /milestones/batch');
+    next();
+}, pmoController.batchDeleteMilestones);
+
 // PUT /api/pmo/milestones/:id - Update milestone
 router.put('/milestones/:id', pmoController.updateMilestone);
 
 // DELETE /api/pmo/milestones/:id - Delete milestone
 router.delete('/milestones/:id', pmoController.deleteMilestone);
-
-// DELETE /api/pmo/milestones/batch - Delete multiple milestones
-router.delete('/milestones/batch', pmoController.batchDeleteMilestones);
 
 // ========================================
 // PROJECT METRICS ROUTES
