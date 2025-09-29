@@ -10,13 +10,14 @@ export class UTF8Fix {
                 
                 logger.info('Applying UTF-8 character corrections...');
                 
-                // Define character replacements
+                // Define character replacements for common double-encoding issues
                 const replacements = [
-                    { search: 'ó', replace: 'ó' },
-                    { search: 'í', replace: 'í' },
+                    // Fix double-encoded characters (ISO-8859-1 encoded as UTF-8)
                     { search: 'ñ', replace: 'ñ' },
                     { search: 'á', replace: 'á' },
                     { search: 'é', replace: 'é' },
+                    { search: 'í', replace: 'í' },
+                    { search: 'ó', replace: 'ó' },
                     { search: 'ú', replace: 'ú' },
                     { search: 'ü', replace: 'ü' },
                     { search: 'Ñ', replace: 'Ñ' },
@@ -25,7 +26,18 @@ export class UTF8Fix {
                     { search: 'Í', replace: 'Í' },
                     { search: 'Ó', replace: 'Ó' },
                     { search: 'Ú', replace: 'Ú' },
-                    { search: 'Ü', replace: 'Ü' }
+                    { search: 'Ü', replace: 'Ü' },
+                    // Fix question mark replacements for unknown characters
+                    { search: 'An�lisis', replace: 'Análisis' },
+                    { search: 'facturaci�n', replace: 'facturación' },
+                    { search: 'electr�nica', replace: 'electrónica' },
+                    { search: 'seg�n', replace: 'según' },
+                    { search: 'descripci�n', replace: 'descripción' },
+                    { search: 'aplicaci�n', replace: 'aplicación' },
+                    { search: 'integración', replace: 'integración' },
+                    { search: 'comunicaci�n', replace: 'comunicación' },
+                    { search: 'configuraci�n', replace: 'configuración' },
+                    { search: 'planificaci�n', replace: 'planificación' }
                 ];
                 
                 // Define tables and columns to fix

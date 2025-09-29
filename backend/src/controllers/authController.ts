@@ -77,8 +77,14 @@ export class AuthController {
                 return;
             }
 
-            const users = await this.authService.getActiveUsers();
-            res.json(users);
+            // Team leads can see all users (active and inactive), others see only active users
+            if (req.user.role === 'team_lead') {
+                const users = await this.authService.getAllUsersForAdmin();
+                res.json(users);
+            } else {
+                const users = await this.authService.getActiveUsers();
+                res.json(users);
+            }
         } catch (error) {
             logger.error('Get users error:', error);
             res.status(500).json({ error: 'Failed to get users' });

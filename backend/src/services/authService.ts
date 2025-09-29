@@ -291,9 +291,27 @@ export class AuthService {
         return user || null;
     }
 
+    // Admin method to find any user (active or inactive)
+    private async findUserByIdForAdmin(id: number): Promise<User | null> {
+        const user = await db.get(
+            'SELECT * FROM users WHERE id = ?',
+            [id]
+        );
+        return user || null;
+    }
+
     async getActiveUsers(): Promise<{ id: number; full_name: string; email: string; role: string }[]> {
         const users = await db.query(
             'SELECT id, full_name, email, role FROM users WHERE is_active = 1 ORDER BY full_name',
+            []
+        );
+        return users;
+    }
+
+    // Admin method to get all users (active and inactive)
+    async getAllUsersForAdmin(): Promise<{ id: number; full_name: string; email: string; role: string; is_active: boolean }[]> {
+        const users = await db.query(
+            'SELECT id, full_name, email, role, is_active FROM users ORDER BY full_name',
             []
         );
         return users;
@@ -463,8 +481,8 @@ export class AuthService {
 
     async updateUser(userId: number, updates: Partial<User>): Promise<User> {
         try {
-            // Check if user exists
-            const existingUser = await this.findUserById(userId);
+            // Check if user exists (use admin method to find any user)
+            const existingUser = await this.findUserByIdForAdmin(userId);
             if (!existingUser) {
                 throw new Error('User not found');
             }
@@ -513,8 +531,8 @@ export class AuthService {
                 values
             );
 
-            // Return updated user
-            const updatedUser = await this.findUserById(userId);
+            // Return updated user (use admin method to retrieve any user)
+            const updatedUser = await this.findUserByIdForAdmin(userId);
             if (!updatedUser) {
                 throw new Error('Failed to retrieve updated user');
             }
@@ -529,8 +547,8 @@ export class AuthService {
 
     async deleteUser(userId: number): Promise<void> {
         try {
-            // Check if user exists
-            const existingUser = await this.findUserById(userId);
+            // Check if user exists (use admin method)
+            const existingUser = await this.findUserByIdForAdmin(userId);
             if (!existingUser) {
                 throw new Error('User not found');
             }
@@ -551,8 +569,8 @@ export class AuthService {
 
     async resetUserPassword(userId: number, newPassword: string): Promise<void> {
         try {
-            // Check if user exists
-            const existingUser = await this.findUserById(userId);
+            // Check if user exists (use admin method)
+            const existingUser = await this.findUserByIdForAdmin(userId);
             if (!existingUser) {
                 throw new Error('User not found');
             }
