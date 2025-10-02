@@ -13,10 +13,10 @@ export const getPhaseTemplates = async (req: Request, res: Response) => {
       ORDER BY phase_order ASC
     `);
 
-    res.json(templates);
+    return res.json(templates);
   } catch (error: any) {
     logger.error('Error getting phase templates:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -32,10 +32,10 @@ export const getPhaseTemplate = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Template not found' });
     }
 
-    res.json(template);
+    return res.json(template);
   } catch (error: any) {
     logger.error('Error getting phase template:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -50,10 +50,10 @@ export const createPhaseTemplate = async (req: Request, res: Response) => {
     `, [name, description, phase_order, is_billable ? 1 : 0, is_mandatory ? 1 : 0, estimated_duration_days, category, color]);
 
     const template = await db.get('SELECT * FROM project_phase_templates WHERE id = ?', [result.id]);
-    res.status(201).json(template);
+    return res.status(201).json(template);
   } catch (error: any) {
     logger.error('Error creating phase template:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -72,10 +72,10 @@ export const updatePhaseTemplate = async (req: Request, res: Response) => {
     `, [...values, id]);
 
     const template = await db.get('SELECT * FROM project_phase_templates WHERE id = ?', [id]);
-    res.json(template);
+    return res.json(template);
   } catch (error: any) {
     logger.error('Error updating phase template:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -84,10 +84,10 @@ export const deletePhaseTemplate = async (req: Request, res: Response) => {
     const { id } = req.params;
 
     await db.run('DELETE FROM project_phase_templates WHERE id = ?', [id]);
-    res.json({ message: 'Template deleted successfully' });
+    return res.json({ message: 'Template deleted successfully' });
   } catch (error: any) {
     logger.error('Error deleting phase template:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -125,10 +125,10 @@ export const getProjectPhases = async (req: Request, res: Response) => {
       phase.activities = activities;
     }
 
-    res.json(phases);
+    return res.json(phases);
   } catch (error: any) {
     logger.error('Error getting project phases:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -157,10 +157,10 @@ export const createProjectPhase = async (req: Request, res: Response) => {
       WHERE pp.id = ?
     `, [result.id]);
 
-    res.status(201).json(phase);
+    return res.status(201).json(phase);
   } catch (error: any) {
     logger.error('Error creating project phase:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -215,10 +215,10 @@ export const initializeProjectPhases = async (req: Request, res: Response) => {
       createdPhases.push(phase);
     }
 
-    res.status(201).json(createdPhases);
+    return res.status(201).json(createdPhases);
   } catch (error: any) {
     logger.error('Error initializing project phases:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -246,10 +246,10 @@ export const updateProjectPhase = async (req: Request, res: Response) => {
       WHERE pp.id = ?
     `, [phaseId]);
 
-    res.json(phase);
+    return res.json(phase);
   } catch (error: any) {
     logger.error('Error updating project phase:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -258,10 +258,10 @@ export const deleteProjectPhase = async (req: Request, res: Response) => {
     const { phaseId } = req.params;
 
     await db.run('DELETE FROM project_phases WHERE id = ?', [phaseId]);
-    res.json({ message: 'Phase deleted successfully' });
+    return res.json({ message: 'Phase deleted successfully' });
   } catch (error: any) {
     logger.error('Error deleting project phase:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -283,10 +283,10 @@ export const getPhaseActivities = async (req: Request, res: Response) => {
       ORDER BY pa.created_at DESC
     `, [phaseId]);
 
-    res.json(activities);
+    return res.json(activities);
   } catch (error: any) {
     logger.error('Error getting phase activities:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -319,10 +319,10 @@ export const createPhaseActivity = async (req: Request, res: Response) => {
       WHERE pa.id = ?
     `, [result.id]);
 
-    res.status(201).json(activity);
+    return res.status(201).json(activity);
   } catch (error: any) {
     logger.error('Error creating phase activity:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -347,10 +347,10 @@ export const updatePhaseActivity = async (req: Request, res: Response) => {
       WHERE pa.id = ?
     `, [activityId]);
 
-    res.json(activity);
+    return res.json(activity);
   } catch (error: any) {
     logger.error('Error updating phase activity:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -359,10 +359,10 @@ export const deletePhaseActivity = async (req: Request, res: Response) => {
     const { activityId } = req.params;
 
     await db.run('DELETE FROM phase_activities WHERE id = ?', [activityId]);
-    res.json({ message: 'Activity deleted successfully' });
+    return res.json({ message: 'Activity deleted successfully' });
   } catch (error: any) {
     logger.error('Error deleting phase activity:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -388,10 +388,10 @@ export const getProjectDelays = async (req: Request, res: Response) => {
       ORDER BY pd.delay_start_date DESC
     `, [projectId]);
 
-    res.json(delays);
+    return res.json(delays);
   } catch (error: any) {
     logger.error('Error getting project delays:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -426,10 +426,10 @@ export const createProjectDelay = async (req: Request, res: Response) => {
       WHERE pd.id = ?
     `, [result.id]);
 
-    res.status(201).json(delay);
+    return res.status(201).json(delay);
   } catch (error: any) {
     logger.error('Error creating project delay:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -460,10 +460,10 @@ export const updateProjectDelay = async (req: Request, res: Response) => {
       WHERE pd.id = ?
     `, [delayId]);
 
-    res.json(delay);
+    return res.json(delay);
   } catch (error: any) {
     logger.error('Error updating project delay:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -472,10 +472,10 @@ export const deleteProjectDelay = async (req: Request, res: Response) => {
     const { delayId } = req.params;
 
     await db.run('DELETE FROM project_delays WHERE id = ?', [delayId]);
-    res.json({ message: 'Delay deleted successfully' });
+    return res.json({ message: 'Delay deleted successfully' });
   } catch (error: any) {
     logger.error('Error deleting project delay:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -504,10 +504,10 @@ export const resolveProjectDelay = async (req: Request, res: Response) => {
       WHERE pd.id = ?
     `, [delayId]);
 
-    res.json(delay);
+    return res.json(delay);
   } catch (error: any) {
     logger.error('Error resolving project delay:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -533,10 +533,10 @@ export const getProjectScopeChanges = async (req: Request, res: Response) => {
       ORDER BY psc.created_at DESC
     `, [projectId]);
 
-    res.json(changes);
+    return res.json(changes);
   } catch (error: any) {
     logger.error('Error getting scope changes:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -572,10 +572,10 @@ export const createScopeChange = async (req: Request, res: Response) => {
       WHERE psc.id = ?
     `, [result.id]);
 
-    res.status(201).json(change);
+    return res.status(201).json(change);
   } catch (error: any) {
     logger.error('Error creating scope change:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -606,10 +606,10 @@ export const updateScopeChange = async (req: Request, res: Response) => {
       WHERE psc.id = ?
     `, [changeId]);
 
-    res.json(change);
+    return res.json(change);
   } catch (error: any) {
     logger.error('Error updating scope change:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -618,10 +618,10 @@ export const deleteScopeChange = async (req: Request, res: Response) => {
     const { changeId } = req.params;
 
     await db.run('DELETE FROM project_scope_changes WHERE id = ?', [changeId]);
-    res.json({ message: 'Scope change deleted successfully' });
+    return res.json({ message: 'Scope change deleted successfully' });
   } catch (error: any) {
     logger.error('Error deleting scope change:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -649,10 +649,10 @@ export const approveScopeChange = async (req: Request, res: Response) => {
       WHERE psc.id = ?
     `, [changeId]);
 
-    res.json(change);
+    return res.json(change);
   } catch (error: any) {
     logger.error('Error approving scope change:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -681,10 +681,10 @@ export const rejectScopeChange = async (req: Request, res: Response) => {
       WHERE psc.id = ?
     `, [changeId]);
 
-    res.json(change);
+    return res.json(change);
   } catch (error: any) {
     logger.error('Error rejecting scope change:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -735,7 +735,7 @@ export const getProjectROIAnalysis = async (req: Request, res: Response) => {
     const apparentROI = billableCost > 0 ? ((salePrice - billableCost) / billableCost * 100) : 0;
     const realROI = totalCost > 0 ? ((salePrice - totalCost) / totalCost * 100) : 0;
 
-    res.json({
+    return res.json({
       apparent_roi: apparentROI.toFixed(1),
       real_roi: realROI.toFixed(1),
       total_hours_real: totalHours,
@@ -746,7 +746,7 @@ export const getProjectROIAnalysis = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     logger.error('Error getting ROI analysis:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -777,7 +777,7 @@ export const getProjectLifecycleMetrics = async (req: Request, res: Response) =>
 
     const efficiency = totalPlannedHours > 0 ? (totalPlannedHours / totalActualHours * 100) : 100;
 
-    res.json({
+    return res.json({
       totalPlannedHours,
       totalActualHours,
       billableHours,
@@ -788,7 +788,7 @@ export const getProjectLifecycleMetrics = async (req: Request, res: Response) =>
     });
   } catch (error: any) {
     logger.error('Error getting lifecycle metrics:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
 
@@ -823,7 +823,7 @@ export const getProjectLifecycleSummary = async (req: Request, res: Response) =>
       `, [projectId])
     ]);
 
-    res.json({
+    return res.json({
       phases,
       delays,
       scope_changes: scopeChanges,
@@ -839,6 +839,6 @@ export const getProjectLifecycleSummary = async (req: Request, res: Response) =>
     });
   } catch (error: any) {
     logger.error('Error getting lifecycle summary:', error);
-    res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message });
   }
 };
