@@ -471,5 +471,268 @@ export const migrations: Migration[] = [
           UPDATE global_settings SET updated_at = CURRENT_TIMESTAMP WHERE setting_key = NEW.setting_key;
         END`
     ]
+  },
+
+  {
+    version: 13,
+    description: 'Sistema de Ciclo de Vida del Proyecto - Project Lifecycle Phases',
+    up: [
+      // ========================================
+      // PROJECT PHASE TEMPLATES
+      // ========================================
+      `CREATE TABLE IF NOT EXISTS project_phase_templates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        description TEXT,
+        phase_order INTEGER NOT NULL,
+        is_billable BOOLEAN DEFAULT 0,
+        is_mandatory BOOLEAN DEFAULT 1,
+        estimated_duration_days INTEGER,
+        category VARCHAR(30) CHECK (category IN ('pre_sale', 'negotiation', 'pre_development', 'development', 'testing', 'deployment', 'post_deployment')),
+        color VARCHAR(7) DEFAULT '#1890ff',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      // ========================================
+      // PROJECT PHASES (instancias reales)
+      // ========================================
+      `CREATE TABLE IF NOT EXISTS project_phases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        template_id INTEGER NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        description TEXT,
+        phase_order INTEGER NOT NULL,
+        status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed', 'skipped', 'blocked')),
+        planned_start_date DATE,
+        planned_end_date DATE,
+        estimated_hours DECIMAL(5,2) DEFAULT 0,
+        actual_start_date DATE,
+        actual_end_date DATE,
+        actual_hours DECIMAL(5,2) DEFAULT 0,
+        responsibility VARCHAR(20) DEFAULT 'internal' CHECK (responsibility IN ('internal', 'client', 'external', 'shared')),
+        blocking_reason TEXT,
+        waiting_for VARCHAR(200),
+        is_billable BOOLEAN DEFAULT 0,
+        budgeted_cost DECIMAL(10,2) DEFAULT 0,
+        actual_cost DECIMAL(10,2) DEFAULT 0,
+        client_charge DECIMAL(10,2) DEFAULT 0,
+        variance_days INTEGER DEFAULT 0,
+        variance_hours DECIMAL(5,2) DEFAULT 0,
+        efficiency_percentage DECIMAL(5,2) DEFAULT 100,
+        is_critical_path BOOLEAN DEFAULT 0,
+        completion_percentage INTEGER DEFAULT 0 CHECK (completion_percentage >= 0 AND completion_percentage <= 100),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (template_id) REFERENCES project_phase_templates(id)
+      )`,
+
+      // ========================================
+      // PHASE ACTIVITIES (granularidad extrema)
+      // ========================================
+      `CREATE TABLE IF NOT EXISTS phase_activities (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        phase_id INTEGER NOT NULL,
+        project_id INTEGER NOT NULL,
+        activity_type VARCHAR(50) NOT NULL,
+        description TEXT NOT NULL,
+        start_datetime DATETIME,
+        end_datetime DATETIME,
+        duration_minutes INTEGER DEFAULT 0,
+        calculated_hours DECIMAL(5,2) DEFAULT 0,
+        user_id INTEGER NOT NULL,
+        is_productive BOOLEAN DEFAULT 1,
+        is_billable BOOLEAN DEFAULT 0,
+        is_internal BOOLEAN DEFAULT 1,
+        responsibility VARCHAR(20) DEFAULT 'internal' CHECK (responsibility IN ('internal', 'client', 'external')),
+        notes TEXT,
+        tags TEXT,
+        has_evidence BOOLEAN DEFAULT 0,
+        evidence_description TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (phase_id) REFERENCES project_phases(id) ON DELETE CASCADE,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+
+      // ========================================
+      // PROJECT DELAYS
+      // ========================================
+      `CREATE TABLE IF NOT EXISTS project_delays (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        phase_id INTEGER,
+        delay_type VARCHAR(30) CHECK (delay_type IN ('client_waiting', 'approval_pending', 'information_missing', 'scope_change', 'technical_blocker', 'resource_unavailable', 'external_dependency', 'other')),
+        description TEXT NOT NULL,
+        responsible_party VARCHAR(20) CHECK (responsible_party IN ('internal', 'client', 'external', 'shared')),
+        contact_person VARCHAR(200),
+        delay_start_date DATE NOT NULL,
+        delay_end_date DATE,
+        delay_days INTEGER DEFAULT 0,
+        financial_impact DECIMAL(10,2) DEFAULT 0,
+        resolution TEXT,
+        resolved_by INTEGER,
+        has_evidence BOOLEAN DEFAULT 0,
+        evidence_notes TEXT,
+        created_by INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (phase_id) REFERENCES project_phases(id),
+        FOREIGN KEY (resolved_by) REFERENCES users(id),
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      )`,
+
+      // ========================================
+      // PROJECT SCOPE CHANGES
+      // ========================================
+      `CREATE TABLE IF NOT EXISTS project_scope_changes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        phase_id INTEGER,
+        change_type VARCHAR(30) CHECK (change_type IN ('scope_increase', 'scope_decrease', 'requirement_change', 'technical_change', 'timeline_extension', 'other')),
+        description TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        requested_by VARCHAR(200),
+        hours_impact DECIMAL(5,2) DEFAULT 0,
+        cost_impact DECIMAL(10,2) DEFAULT 0,
+        timeline_impact_days INTEGER DEFAULT 0,
+        status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'implemented')),
+        approved_by INTEGER,
+        approval_date DATE,
+        requires_re_quote BOOLEAN DEFAULT 0,
+        new_quote_amount DECIMAL(12,2),
+        quote_approved BOOLEAN DEFAULT 0,
+        created_by INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (phase_id) REFERENCES project_phases(id),
+        FOREIGN KEY (approved_by) REFERENCES users(id),
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      )`,
+
+      // ========================================
+      // INDEXES
+      // ========================================
+      `CREATE INDEX IF NOT EXISTS idx_project_phases_project ON project_phases(project_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_project_phases_status ON project_phases(status)`,
+      `CREATE INDEX IF NOT EXISTS idx_project_phases_template ON project_phases(template_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_phase_activities_phase ON phase_activities(phase_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_phase_activities_project ON phase_activities(project_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_phase_activities_user ON phase_activities(user_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_phase_activities_type ON phase_activities(activity_type)`,
+      `CREATE INDEX IF NOT EXISTS idx_project_delays_project ON project_delays(project_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_project_delays_phase ON project_delays(phase_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_project_delays_type ON project_delays(delay_type)`,
+      `CREATE INDEX IF NOT EXISTS idx_project_delays_responsible ON project_delays(responsible_party)`,
+      `CREATE INDEX IF NOT EXISTS idx_scope_changes_project ON project_scope_changes(project_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_scope_changes_phase ON project_scope_changes(phase_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_scope_changes_status ON project_scope_changes(status)`,
+
+      // ========================================
+      // TRIGGERS
+      // ========================================
+      `CREATE TRIGGER IF NOT EXISTS calculate_activity_hours
+        AFTER INSERT ON phase_activities
+        BEGIN
+          UPDATE phase_activities
+          SET calculated_hours = CAST(NEW.duration_minutes AS DECIMAL) / 60.0
+          WHERE id = NEW.id;
+        END`,
+
+      `CREATE TRIGGER IF NOT EXISTS update_phase_hours_on_activity_insert
+        AFTER INSERT ON phase_activities
+        BEGIN
+          UPDATE project_phases
+          SET actual_hours = (
+            SELECT COALESCE(SUM(calculated_hours), 0)
+            FROM phase_activities
+            WHERE phase_id = NEW.phase_id
+          )
+          WHERE id = NEW.phase_id;
+        END`,
+
+      `CREATE TRIGGER IF NOT EXISTS update_phase_hours_on_activity_update
+        AFTER UPDATE ON phase_activities
+        BEGIN
+          UPDATE project_phases
+          SET actual_hours = (
+            SELECT COALESCE(SUM(calculated_hours), 0)
+            FROM phase_activities
+            WHERE phase_id = NEW.phase_id
+          )
+          WHERE id = NEW.phase_id;
+        END`,
+
+      `CREATE TRIGGER IF NOT EXISTS calculate_delay_days
+        AFTER UPDATE OF delay_end_date ON project_delays
+        WHEN NEW.delay_end_date IS NOT NULL
+        BEGIN
+          UPDATE project_delays
+          SET delay_days = CAST(julianday(NEW.delay_end_date) - julianday(NEW.delay_start_date) AS INTEGER)
+          WHERE id = NEW.id;
+        END`,
+
+      `CREATE TRIGGER IF NOT EXISTS update_project_phases_timestamp
+        AFTER UPDATE ON project_phases
+        BEGIN
+          UPDATE project_phases SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END`,
+
+      `CREATE TRIGGER IF NOT EXISTS update_phase_activities_timestamp
+        AFTER UPDATE ON phase_activities
+        BEGIN
+          UPDATE phase_activities SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END`,
+
+      `CREATE TRIGGER IF NOT EXISTS update_project_delays_timestamp
+        AFTER UPDATE ON project_delays
+        BEGIN
+          UPDATE project_delays SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END`,
+
+      `CREATE TRIGGER IF NOT EXISTS update_scope_changes_timestamp
+        AFTER UPDATE ON project_scope_changes
+        BEGIN
+          UPDATE project_scope_changes SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END`,
+
+      // ========================================
+      // SEED DATA - Phase Templates
+      // ========================================
+      `INSERT INTO project_phase_templates (name, description, phase_order, is_billable, category, estimated_duration_days, color) VALUES
+        ('Discovery Call', 'Primera reunión exploratoria con cliente para entender necesidad', 1, 0, 'pre_sale', 1, '#8c8c8c'),
+        ('Process Analysis', 'Análisis profundo del proceso actual (revisión grabaciones, documentos, flujos)', 2, 0, 'pre_sale', 2, '#8c8c8c'),
+        ('Technical Feasibility', 'Evaluación técnica de viabilidad de automatización', 3, 0, 'pre_sale', 1, '#8c8c8c'),
+        ('Proposal Creation', 'Armado de propuesta técnica y comercial', 4, 0, 'pre_sale', 2, '#8c8c8c'),
+        ('Client Review', 'Cliente revisa propuesta (tiempo de espera)', 5, 0, 'negotiation', 5, '#faad14'),
+        ('Proposal Adjustments', 'Ajustes de propuesta según feedback cliente', 6, 0, 'negotiation', 1, '#faad14'),
+        ('Commercial Negotiation', 'Negociación de precios y condiciones', 7, 0, 'negotiation', 3, '#faad14'),
+        ('Contract Signing', 'Firma de contrato (OC/Contrato marco)', 8, 0, 'negotiation', 2, '#faad14'),
+        ('PDD Creation', 'Creación del Process Definition Document', 9, 1, 'pre_development', 3, '#f5222d'),
+        ('PDD Client Review', 'Cliente revisa y aprueba PDD (espera)', 10, 0, 'pre_development', 5, '#f5222d'),
+        ('PDD Signature', 'Firma del PDD por cliente (NO INICIAR SIN ESTO)', 11, 0, 'pre_development', 2, '#f5222d'),
+        ('Environment Setup', 'Configuración de ambientes de desarrollo y testing', 12, 1, 'pre_development', 1, '#f5222d'),
+        ('Kickoff Meeting', 'Reunión de inicio oficial del proyecto', 13, 1, 'pre_development', 1, '#f5222d'),
+        ('Development - Core Logic', 'Desarrollo lógica principal del robot', 14, 1, 'development', 10, '#1890ff'),
+        ('Development - Exception Handling', 'Manejo de excepciones y casos borde', 15, 1, 'development', 3, '#1890ff'),
+        ('Development - Logging & Monitoring', 'Implementación de logs y monitoreo', 16, 1, 'development', 2, '#1890ff'),
+        ('Code Review', 'Revisión de código por peer/líder técnico', 17, 1, 'development', 1, '#1890ff'),
+        ('Unit Testing', 'Pruebas unitarias de componentes', 18, 1, 'testing', 2, '#722ed1'),
+        ('Integration Testing', 'Pruebas de integración con sistemas', 19, 1, 'testing', 3, '#722ed1'),
+        ('UAT Preparation', 'Preparación de casos de prueba para cliente', 20, 1, 'testing', 1, '#722ed1'),
+        ('UAT Execution', 'Cliente ejecuta User Acceptance Testing', 21, 1, 'testing', 5, '#722ed1'),
+        ('UAT Fixes', 'Correcciones post UAT', 22, 1, 'testing', 3, '#722ed1'),
+        ('Production Deployment', 'Despliegue a ambiente productivo', 23, 1, 'deployment', 1, '#52c41a'),
+        ('Hypercare Week 1', 'Soporte intensivo primera semana', 24, 1, 'deployment', 7, '#52c41a'),
+        ('Knowledge Transfer', 'Transferencia de conocimiento a equipo cliente', 25, 1, 'deployment', 2, '#52c41a'),
+        ('Documentation Delivery', 'Entrega de documentación técnica y usuario final', 26, 1, 'deployment', 2, '#52c41a'),
+        ('Hypercare Month 1', 'Soporte post go-live mes 1', 27, 1, 'post_deployment', 30, '#13c2c2'),
+        ('Final Review', 'Reunión de cierre y lecciones aprendidas', 28, 0, 'post_deployment', 1, '#13c2c2'),
+        ('Project Closure', 'Cierre administrativo del proyecto', 29, 0, 'post_deployment', 1, '#13c2c2')`
+    ]
   }
 ];

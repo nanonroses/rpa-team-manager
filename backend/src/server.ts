@@ -22,6 +22,7 @@ import fileRoutes from './routes/fileRoutes';
 import supportRoutes from './routes/supportRoutes';
 import pmoRoutes from './routes/pmoRoutes';
 import aiRoutes from './routes/aiRoutes';
+import lifecycleRoutes from './routes/lifecycleRoutes';
 // import adminRoutes from './routes/adminRoutes';
 
 // Import database and logger
@@ -143,6 +144,7 @@ class RPATeamManagerServer {
         this.app.use('/api/support', supportRoutes);
         this.app.use('/api/pmo', analyticsLimiter, pmoRoutes);
         this.app.use('/api/ai', aiRoutes);
+        this.app.use('/api/lifecycle', lifecycleRoutes);
         // this.app.use('/api/admin', commonEndpointsLimiter, adminRoutes);
 
         // API documentation route

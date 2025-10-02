@@ -766,12 +766,138 @@ class ApiService {
     formData.append('file', file);
     formData.append('mappings', JSON.stringify(mappings));
     formData.append('options', JSON.stringify(options));
-    
+
     const response = await this.api.post('/support/import/execute', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
     });
+    return response.data;
+  }
+
+  // ========================================
+  // PROJECT LIFECYCLE API METHODS
+  // ========================================
+
+  // Phase Templates
+  async getPhaseTemplates(): Promise<any> {
+    const response = await this.api.get('/lifecycle/templates');
+    return response.data;
+  }
+
+  // Project Phases
+  async getProjectPhases(projectId: number): Promise<any> {
+    const response = await this.api.get(`/lifecycle/projects/${projectId}/phases`);
+    return response.data;
+  }
+
+  async createProjectPhase(projectId: number, phaseData: any): Promise<any> {
+    const response = await this.api.post(`/lifecycle/projects/${projectId}/phases`, phaseData);
+    return response.data;
+  }
+
+  async updateProjectPhase(phaseId: number, updates: any): Promise<any> {
+    const response = await this.api.put(`/lifecycle/phases/${phaseId}`, updates);
+    return response.data;
+  }
+
+  async deleteProjectPhase(phaseId: number): Promise<any> {
+    const response = await this.api.delete(`/lifecycle/phases/${phaseId}`);
+    return response.data;
+  }
+
+  async initializeProjectPhases(projectId: number, templateIds?: number[]): Promise<any> {
+    const response = await this.api.post(`/lifecycle/projects/${projectId}/phases/initialize`, {
+      template_ids: templateIds
+    });
+    return response.data;
+  }
+
+  // Phase Activities
+  async getPhaseActivities(phaseId: number): Promise<any> {
+    const response = await this.api.get(`/lifecycle/phases/${phaseId}/activities`);
+    return response.data;
+  }
+
+  async createPhaseActivity(phaseId: number, activityData: any): Promise<any> {
+    const response = await this.api.post(`/lifecycle/phases/${phaseId}/activities`, activityData);
+    return response.data;
+  }
+
+  async updatePhaseActivity(activityId: number, updates: any): Promise<any> {
+    const response = await this.api.put(`/lifecycle/activities/${activityId}`, updates);
+    return response.data;
+  }
+
+  async deletePhaseActivity(activityId: number): Promise<any> {
+    const response = await this.api.delete(`/lifecycle/activities/${activityId}`);
+    return response.data;
+  }
+
+  // Project Delays
+  async getProjectDelays(projectId: number): Promise<any> {
+    const response = await this.api.get(`/lifecycle/projects/${projectId}/delays`);
+    return response.data;
+  }
+
+  async createProjectDelay(delayData: any): Promise<any> {
+    const response = await this.api.post('/lifecycle/delays', delayData);
+    return response.data;
+  }
+
+  async updateProjectDelay(delayId: number, updates: any): Promise<any> {
+    const response = await this.api.put(`/lifecycle/delays/${delayId}`, updates);
+    return response.data;
+  }
+
+  async resolveProjectDelay(delayId: number, resolution: string, delayEndDate: string): Promise<any> {
+    const response = await this.api.post(`/lifecycle/delays/${delayId}/resolve`, {
+      resolution,
+      delay_end_date: delayEndDate
+    });
+    return response.data;
+  }
+
+  // Scope Changes
+  async getProjectScopeChanges(projectId: number): Promise<any> {
+    const response = await this.api.get(`/lifecycle/projects/${projectId}/scope-changes`);
+    return response.data;
+  }
+
+  async createScopeChange(scopeChangeData: any): Promise<any> {
+    const response = await this.api.post('/lifecycle/scope-changes', scopeChangeData);
+    return response.data;
+  }
+
+  async updateScopeChange(changeId: number, updates: any): Promise<any> {
+    const response = await this.api.put(`/lifecycle/scope-changes/${changeId}`, updates);
+    return response.data;
+  }
+
+  async approveScopeChange(changeId: number): Promise<any> {
+    const response = await this.api.post(`/lifecycle/scope-changes/${changeId}/approve`);
+    return response.data;
+  }
+
+  async rejectScopeChange(changeId: number, reason: string): Promise<any> {
+    const response = await this.api.post(`/lifecycle/scope-changes/${changeId}/reject`, { reason });
+    return response.data;
+  }
+
+  // ROI Analysis
+  async getProjectROIAnalysis(projectId: number): Promise<any> {
+    const response = await this.api.get(`/lifecycle/projects/${projectId}/roi-analysis`);
+    return response.data;
+  }
+
+  async getProjectLifecycleMetrics(projectId: number): Promise<any> {
+    const response = await this.api.get(`/lifecycle/projects/${projectId}/metrics`);
+    return response.data;
+  }
+
+  // Batch Operations
+  async getProjectLifecycleSummary(projectId: number): Promise<any> {
+    const response = await this.api.get(`/lifecycle/projects/${projectId}/summary`);
     return response.data;
   }
 }
