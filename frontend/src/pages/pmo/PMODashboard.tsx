@@ -1338,20 +1338,28 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
               >
                 <div style={{ height: '240px', overflowY: 'auto' }}>
                   {dashboardData?.projects
-                    ?.filter((p: any) => p.project_health_status === 'critical' || p.days_to_deadline < 7)
+                    ?.filter((p: any) => p.project_health_status === 'critical' || (p.days_to_deadline !== null && p.days_to_deadline !== undefined && p.days_to_deadline < 7))
                     ?.slice(0, 8)
                     ?.map((project: any) => (
                       <Alert
                         key={project.id}
                         message={project.name}
                         description={
-                          project.days_to_deadline < 0 
-                            ? `Retrasado ${Math.abs(project.days_to_deadline)} días`
-                            : project.days_to_deadline < 7
-                              ? `Vence en ${project.days_to_deadline} días`
-                              : 'Estado crítico'
+                          project.days_to_deadline === null || project.days_to_deadline === undefined
+                            ? 'Sin fecha límite definida'
+                            : project.days_to_deadline < 0
+                              ? `Retrasado ${Math.abs(project.days_to_deadline)} días`
+                              : project.days_to_deadline < 7
+                                ? `Vence en ${project.days_to_deadline} días`
+                                : 'Estado crítico'
                         }
-                        type={project.days_to_deadline < 0 ? 'error' : 'warning'}
+                        type={
+                          project.days_to_deadline === null || project.days_to_deadline === undefined
+                            ? 'warning'
+                            : project.days_to_deadline < 0
+                              ? 'error'
+                              : 'warning'
+                        }
                         size="small"
                         style={{ marginBottom: '8px' }}
                         showIcon
@@ -1522,10 +1530,16 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                       render: (record: any) => (
                         <div style={{ fontSize: '11px' }}>
                           <div>{record.end_date ? dayjs(record.end_date).format('DD/MM/YY') : 'N/A'}</div>
-                          <div style={{ 
-                            color: record.days_to_deadline < 0 ? '#ff4d4f' : record.days_to_deadline < 7 ? '#faad14' : '#52c41a'
+                          <div style={{
+                            color: record.days_to_deadline === null || record.days_to_deadline === undefined
+                              ? '#8c8c8c'
+                              : record.days_to_deadline < 0
+                                ? '#ff4d4f'
+                                : record.days_to_deadline < 7
+                                  ? '#faad14'
+                                  : '#52c41a'
                           }}>
-                            {record.days_to_deadline !== null 
+                            {record.days_to_deadline !== null
                               ? `${record.days_to_deadline < 0 ? 'Retrasado' : record.days_to_deadline === 0 ? 'Hoy' : record.days_to_deadline + 'd'}`
                               : 'N/A'
                             }
@@ -1797,13 +1811,19 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                             </div>
                           </div>
                           <div style={{ textAlign: 'right' }}>
-                            <div style={{ 
-                              fontSize: '11px', 
+                            <div style={{
+                              fontSize: '11px',
                               fontWeight: 'bold',
-                              color: project.days_to_deadline < 0 ? '#ff4d4f' : project.days_to_deadline < 7 ? '#faad14' : '#52c41a'
+                              color: project.days_to_deadline === null || project.days_to_deadline === undefined
+                                ? '#8c8c8c'
+                                : project.days_to_deadline < 0
+                                  ? '#ff4d4f'
+                                  : project.days_to_deadline < 7
+                                    ? '#faad14'
+                                    : '#52c41a'
                             }}>
-                              {project.days_to_deadline !== null ? 
-                                (project.days_to_deadline < 0 ? `${Math.abs(project.days_to_deadline)}d atrás` : `${project.days_to_deadline}d`) : 
+                              {project.days_to_deadline !== null ?
+                                (project.days_to_deadline < 0 ? `${Math.abs(project.days_to_deadline)}d atrás` : `${project.days_to_deadline}d`) :
                                 'N/A'
                               }
                             </div>
