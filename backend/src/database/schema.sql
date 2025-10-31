@@ -1003,3 +1003,32 @@ CREATE TRIGGER IF NOT EXISTS update_monthly_summary_on_ticket_close
         WHERE sc.id = NEW.company_id
         GROUP BY sc.id;
     END;
+
+-- ============================================================================
+-- LLM API KEYS CONFIGURATION
+-- ============================================================================
+
+-- Table to store LLM API keys for different providers
+CREATE TABLE IF NOT EXISTS llm_api_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    provider VARCHAR(20) NOT NULL CHECK (provider IN ('openai', 'claude', 'gemini', 'deepseek')),
+    api_key_encrypted TEXT NOT NULL,
+    is_valid BOOLEAN DEFAULT 0,
+    last_validated DATETIME,
+    validation_error TEXT,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(user_id, provider)
+);
+
+-- Index for faster lookups
+CREATE INDEX IF NOT EXISTS idx_llm_api_keys_user_provider ON llm_api_keys(user_id, provider);
+
+-- Trigger to update timestamp
+CREATE TRIGGER IF NOT EXISTS update_llm_api_keys_timestamp
+    AFTER UPDATE ON llm_api_keys
+    BEGIN
+        UPDATE llm_api_keys SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+    END;

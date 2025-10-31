@@ -16,7 +16,9 @@ import {
   BarChartOutlined,
   FileOutlined,
   CustomerServiceOutlined,
-  FundOutlined
+  FundOutlined,
+  KeyOutlined,
+  DollarOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
@@ -112,12 +114,24 @@ export const AppLayout: React.FC = () => {
       });
     }
 
-    // Add admin-only items for team lead
+    // Add configuration menu for team lead
     if (user?.role === 'team_lead') {
       baseItems.push({
-        key: '/settings',
+        key: 'configuration',
         icon: <SettingOutlined />,
-        label: 'Settings'
+        label: 'Configuración',
+        children: [
+          {
+            key: '/settings',
+            icon: <DollarOutlined />,
+            label: 'Configuración General'
+          },
+          {
+            key: '/settings/llm',
+            icon: <KeyOutlined />,
+            label: 'Configuración LLM'
+          }
+        ]
       });
     }
 

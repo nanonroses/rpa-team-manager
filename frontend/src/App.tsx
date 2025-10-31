@@ -15,6 +15,7 @@ import { ProjectDetailPage } from '@/pages/projects/ProjectDetailPage';
 import { TimeTrackingPage } from '@/pages/time/TimeTrackingPage';
 import { TasksPage } from '@/pages/tasks/TasksPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
+import { LLMConfigPage } from '@/pages/settings/LLMConfigPage';
 import IdeasPage from '@/pages/ideas/IdeasPage';
 import FilesPage from '@/pages/files/FilesPage';
 import SupportPage from '@/pages/support/SupportPage';
@@ -129,6 +130,9 @@ function App() {
                   <SettingsPage />
                 </ProtectedRoute>
               } />
+
+              {/* LLM Configuration */}
+              <Route path="settings/llm" element={<LLMConfigPage />} />
             </Route>
             
             {/* Unauthorized page */}
