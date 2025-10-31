@@ -554,12 +554,12 @@ export const TasksPage: React.FC = () => {
               />
             </div>
           }
-          style={{ 
+          style={{
             backgroundColor: column.color,
             height: '600px',
             overflow: 'auto'
           }}
-          bodyStyle={{ padding: 8 }}
+          styles={{ body: { padding: 8 } }}
         >
           <Droppable droppableId={column.id.toString()}>
             {(provided, snapshot) => (

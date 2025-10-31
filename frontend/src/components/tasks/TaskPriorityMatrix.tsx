@@ -268,7 +268,7 @@ const TaskPriorityMatrix: React.FC<TaskPriorityMatrixProps> = ({ tasks }) => {
             fontSize: '11px',
             border: overdue ? '1px solid #f5222d' : undefined
           }}
-          bodyStyle={{ padding: '6px' }}
+          styles={{ body: { padding: '6px' } }}
           onClick={() => handleTaskClick(task)}
           hoverable
         >

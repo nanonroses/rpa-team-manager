@@ -191,7 +191,7 @@ export const FileManager: React.FC<FileManagerProps> = ({
         onCancel={() => setUploadModalVisible(false)}
         footer={null}
         width={800}
-        destroyOnClose
+        destroyOnHidden
       >
         <FileErrorBoundary>
           <Suspense fallback={<Spin size="large" style={{ display: 'block', textAlign: 'center', padding: '50px' }} />}>

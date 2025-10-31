@@ -251,7 +251,9 @@ export const ProjectsPage: React.FC = () => {
       {/* Projects Grid */}
       {isLoading ? (
         <div style={{ textAlign: 'center', padding: '64px 0' }}>
-          <Spin size="large" tip="Loading projects..." />
+          <Spin size="large" tip="Loading projects...">
+            <div style={{ minHeight: '200px' }} />
+          </Spin>
         </div>
       ) : filteredProjects.length === 0 ? (
         <Empty

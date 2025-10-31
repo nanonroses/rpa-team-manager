@@ -47,13 +47,13 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
       padding: '20px'
     }}>
       <Card
-        style={{ 
-          width: '100%', 
+        style={{
+          width: '100%',
           maxWidth: 400,
           boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
           borderRadius: '12px'
         }}
-        bodyStyle={{ padding: '40px' }}
+        styles={{ body: { padding: '40px' } }}
       >
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
           <div style={{ 
@@ -158,12 +158,12 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
               <Card
                 key={index}
                 size="small"
-                style={{ 
+                style={{
                   cursor: 'pointer',
                   transition: 'all 0.2s',
                   border: '1px solid #f0f0f0'
                 }}
-                bodyStyle={{ padding: '12px' }}
+                styles={{ body: { padding: '12px' } }}
                 hoverable
                 onClick={() => fillDemoCredentials(user.email)}
               >

@@ -49,13 +49,15 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   // Show loading spinner while checking authentication
   if (isLoading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
-        minHeight: '100vh' 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        minHeight: '100vh'
       }}>
-        <Spin size="large" tip="Loading..." />
+        <Spin size="large" tip="Loading...">
+          <div style={{ minHeight: '200px' }} />
+        </Spin>
       </div>
     );
   }

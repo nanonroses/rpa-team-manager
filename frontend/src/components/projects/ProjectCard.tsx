@@ -87,11 +87,11 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
     <Card
       hoverable
       className={`project-card ${isOverdue ? 'overdue' : ''}`}
-      style={{ 
+      style={{
         height: '100%',
         border: isOverdue ? '1px solid #ff4d4f' : undefined
       }}
-      bodyStyle={{ padding: '16px' }}
+      styles={{ body: { padding: '16px' } }}
       extra={
         <Dropdown menu={{ items: menuItems }} trigger={['click']}>
           <Button type="text" icon={<MoreOutlined />} size="small" />

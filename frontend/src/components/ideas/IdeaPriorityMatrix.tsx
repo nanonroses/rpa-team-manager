@@ -108,7 +108,7 @@ const IdeaPriorityMatrix: React.FC<IdeaPriorityMatrixProps> = ({ ideas }) => {
           cursor: 'pointer',
           fontSize: '11px'
         }}
-        bodyStyle={{ padding: '6px' }}
+        styles={{ body: { padding: '6px' } }}
       >
         <div style={{ 
           fontWeight: 'bold', 

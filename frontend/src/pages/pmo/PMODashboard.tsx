@@ -1188,14 +1188,16 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
 
   if (loading) {
     return (
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        alignItems: 'center', 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
         minHeight: '400px',
         padding: '24px'
       }}>
-        <Spin size="large" tip="Cargando PMO Dashboard..." />
+        <Spin size="large" tip="Cargando PMO Dashboard...">
+          <div style={{ minHeight: '300px' }} />
+        </Spin>
       </div>
     );
   }

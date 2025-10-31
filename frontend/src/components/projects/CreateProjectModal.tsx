@@ -212,7 +212,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       onOk={() => form.submit()}
       confirmLoading={loading}
       width={600}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form
         form={form}

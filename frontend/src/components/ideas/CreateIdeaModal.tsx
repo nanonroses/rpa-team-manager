@@ -124,7 +124,7 @@ export const CreateIdeaModal: React.FC<CreateIdeaModalProps> = ({
       onOk={() => form.submit()}
       confirmLoading={loading}
       width={700}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form
         form={form}

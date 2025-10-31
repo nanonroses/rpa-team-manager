@@ -223,7 +223,7 @@ const ProjectPriorityMatrix: React.FC<ProjectPriorityMatrixProps> = ({ projects 
             cursor: 'pointer',
             fontSize: '11px'
           }}
-          bodyStyle={{ padding: '6px' }}
+          styles={{ body: { padding: '6px' } }}
           onClick={() => handleProjectClick(project)}
           hoverable
         >
