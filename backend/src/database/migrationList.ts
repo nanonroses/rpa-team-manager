@@ -734,5 +734,34 @@ export const migrations: Migration[] = [
         ('Final Review', 'Reunión de cierre y lecciones aprendidas', 28, 0, 'post_deployment', 1, '#13c2c2'),
         ('Project Closure', 'Cierre administrativo del proyecto', 29, 0, 'post_deployment', 1, '#13c2c2')`
     ]
+  },
+
+  {
+    version: 14,
+    description: 'Agregar tabla LLM API Keys para configuración de modelos de lenguaje',
+    up: [
+      `CREATE TABLE IF NOT EXISTS llm_api_keys (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        provider VARCHAR(20) NOT NULL CHECK (provider IN ('openai', 'claude', 'gemini', 'deepseek')),
+        api_key_encrypted TEXT NOT NULL,
+        is_valid BOOLEAN DEFAULT 0,
+        last_validated DATETIME,
+        validation_error TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(user_id, provider)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_llm_api_keys_user_provider ON llm_api_keys(user_id, provider)`,
+      `CREATE INDEX IF NOT EXISTS idx_llm_api_keys_provider ON llm_api_keys(provider)`,
+
+      `CREATE TRIGGER IF NOT EXISTS update_llm_api_keys_timestamp
+        AFTER UPDATE ON llm_api_keys
+        BEGIN
+          UPDATE llm_api_keys SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END`
+    ]
   }
 ];
