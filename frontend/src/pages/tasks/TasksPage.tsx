@@ -218,7 +218,9 @@ export const TasksPage: React.FC = () => {
       
       const board = await apiService.get(`/tasks/boards/${boardId}`);
       console.log('✅ TasksPage: Board details loaded:', board?.name, 'with', board?.tasks?.length || 0, 'tasks');
-      
+      console.log('📋 TasksPage: Board has', board?.columns?.length || 0, 'columns');
+      console.log('📝 TasksPage: Task IDs received:', board?.tasks?.map(t => t.id) || []);
+
       setSelectedBoard(board);
     } catch (error) {
       console.error('🔴 TasksPage: Error loading board:', error);
@@ -536,7 +538,12 @@ export const TasksPage: React.FC = () => {
 
   const renderColumn = (column: TaskColumn) => {
     const columnTasks = selectedBoard?.tasks.filter(task => task.column_id === column.id) || [];
-    
+
+    // Debug log
+    if (selectedBoard) {
+      console.log(`📊 Renderizando columna "${column.name}" (ID: ${column.id}) con ${columnTasks.length} tareas`);
+    }
+
     return (
       <Col key={column.id} xs={24} sm={12} lg={6} style={{ marginBottom: 16 }}>
         <Card
