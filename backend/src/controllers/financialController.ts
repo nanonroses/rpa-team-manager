@@ -259,15 +259,13 @@ export class FinancialController {
                     project_id, sale_price, sale_price_currency,
                     hourly_rate, hourly_rate_currency,
                     budgeted_hours, budgeted_cost,
-                    budgeted_cost, actual_cost,
-                    profit_margin, roi_percentage,
+                    actual_cost, profit_margin, roi_percentage,
                     updated_at
-                ) VALUES (?, ?, 'CLP', ?, 'UF', ?, ?, ?, ?, ?, ?, datetime('now'))
+                ) VALUES (?, ?, 'CLP', ?, 'UF', ?, ?, ?, ?, ?, datetime('now'))
             `, [
                 projectId, salePrice, hourlyRateUF,
                 plannedHours, plannedCost,
-                salePrice, realCost,
-                plannedProfit, plannedROI
+                realCost, plannedProfit, plannedROI
             ]);
 
             const result = {
