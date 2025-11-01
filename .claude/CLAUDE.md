@@ -1,75 +1,116 @@
-# RPA Team Manager - Estado del Proyecto
+# RPA Team Manager - Project Status
 
-## ✅ SISTEMA ROI Y COSTOS - COMPLETADO AL 100%
+## System Overview
+Full-stack RPA project management platform with authentication, ROI tracking, project lifecycle management, and LLM configuration capabilities.
 
-### 🔧 Backend Implementado (100% Funcional):
-- ✅ **Schema completo**: Tablas `user_cost_rates`, `project_financials`, `roi_alerts`
-- ✅ **Controller financiero**: `backend/src/controllers/financialController.ts`
-  - GET/POST/PUT `/api/financial/user-costs` - Gestión costos por usuario
-  - GET `/api/financial/project-roi/:projectId` - Cálculo ROI por proyecto  
-  - POST `/api/financial/project-financial` - Actualizar datos financieros
-  - GET `/api/financial/dashboard` - Dashboard de rentabilidad
-- ✅ **API Service**: `frontend/src/services/api.ts` con métodos ROI
-- ✅ **Cálculos automáticos**: ROI, eficiencia, márgenes, alertas
-- ✅ **Alertas automáticas**: Sobrecostos >80%, ROI <20%
+## Current Status (Updated: 2025-10-31)
 
-### 🎨 Frontend Implementado (100% Funcional):
-- ✅ **Dashboard ROI**: `frontend/src/pages/dashboard/DashboardPage.tsx`
-- ✅ **Métricas visuales**: 4 tarjetas financieras (Revenue, ROI%, Profit, Alertas)
-- ✅ **Alertas activas**: Componente de alertas críticas/warning
-- ✅ **Colores dinámicos**: Verde (bueno), amarillo (regular), rojo (malo)
-- ✅ **Visible solo para team_lead**: Control de acceso por rol
-- ✅ **Limpieza localStorage**: Auto-limpia tokens corruptos al iniciar
+### Platform Status: FULLY OPERATIONAL
+- Database: All migrations applied (17 total)
+- Authentication: Working with role-based access control
+- ROI System: Complete with financial tracking and alerts
+- LLM Integration: Model selection and API key management
+- Test Data: 5 complete projects with tasks, milestones, and financials
 
-### 🔑 Archivos Clave Modificados:
-1. **`backend/src/controllers/financialController.ts`** - Controller completo ROI
-2. **`frontend/src/pages/dashboard/DashboardPage.tsx`** - Dashboard con métricas
-3. **`frontend/src/services/api.ts`** - Endpoints ROI agregados
-4. **`frontend/src/store/authStore.ts`** - Limpieza mejorada tokens
-5. **`frontend/src/components/auth/ProtectedRoute.tsx`** - Anti-loop infinito
-6. **`frontend/src/main.tsx`** - Limpieza automática localStorage
-7. **`backend/src/services/authService.ts`** - Método usuarios de prueba
-8. **`backend/src/controllers/authController.ts`** - Endpoint usuarios prueba
-9. **`backend/src/routes/authRoutes.ts`** - Ruta setup usuarios
+## Recent Updates
 
-### 🚨 Problema Identificado:
-**Base de datos incompleta** - El schema ROI no se aplicó completamente.
-Error: `SQLITE_ERROR: no such column: roi_percentage`
+### Database Migrations Completed:
+- **Migration 15**: Added critical project fields (priority, assigned_to, actual dates, progress_percentage)
+- **Migration 16**: Added 10 core tables:
+  - user_sessions, notifications, activity_log, comments, attachments
+  - time_entries, issues, task_dependencies, roi_alerts, project_dependencies
+- **Migration 17**: Enhanced users table (avatar_url, last_login)
 
-### ✅ Solución (Pasos para Usuario):
-1. **Cerrar procesos**: Ctrl+C en terminales backend/frontend
-2. **Eliminar DB**: Borrar `backend/data/database.sqlite*` manualmente
-3. **Reiniciar servidores**:
-   ```bash
-   # Terminal 1
-   cd backend && npm run dev
-   # Terminal 2  
-   cd frontend && npm run dev
-   ```
-4. **Crear usuarios**: POST `http://localhost:3001/api/auth/setup-test-users`
-5. **Login**: `admin@rpa.com` / `admin123` (team_lead con acceso ROI)
+### Seed Data Created:
+5 production-ready RPA projects with complete data:
+- AGROSUPER - Toma de Control (65% progress)
+- CAMANCHACA - RPA San Jose (45% progress)
+- COAGRA - BOT Conciliacion (80% progress)
+- RAM - Conciliacion (30% progress)
+- PROMET - Housekeeping (55% progress)
 
-### 📊 Credenciales Test:
-- **Admin**: admin@rpa.com / admin123 (team_lead - ve métricas ROI)
-- **Dev**: dev1@rpa.com / dev123 (developer - no ve ROI)
-- **Ops**: ops1@rpa.com / ops123 (operations - no ve ROI)
+**Total seeded**: 65 tasks, 40 milestones, 5 financial records
 
-### 🔒 Sistema de Permisos:
-- **team_lead**: Ve todas las métricas ROI, gestiona costos usuarios
-- **otros roles**: Solo dashboard básico sin datos financieros
+### Critical Fixes Applied:
+- **ROI Endpoint Fix** (commit 7a761b6): Resolved HTTP 500 error in `/api/financial/project-roi/:projectId`
+  - Fixed duplicate `budgeted_cost` column in SQL INSERT
+  - Corrected to proper 10 columns matching 10 values
+- **LLM Model Selection**: Added `selected_model` column to llm_api_keys table
 
-### ⚡ Estado Actual:
-- ✅ **Código**: 100% implementado y funcional
-- ✅ **Frontend**: Métricas ROI completas y bonitas
-- ✅ **Backend**: API ROI completa con cálculos automáticos
-- ❌ **Base de datos**: Necesita recrearse con schema completo
+## Core Features
 
-### 💾 Respaldo Garantizado:
-- ✅ Todos los cambios guardados en archivos del proyecto
-- ✅ Schema completo en `backend/src/database/schema.sql` 
-- ✅ Todo el código ROI persistido
-- ✅ No se perderá nada al cerrar esta ventana
+### ROI & Financial System
+**Backend** (`backend/src/controllers/financialController.ts`):
+- GET/POST/PUT `/api/financial/user-costs` - User cost rate management
+- GET `/api/financial/project-roi/:projectId` - Project ROI calculations
+- POST `/api/financial/project-financial` - Financial data updates
+- GET `/api/financial/dashboard` - Profitability dashboard
+- Automatic calculations: ROI%, efficiency, margins, alerts
+- Automated alerts: Cost overruns >80%, ROI <20%
 
-### Última actualización: 2025-08-18 12:40
-**ROI Dashboard System - READY TO DEPLOY** 
-Solo falta aplicar schema completo eliminando DB antigua.
+**Frontend** (`frontend/src/pages/dashboard/DashboardPage.tsx`):
+- 4 financial metric cards: Revenue, ROI%, Profit, Active Alerts
+- Dynamic color coding: Green (good), Yellow (warning), Red (critical)
+- Real-time alert notifications
+- Visible only to team_lead role
+
+### Authentication & Permissions
+**Roles**:
+- **team_lead**: Full access to ROI metrics, user cost management, all projects
+- **developer**: Project access, task management, no financial data
+- **operations**: Operational views, limited financial access
+
+**Test Credentials**:
+- Admin: `admin@rpa.com` / `admin123` (team_lead)
+- Developer: `dev1@rpa.com` / `dev123` (developer)
+- Operations: `ops1@rpa.com` / `ops123` (operations)
+
+### LLM Configuration
+- API key management per provider (OpenAI, Anthropic, Google, OpenRouter)
+- Model selection for each provider
+- Secure credential storage
+- Frontend UI: `frontend/src/pages/settings/LLMConfigPage.tsx`
+
+## Key Files
+
+### Backend
+- `backend/src/controllers/financialController.ts` - ROI & financial operations
+- `backend/src/controllers/authController.ts` - Authentication endpoints
+- `backend/src/services/authService.ts` - Auth business logic
+- `backend/src/database/schema.sql` - Complete database schema
+- `backend/src/database/migrations/` - All 17 migration scripts
+
+### Frontend
+- `frontend/src/pages/dashboard/DashboardPage.tsx` - Main dashboard with ROI
+- `frontend/src/pages/settings/LLMConfigPage.tsx` - LLM configuration
+- `frontend/src/services/api.ts` - API service layer
+- `frontend/src/store/authStore.ts` - Authentication state management
+- `frontend/src/components/auth/ProtectedRoute.tsx` - Route protection
+
+## Quick Start
+
+### First Time Setup
+1. Start backend: `cd backend && npm run dev`
+2. Start frontend: `cd frontend && npm run dev`
+3. Database initializes automatically with migrations
+4. Use test credentials to login
+
+### Accessing Features
+- Login with `admin@rpa.com` / `admin123` to access ROI dashboard
+- Navigate to Settings > LLM Configuration for AI setup
+- View projects in Projects section (5 pre-loaded projects available)
+
+## Technical Stack
+- **Backend**: Node.js, Express, TypeScript, SQLite
+- **Frontend**: React, TypeScript, Vite, TailwindCSS
+- **Database**: SQLite with migration system
+- **Authentication**: JWT with role-based access control
+
+## Notes
+- All database changes use migration scripts (never manual DB edits)
+- localStorage auto-cleanup prevents corrupted auth tokens
+- ROI calculations run automatically on financial data updates
+- System supports multiple concurrent users with session management
+
+---
+**Status**: Production-ready | **Last Verified**: 2025-10-31
