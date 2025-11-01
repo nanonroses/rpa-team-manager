@@ -664,16 +664,23 @@ export class ProjectController {
         let uploadedFilePath: string | undefined;
 
         try {
+            logger.info('=== Upload Quote Request Started ===');
+            logger.info(`Request body:`, req.body);
+            logger.info(`Request file:`, req.file ? 'File present' : 'NO FILE');
+            logger.info(`Request user:`, req.user ? `User ID ${req.user.id}` : 'NO USER');
+
             const userId = req.user?.id;
             const provider = req.body.provider as string | undefined;
 
             if (!userId) {
+                logger.error('Authentication failed: No user ID');
                 res.status(401).json({ error: 'User not authenticated' });
                 return;
             }
 
             // Check if file was uploaded
             if (!req.file) {
+                logger.error('File upload failed: No file in request');
                 res.status(400).json({ error: 'No file uploaded' });
                 return;
             }
