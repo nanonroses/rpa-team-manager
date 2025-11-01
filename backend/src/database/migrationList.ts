@@ -764,5 +764,277 @@ export const migrations: Migration[] = [
           UPDATE llm_api_keys SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
         END`
     ]
+  },
+
+  {
+    version: 15,
+    description: 'Agregar columnas faltantes a la tabla projects',
+    up: [
+      // Agregar columna priority
+      `ALTER TABLE projects ADD COLUMN priority VARCHAR(10) DEFAULT 'medium' CHECK (priority IN ('critical', 'high', 'medium', 'low'))`,
+
+      // Agregar columna assigned_to
+      `ALTER TABLE projects ADD COLUMN assigned_to INTEGER REFERENCES users(id)`,
+
+      // Agregar columna actual_start_date
+      `ALTER TABLE projects ADD COLUMN actual_start_date DATE`,
+
+      // Agregar columna actual_end_date
+      `ALTER TABLE projects ADD COLUMN actual_end_date DATE`,
+
+      // Agregar columna progress_percentage
+      `ALTER TABLE projects ADD COLUMN progress_percentage INTEGER DEFAULT 0 CHECK (progress_percentage >= 0 AND progress_percentage <= 100)`
+    ]
+  },
+
+  {
+    version: 16,
+    description: 'Agregar tablas faltantes del schema (user_sessions, notifications, activity_log, etc.)',
+    up: [
+      // ========================================
+      // USER SESSIONS - CRÍTICO PARA LOGIN
+      // ========================================
+      `CREATE TABLE IF NOT EXISTS user_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        token_hash VARCHAR(255) NOT NULL,
+        expires_at DATETIME NOT NULL,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        is_active BOOLEAN DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token_hash)`,
+      `CREATE INDEX IF NOT EXISTS idx_user_sessions_active ON user_sessions(is_active, expires_at)`,
+
+      // ========================================
+      // NOTIFICATIONS
+      // ========================================
+      `CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        message TEXT,
+        type VARCHAR(20) DEFAULT 'info' CHECK (type IN ('info', 'success', 'warning', 'error')),
+        entity_type VARCHAR(20),
+        entity_id INTEGER,
+        is_read BOOLEAN DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(is_read)`,
+
+      // ========================================
+      // ACTIVITY LOG
+      // ========================================
+      `CREATE TABLE IF NOT EXISTS activity_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        entity_type VARCHAR(20) NOT NULL,
+        entity_id INTEGER NOT NULL,
+        action VARCHAR(50) NOT NULL,
+        old_values TEXT,
+        new_values TEXT,
+        ip_address VARCHAR(45),
+        user_agent TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_activity_log_entity ON activity_log(entity_type, entity_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_activity_log_user ON activity_log(user_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_activity_log_created ON activity_log(created_at)`,
+
+      // ========================================
+      // COMMENTS
+      // ========================================
+      `CREATE TABLE IF NOT EXISTS comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity_type VARCHAR(20) NOT NULL CHECK (entity_type IN ('task', 'project', 'issue')),
+        entity_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        is_internal BOOLEAN DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_comments_entity ON comments(entity_type, entity_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_comments_user ON comments(user_id)`,
+
+      `CREATE TRIGGER IF NOT EXISTS update_comments_timestamp
+        AFTER UPDATE ON comments
+        BEGIN
+          UPDATE comments SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END`,
+
+      // ========================================
+      // ATTACHMENTS
+      // ========================================
+      `CREATE TABLE IF NOT EXISTS attachments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        entity_type VARCHAR(20) NOT NULL CHECK (entity_type IN ('task', 'project', 'issue', 'comment')),
+        entity_id INTEGER NOT NULL,
+        uploaded_by INTEGER NOT NULL,
+        original_name VARCHAR(255) NOT NULL,
+        file_name VARCHAR(255) NOT NULL,
+        file_path VARCHAR(500) NOT NULL,
+        file_size INTEGER,
+        mime_type VARCHAR(100),
+        is_evidence BOOLEAN DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (uploaded_by) REFERENCES users(id)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_attachments_entity ON attachments(entity_type, entity_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_attachments_uploaded_by ON attachments(uploaded_by)`,
+
+      // ========================================
+      // TIME ENTRIES
+      // ========================================
+      `CREATE TABLE IF NOT EXISTS time_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        task_id INTEGER,
+        project_id INTEGER,
+        description TEXT,
+        hours DECIMAL(5,2) NOT NULL CHECK (hours >= 0),
+        date DATE NOT NULL,
+        start_time TIME,
+        end_time TIME,
+        is_billable BOOLEAN DEFAULT 1,
+        hourly_rate DECIMAL(8,2),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (task_id) REFERENCES tasks(id),
+        FOREIGN KEY (project_id) REFERENCES projects(id)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_time_entries_user_date ON time_entries(user_id, date)`,
+      `CREATE INDEX IF NOT EXISTS idx_time_entries_task ON time_entries(task_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_time_entries_project ON time_entries(project_id)`,
+
+      `CREATE TRIGGER IF NOT EXISTS update_time_entries_timestamp
+        AFTER UPDATE ON time_entries
+        BEGIN
+          UPDATE time_entries SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END`,
+
+      // ========================================
+      // ISSUES
+      // ========================================
+      `CREATE TABLE IF NOT EXISTS issues (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER,
+        task_id INTEGER,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        issue_type VARCHAR(20) DEFAULT 'issue' CHECK (issue_type IN ('bug', 'issue', 'impediment', 'risk')),
+        severity VARCHAR(10) DEFAULT 'medium' CHECK (severity IN ('critical', 'major', 'minor', 'trivial')),
+        status VARCHAR(20) DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'resolved', 'closed', 'wont_fix')),
+        responsibility VARCHAR(20) DEFAULT 'internal' CHECK (responsibility IN ('internal', 'client', 'external', 'shared')),
+        financial_impact DECIMAL(10,2) DEFAULT 0,
+        delay_days INTEGER DEFAULT 0,
+        reported_by INTEGER NOT NULL,
+        assigned_to INTEGER,
+        resolution TEXT,
+        resolved_date DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id),
+        FOREIGN KEY (task_id) REFERENCES tasks(id),
+        FOREIGN KEY (reported_by) REFERENCES users(id),
+        FOREIGN KEY (assigned_to) REFERENCES users(id)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_issues_responsibility ON issues(responsibility)`,
+      `CREATE INDEX IF NOT EXISTS idx_issues_project ON issues(project_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_issues_status ON issues(status)`,
+
+      `CREATE TRIGGER IF NOT EXISTS update_issues_timestamp
+        AFTER UPDATE ON issues
+        BEGIN
+          UPDATE issues SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END`,
+
+      // ========================================
+      // TASK DEPENDENCIES
+      // ========================================
+      `CREATE TABLE IF NOT EXISTS task_dependencies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        predecessor_id INTEGER NOT NULL,
+        successor_id INTEGER NOT NULL,
+        dependency_type VARCHAR(20) DEFAULT 'finish_to_start' CHECK (dependency_type IN ('finish_to_start', 'start_to_start', 'finish_to_finish', 'start_to_finish')),
+        lag_days INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (predecessor_id) REFERENCES tasks(id) ON DELETE CASCADE,
+        FOREIGN KEY (successor_id) REFERENCES tasks(id) ON DELETE CASCADE,
+        UNIQUE(predecessor_id, successor_id)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_task_dependencies_predecessor ON task_dependencies(predecessor_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_task_dependencies_successor ON task_dependencies(successor_id)`,
+
+      // ========================================
+      // ROI ALERTS
+      // ========================================
+      `CREATE TABLE IF NOT EXISTS roi_alerts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        alert_type VARCHAR(50) NOT NULL,
+        alert_level VARCHAR(20) DEFAULT 'warning' CHECK (alert_level IN ('info', 'warning', 'critical')),
+        message TEXT NOT NULL,
+        threshold_value DECIMAL(10,2),
+        current_value DECIMAL(10,2),
+        is_resolved BOOLEAN DEFAULT 0,
+        resolved_at DATETIME,
+        resolved_by INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (resolved_by) REFERENCES users(id)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_roi_alerts_project ON roi_alerts(project_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_roi_alerts_type ON roi_alerts(alert_type, alert_level)`,
+      `CREATE INDEX IF NOT EXISTS idx_roi_alerts_resolved ON roi_alerts(is_resolved)`,
+
+      // ========================================
+      // PROJECT DEPENDENCIES
+      // ========================================
+      `CREATE TABLE IF NOT EXISTS project_dependencies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_project_id INTEGER NOT NULL,
+        dependent_project_id INTEGER NOT NULL,
+        dependency_type VARCHAR(30) DEFAULT 'finish_to_start' CHECK (dependency_type IN ('finish_to_start', 'start_to_start', 'finish_to_finish', 'start_to_finish')),
+        description TEXT,
+        is_critical BOOLEAN DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (source_project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (dependent_project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        UNIQUE(source_project_id, dependent_project_id)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_project_dependencies_source ON project_dependencies(source_project_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_project_dependencies_dependent ON project_dependencies(dependent_project_id)`
+    ]
+  },
+
+  {
+    version: 17,
+    description: 'Agregar columnas faltantes a la tabla users (avatar_url, last_login)',
+    up: [
+      // Agregar columna avatar_url
+      `ALTER TABLE users ADD COLUMN avatar_url VARCHAR(255)`,
+
+      // Agregar columna last_login
+      `ALTER TABLE users ADD COLUMN last_login DATETIME`
+    ]
   }
 ];
