@@ -1014,6 +1014,7 @@ CREATE TABLE IF NOT EXISTS llm_api_keys (
     user_id INTEGER NOT NULL,
     provider VARCHAR(20) NOT NULL CHECK (provider IN ('openai', 'claude', 'gemini', 'deepseek')),
     api_key_encrypted TEXT NOT NULL,
+    selected_model VARCHAR(100),
     is_valid BOOLEAN DEFAULT 0,
     last_validated DATETIME,
     validation_error TEXT,
