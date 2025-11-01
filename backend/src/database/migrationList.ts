@@ -1036,5 +1036,61 @@ export const migrations: Migration[] = [
       // Agregar columna last_login
       `ALTER TABLE users ADD COLUMN last_login DATETIME`
     ]
+  },
+
+  {
+    version: 18,
+    description: 'Crear tabla project_assignments para gestión de múltiples usuarios por proyecto',
+    up: [
+      // ========================================
+      // PROJECT ASSIGNMENTS - Multi-user assignments
+      // ========================================
+      `CREATE TABLE IF NOT EXISTS project_assignments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        role VARCHAR(50) DEFAULT 'contributor' CHECK (role IN ('lead', 'contributor', 'reviewer', 'observer')),
+        allocation_percentage INTEGER DEFAULT 100 CHECK (allocation_percentage >= 0 AND allocation_percentage <= 100),
+        start_date DATE,
+        end_date DATE,
+        is_active BOOLEAN DEFAULT 1,
+        notes TEXT,
+        assigned_by INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (assigned_by) REFERENCES users(id),
+        UNIQUE(project_id, user_id, is_active)
+      )`,
+
+      // Indexes for performance
+      `CREATE INDEX IF NOT EXISTS idx_project_assignments_project ON project_assignments(project_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_project_assignments_user ON project_assignments(user_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_project_assignments_active ON project_assignments(is_active)`,
+
+      // Trigger to update timestamp
+      `CREATE TRIGGER IF NOT EXISTS update_project_assignments_timestamp
+        AFTER UPDATE ON project_assignments
+        BEGIN
+          UPDATE project_assignments SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END`
+    ]
+  },
+
+  {
+    version: 19,
+    description: 'Agregar columnas faltantes a project_milestones para tracking de delays',
+    up: [
+      // Add missing columns to project_milestones table
+      `ALTER TABLE project_milestones ADD COLUMN impact_on_timeline INTEGER DEFAULT 0`,
+      `ALTER TABLE project_milestones ADD COLUMN responsibility VARCHAR(20) DEFAULT 'internal' CHECK (responsibility IN ('internal', 'client', 'external', 'shared'))`,
+      `ALTER TABLE project_milestones ADD COLUMN blocking_reason TEXT`,
+      `ALTER TABLE project_milestones ADD COLUMN delay_justification TEXT`,
+      `ALTER TABLE project_milestones ADD COLUMN external_contact VARCHAR(200)`,
+      `ALTER TABLE project_milestones ADD COLUMN estimated_delay_days INTEGER DEFAULT 0`,
+      `ALTER TABLE project_milestones ADD COLUMN financial_impact DECIMAL(10,2) DEFAULT 0`,
+      `ALTER TABLE project_milestones ADD COLUMN created_by INTEGER REFERENCES users(id)`
+    ]
   }
 ];
