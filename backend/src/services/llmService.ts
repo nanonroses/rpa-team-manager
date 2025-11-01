@@ -3,6 +3,31 @@ import { logger } from '../utils/logger';
 import { LLMConfigService } from './llmConfigService';
 import { DocumentParserService, ParsedDocument } from './documentParserService';
 
+// API Response Types
+interface OpenAIResponse {
+    choices: Array<{
+        message: {
+            content: string;
+        };
+    }>;
+}
+
+interface ClaudeResponse {
+    content: Array<{
+        text: string;
+    }>;
+}
+
+interface GeminiResponse {
+    candidates: Array<{
+        content: {
+            parts: Array<{
+                text: string;
+            }>;
+        };
+    }>;
+}
+
 export interface QuoteData {
     project_name: string;
     description: string;
@@ -206,7 +231,7 @@ JSON Response:`;
                 }
             );
 
-            const content = response.data.choices[0].message.content;
+            const content = (response.data as OpenAIResponse).choices[0].message.content;
             return this.parseAndValidateQuoteData(content);
         } catch (error: any) {
             logger.error('OpenAI API error:', error.response?.data || error.message);
@@ -248,7 +273,7 @@ JSON Response:`;
                 }
             );
 
-            const content = response.data.content[0].text;
+            const content = (response.data as ClaudeResponse).content[0].text;
             return this.parseAndValidateQuoteData(content);
         } catch (error: any) {
             logger.error('Claude API error:', error.response?.data || error.message);
@@ -288,7 +313,7 @@ JSON Response:`;
                 }
             );
 
-            const content = response.data.candidates[0].content.parts[0].text;
+            const content = (response.data as GeminiResponse).candidates[0].content.parts[0].text;
             return this.parseAndValidateQuoteData(content);
         } catch (error: any) {
             logger.error('Gemini API error:', error.response?.data || error.message);
@@ -329,7 +354,7 @@ JSON Response:`;
                 }
             );
 
-            const content = response.data.choices[0].message.content;
+            const content = (response.data as OpenAIResponse).choices[0].message.content;
             return this.parseAndValidateQuoteData(content);
         } catch (error: any) {
             logger.error('DeepSeek API error:', error.response?.data || error.message);

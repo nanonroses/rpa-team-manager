@@ -1,8 +1,10 @@
 import { logger } from '../utils/logger';
-import pdf from 'pdf-parse';
 import mammoth from 'mammoth';
 import * as fs from 'fs';
 import * as path from 'path';
+
+// Import pdf-parse from Node.js specific entry point
+const pdfParse = require('pdf-parse/node');
 
 export interface ParsedDocument {
     text: string;
@@ -28,7 +30,7 @@ export class DocumentParserService {
             logger.info(`Parsing PDF file: ${filePath}`);
 
             const dataBuffer = fs.readFileSync(filePath);
-            const data = await pdf(dataBuffer);
+            const data = await pdfParse(dataBuffer);
 
             logger.info(`PDF parsed successfully. Pages: ${data.numpages}, Text length: ${data.text.length}`);
 
