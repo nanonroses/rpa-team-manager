@@ -80,10 +80,12 @@ export class LLMConfigService {
                 timeout: 10000
             });
 
+            const data = response.data as any;
+
             return {
                 is_valid: true,
                 provider_info: {
-                    models_count: response.data.data?.length || 0
+                    models_count: data.data?.length || 0
                 }
             };
         } catch (error: any) {
@@ -114,10 +116,12 @@ export class LLMConfigService {
                 }
             );
 
+            const data = response.data as any;
+
             return {
                 is_valid: true,
                 provider_info: {
-                    model: response.data.model
+                    model: data.model
                 }
             };
         } catch (error: any) {
@@ -136,10 +140,12 @@ export class LLMConfigService {
                 { timeout: 10000 }
             );
 
+            const data = response.data as any;
+
             return {
                 is_valid: true,
                 provider_info: {
-                    models_count: response.data.models?.length || 0
+                    models_count: data.models?.length || 0
                 }
             };
         } catch (error: any) {
@@ -169,10 +175,12 @@ export class LLMConfigService {
                 }
             );
 
+            const data = response.data as any;
+
             return {
                 is_valid: true,
                 provider_info: {
-                    model: response.data.model
+                    model: data.model
                 }
             };
         } catch (error: any) {
@@ -212,7 +220,7 @@ export class LLMConfigService {
             ORDER BY provider
         `;
 
-        const keys = await db.all(query, [userId]);
+        const keys = await db.query(query, [userId]);
 
         return keys.map((key: any) => ({
             ...key,
