@@ -51,6 +51,8 @@ export class TaskController {
       const { id } = req.params;
       const userId = req.user?.id;
 
+      logger.info(`📋 GET /api/tasks/boards/${id} - User ${userId} requesting board`);
+
       // Check if user has access to this board
       const board = await db.get(`
         SELECT tb.*, p.name as project_name
@@ -60,20 +62,25 @@ export class TaskController {
       `, [id, userId, userId]);
 
       if (!board) {
+        logger.warn(`❌ Board ${id} not found or access denied for user ${userId}`);
         res.status(404).json({ error: 'Board not found or access denied' });
         return;
       }
 
+      logger.info(`✅ Board found: "${board.name}" (Project: ${board.project_name})`);
+
       // Get columns for this board
       const columns = await db.query(`
-        SELECT * FROM task_columns 
-        WHERE board_id = ? 
+        SELECT * FROM task_columns
+        WHERE board_id = ?
         ORDER BY position ASC
       `, [id]);
 
+      logger.info(`📂 Found ${columns.length} columns for board ${id}`);
+
       // Get tasks for this board with user info
       const tasks = await db.query(`
-        SELECT 
+        SELECT
           t.*,
           u_assignee.full_name as assignee_name,
           u_assignee.avatar_url as assignee_avatar,
@@ -84,23 +91,30 @@ export class TaskController {
         LEFT JOIN users u_assignee ON t.assignee_id = u_assignee.id
         LEFT JOIN users u_reporter ON t.reporter_id = u_reporter.id
         LEFT JOIN (
-          SELECT 
-            task_id, 
+          SELECT
+            task_id,
             SUM(hours) as total_hours,
             SUM(hours * hourly_rate) as total_value
-          FROM time_entries 
-          WHERE task_id IS NOT NULL 
+          FROM time_entries
+          WHERE task_id IS NOT NULL
           GROUP BY task_id
         ) te ON t.id = te.task_id
         WHERE t.board_id = ?
         ORDER BY t.position ASC
       `, [id]);
 
-      res.json({
+      logger.info(`📝 Found ${tasks.length} tasks for board ${id}`);
+      logger.info(`   Task IDs: [${tasks.map(t => t.id).join(', ')}]`);
+
+      const response = {
         ...board,
         columns,
         tasks
-      });
+      };
+
+      logger.info(`✅ Returning board ${id} with ${columns.length} columns and ${tasks.length} tasks`);
+
+      res.json(response);
     } catch (error) {
       logger.error('Get board error:', error);
       res.status(500).json({ error: 'Failed to get board' });
