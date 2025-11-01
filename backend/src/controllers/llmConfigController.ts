@@ -1,6 +1,6 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
-import { LLMConfigService } from '../services/llmConfigService';
+import { LLMConfigService, AVAILABLE_MODELS } from '../services/llmConfigService';
 import { logger } from '../utils/logger';
 
 export class LLMConfigController {
@@ -9,6 +9,21 @@ export class LLMConfigController {
     constructor() {
         this.llmConfigService = new LLMConfigService();
     }
+
+    // GET /api/llm-config/models - Get available models for all providers
+    getAvailableModels = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            if (!req.user) {
+                res.status(401).json({ error: 'User not authenticated' });
+                return;
+            }
+
+            res.json(AVAILABLE_MODELS);
+        } catch (error) {
+            logger.error('Get available models error:', error);
+            res.status(500).json({ error: 'Failed to retrieve available models' });
+        }
+    };
 
     // GET /api/llm-config - Get all API keys for current user
     getAllKeys = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -96,7 +111,7 @@ export class LLMConfigController {
                 return;
             }
 
-            const { provider, api_key } = req.body;
+            const { provider, api_key, selected_model } = req.body;
 
             if (!provider || !api_key) {
                 res.status(400).json({ error: 'Provider and API key are required' });
@@ -124,7 +139,8 @@ export class LLMConfigController {
             const savedKey = await this.llmConfigService.saveApiKey(
                 req.user.id,
                 provider,
-                api_key
+                api_key,
+                selected_model
             );
 
             res.json(savedKey);
@@ -143,7 +159,7 @@ export class LLMConfigController {
             }
 
             const { provider } = req.params;
-            const { api_key } = req.body;
+            const { api_key, selected_model } = req.body;
 
             if (!api_key) {
                 res.status(400).json({ error: 'API key is required' });
@@ -171,7 +187,8 @@ export class LLMConfigController {
             const updatedKey = await this.llmConfigService.updateApiKey(
                 req.user.id,
                 provider,
-                api_key
+                api_key,
+                selected_model
             );
 
             res.json(updatedKey);

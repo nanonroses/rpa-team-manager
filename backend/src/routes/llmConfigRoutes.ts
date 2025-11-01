@@ -8,6 +8,9 @@ const llmConfigController = new LLMConfigController();
 // All routes require authentication
 router.use(authenticate);
 
+// GET /api/llm-config/models - Get available models for all providers
+router.get('/models', llmConfigController.getAvailableModels);
+
 // GET /api/llm-config - Get all API keys for current user
 router.get('/', llmConfigController.getAllKeys);
 

@@ -8,12 +8,46 @@ interface LLMApiKey {
     user_id: number;
     provider: string;
     api_key_masked: string;
+    selected_model: string | null;
     is_valid: boolean;
     last_validated: string | null;
     validation_error: string | null;
     created_at: string;
     updated_at: string;
 }
+
+// Available models by provider
+export const AVAILABLE_MODELS = {
+    openai: [
+        { value: 'gpt-5', label: 'GPT-5' },
+        { value: 'gpt-4', label: 'GPT-4' },
+        { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
+        { value: 'gpt-4o', label: 'GPT-4o' },
+        { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
+        { value: 'gpt-3.5-turbo', label: 'GPT-3.5 Turbo' }
+    ],
+    claude: [
+        { value: 'claude-4-opus-20250514', label: 'Claude 4 Opus' },
+        { value: 'claude-4-sonnet-20250514', label: 'Claude 4 Sonnet' },
+        { value: 'claude-4-haiku-20250514', label: 'Claude 4 Haiku' },
+        { value: 'claude-3-5-sonnet-20241022', label: 'Claude 3.5 Sonnet' },
+        { value: 'claude-3-5-haiku-20241022', label: 'Claude 3.5 Haiku' },
+        { value: 'claude-3-opus-20240229', label: 'Claude 3 Opus' },
+        { value: 'claude-3-sonnet-20240229', label: 'Claude 3 Sonnet' },
+        { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' }
+    ],
+    gemini: [
+        { value: 'gemini-2.5-pro-latest', label: 'Gemini 2.5 Pro' },
+        { value: 'gemini-2.5-flash-latest', label: 'Gemini 2.5 Flash' },
+        { value: 'gemini-1.5-pro-latest', label: 'Gemini 1.5 Pro' },
+        { value: 'gemini-1.5-flash-latest', label: 'Gemini 1.5 Flash' }
+    ],
+    deepseek: [
+        { value: 'deepseek-chat-v3', label: 'DeepSeek V3' },
+        { value: 'deepseek-reasoner', label: 'DeepSeek-R1' },
+        { value: 'deepseek-chat', label: 'DeepSeek Chat' }
+    ]
+};
 
 interface ValidationResult {
     is_valid: boolean;
@@ -213,7 +247,7 @@ export class LLMConfigService {
     // Get all API keys for a user
     async getUserApiKeys(userId: number): Promise<LLMApiKey[]> {
         const query = `
-            SELECT id, user_id, provider, is_valid, last_validated,
+            SELECT id, user_id, provider, selected_model, is_valid, last_validated,
                    validation_error, created_at, updated_at
             FROM llm_api_keys
             WHERE user_id = ?
@@ -231,7 +265,7 @@ export class LLMConfigService {
     // Get specific API key
     async getApiKey(userId: number, provider: string): Promise<LLMApiKey | null> {
         const query = `
-            SELECT id, user_id, provider, api_key_encrypted, is_valid,
+            SELECT id, user_id, provider, api_key_encrypted, selected_model, is_valid,
                    last_validated, validation_error, created_at, updated_at
             FROM llm_api_keys
             WHERE user_id = ? AND provider = ?
@@ -248,23 +282,24 @@ export class LLMConfigService {
     }
 
     // Save new API key
-    async saveApiKey(userId: number, provider: string, apiKey: string): Promise<LLMApiKey> {
+    async saveApiKey(userId: number, provider: string, apiKey: string, selectedModel?: string): Promise<LLMApiKey> {
         const encrypted = this.encrypt(apiKey);
         const now = new Date().toISOString();
 
         const query = `
-            INSERT INTO llm_api_keys (user_id, provider, api_key_encrypted, is_valid, last_validated)
-            VALUES (?, ?, ?, 1, ?)
+            INSERT INTO llm_api_keys (user_id, provider, api_key_encrypted, selected_model, is_valid, last_validated)
+            VALUES (?, ?, ?, ?, 1, ?)
             ON CONFLICT(user_id, provider)
             DO UPDATE SET
                 api_key_encrypted = excluded.api_key_encrypted,
+                selected_model = excluded.selected_model,
                 is_valid = excluded.is_valid,
                 last_validated = excluded.last_validated,
                 validation_error = NULL,
                 updated_at = CURRENT_TIMESTAMP
         `;
 
-        await db.run(query, [userId, provider, encrypted, now]);
+        await db.run(query, [userId, provider, encrypted, selectedModel || null, now]);
 
         const savedKey = await this.getApiKey(userId, provider);
         if (!savedKey) {
@@ -275,8 +310,8 @@ export class LLMConfigService {
     }
 
     // Update existing API key
-    async updateApiKey(userId: number, provider: string, apiKey: string): Promise<LLMApiKey> {
-        return this.saveApiKey(userId, provider, apiKey);
+    async updateApiKey(userId: number, provider: string, apiKey: string, selectedModel?: string): Promise<LLMApiKey> {
+        return this.saveApiKey(userId, provider, apiKey, selectedModel);
     }
 
     // Delete API key

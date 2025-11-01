@@ -13,7 +13,8 @@ import {
   Divider,
   Tag,
   Modal,
-  Spin
+  Spin,
+  Select
 } from 'antd';
 import {
   CheckCircleOutlined,
@@ -74,10 +75,12 @@ const PROVIDERS: ProviderConfig[] = [
 export const LLMConfigPage: React.FC = () => {
   const {
     apiKeys,
+    availableModels,
     isLoading,
     error,
     validating,
     fetchApiKeys,
+    fetchAvailableModels,
     validateApiKey,
     saveApiKey,
     updateApiKey,
@@ -87,6 +90,7 @@ export const LLMConfigPage: React.FC = () => {
 
   const [editingProvider, setEditingProvider] = useState<LLMProvider | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState('');
+  const [selectedModel, setSelectedModel] = useState<string>('');
   const [validationResults, setValidationResults] = useState<Record<LLMProvider, boolean | null>>({
     openai: null,
     claude: null,
@@ -96,7 +100,8 @@ export const LLMConfigPage: React.FC = () => {
 
   useEffect(() => {
     fetchApiKeys();
-  }, [fetchApiKeys]);
+    fetchAvailableModels();
+  }, [fetchApiKeys, fetchAvailableModels]);
 
   useEffect(() => {
     if (error) {
@@ -141,19 +146,25 @@ export const LLMConfigPage: React.FC = () => {
       return;
     }
 
+    if (!selectedModel) {
+      message.warning('Por favor seleccione un modelo');
+      return;
+    }
+
     try {
       const existingKey = getProviderKey(provider);
 
       if (existingKey) {
-        await updateApiKey(provider, apiKeyInput);
+        await updateApiKey(provider, apiKeyInput, selectedModel);
         message.success('API key actualizada exitosamente');
       } else {
-        await saveApiKey(provider, apiKeyInput);
+        await saveApiKey(provider, apiKeyInput, selectedModel);
         message.success('API key guardada exitosamente');
       }
 
       setEditingProvider(null);
       setApiKeyInput('');
+      setSelectedModel('');
       setValidationResults(prev => ({ ...prev, [provider]: null }));
     } catch (error) {
       // Error already handled by store
@@ -181,12 +192,15 @@ export const LLMConfigPage: React.FC = () => {
   const handleEdit = (provider: LLMProvider) => {
     setEditingProvider(provider);
     setApiKeyInput('');
+    const existingKey = getProviderKey(provider);
+    setSelectedModel(existingKey?.selected_model || '');
     setValidationResults(prev => ({ ...prev, [provider]: null }));
   };
 
   const handleCancel = () => {
     setEditingProvider(null);
     setApiKeyInput('');
+    setSelectedModel('');
     setValidationResults(prev => ({
       openai: null,
       claude: null,
@@ -250,6 +264,14 @@ export const LLMConfigPage: React.FC = () => {
                   <Text strong>API Key: </Text>
                   <Text code>{savedKey.api_key_masked}</Text>
                 </div>
+                {savedKey.selected_model && (
+                  <div>
+                    <Text strong>Modelo: </Text>
+                    <Tag color="blue">
+                      {availableModels?.[key]?.find(m => m.value === savedKey.selected_model)?.label || savedKey.selected_model}
+                    </Tag>
+                  </div>
+                )}
                 {savedKey.last_validated && (
                   <div>
                     <Text type="secondary">
@@ -297,6 +319,19 @@ export const LLMConfigPage: React.FC = () => {
                   />
                 </Form.Item>
 
+                <Form.Item
+                  label="Modelo"
+                  help="Seleccione el modelo que desea utilizar"
+                >
+                  <Select
+                    placeholder="Seleccionar modelo"
+                    value={selectedModel || undefined}
+                    onChange={(value) => setSelectedModel(value)}
+                    options={availableModels?.[key] || []}
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
+
                 <Space>
                   <Button
                     icon={<SafetyOutlined />}
@@ -310,7 +345,7 @@ export const LLMConfigPage: React.FC = () => {
                     type="primary"
                     onClick={() => handleSave(key)}
                     loading={isLoading}
-                    disabled={validationResult !== true}
+                    disabled={validationResult !== true || !selectedModel}
                   >
                     {savedKey ? 'Actualizar' : 'Guardar'}
                   </Button>
