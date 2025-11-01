@@ -119,7 +119,9 @@ export const QuoteUploadModal: React.FC<QuoteUploadModalProps> = ({
 
     try {
       const formData = new FormData();
-      formData.append('file', fileList[0] as any);
+      // Get the actual File object from Ant Design's UploadFile wrapper
+      const file = fileList[0].originFileObj || fileList[0];
+      formData.append('file', file as File);
 
       // Simulate progress
       const progressInterval = setInterval(() => {
