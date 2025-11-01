@@ -2,8 +2,19 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { db } from '../database/database';
 import { logger } from '../utils/logger';
+import { LLMService, QuoteData } from '../services/llmService';
+import { DocumentParserService } from '../services/documentParserService';
+import * as path from 'path';
+import * as fs from 'fs';
 
 export class ProjectController {
+    private llmService: LLMService;
+    private documentParserService: DocumentParserService;
+
+    constructor() {
+        this.llmService = new LLMService();
+        this.documentParserService = new DocumentParserService();
+    }
 
     // GET /api/projects
     getProjects = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -643,6 +654,277 @@ export class ProjectController {
         } catch (error) {
             logger.error('Remove project assignment error:', error);
             res.status(500).json({ error: 'Failed to remove project assignment' });
+        }
+    };
+
+    // === QUOTE UPLOAD ENDPOINTS ===
+
+    // POST /api/projects/upload-quote - Upload and process quote document
+    uploadQuote = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        let uploadedFilePath: string | undefined;
+
+        try {
+            const userId = req.user?.id;
+            const provider = req.body.provider as string | undefined;
+
+            if (!userId) {
+                res.status(401).json({ error: 'User not authenticated' });
+                return;
+            }
+
+            // Check if file was uploaded
+            if (!req.file) {
+                res.status(400).json({ error: 'No file uploaded' });
+                return;
+            }
+
+            const file = req.file;
+            uploadedFilePath = file.path;
+
+            logger.info(`Processing quote upload: ${file.originalname}, Size: ${file.size} bytes, User: ${userId}`);
+
+            // Validate file type
+            if (!this.documentParserService.validateFileType(file.mimetype, file.originalname)) {
+                await this.documentParserService.cleanupFile(uploadedFilePath);
+                res.status(400).json({
+                    error: 'Invalid file type. Only PDF and DOCX files are allowed.'
+                });
+                return;
+            }
+
+            // Validate file size (10MB limit)
+            const maxSize = 10 * 1024 * 1024; // 10MB
+            if (file.size > maxSize) {
+                await this.documentParserService.cleanupFile(uploadedFilePath);
+                res.status(400).json({
+                    error: 'File too large. Maximum size is 10MB.'
+                });
+                return;
+            }
+
+            // Extract quote data using LLM
+            const quoteData = await this.llmService.extractQuoteDataFromDocument(
+                uploadedFilePath,
+                userId,
+                provider
+            );
+
+            // Clean up uploaded file
+            await this.documentParserService.cleanupFile(uploadedFilePath);
+
+            logger.info('Quote processed successfully', {
+                project_name: quoteData.project_name,
+                user_id: userId
+            });
+
+            res.status(200).json({
+                message: 'Quote processed successfully',
+                quote_data: quoteData
+            });
+
+        } catch (error) {
+            // Clean up file on error
+            if (uploadedFilePath) {
+                await this.documentParserService.cleanupFile(uploadedFilePath);
+            }
+
+            logger.error('Upload quote error:', error);
+            res.status(500).json({
+                error: error instanceof Error ? error.message : 'Failed to process quote document'
+            });
+        }
+    };
+
+    // POST /api/projects/from-quote - Create project from extracted quote data
+    createProjectFromQuote = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const userId = req.user?.id;
+            const { quote_data } = req.body as { quote_data: QuoteData };
+
+            if (!userId) {
+                res.status(401).json({ error: 'User not authenticated' });
+                return;
+            }
+
+            if (!quote_data) {
+                res.status(400).json({ error: 'Quote data is required' });
+                return;
+            }
+
+            // Validate required fields
+            if (!quote_data.project_name || !quote_data.description || !quote_data.client_name) {
+                res.status(400).json({
+                    error: 'Missing required fields: project_name, description, client_name'
+                });
+                return;
+            }
+
+            logger.info('Creating project from quote data', {
+                project_name: quote_data.project_name,
+                user_id: userId
+            });
+
+            // Start transaction
+            await db.beginTransaction();
+
+            try {
+                // 1. Create project
+                const projectResult = await db.run(`
+                    INSERT INTO projects (
+                        name, description, status, priority,
+                        start_date, end_date, created_by
+                    ) VALUES (?, ?, 'planning', ?, ?, ?, ?)
+                `, [
+                    quote_data.project_name,
+                    `${quote_data.description}\n\nClient: ${quote_data.client_name}`,
+                    quote_data.priority || 'medium',
+                    quote_data.estimated_start_date || null,
+                    quote_data.estimated_end_date || null,
+                    userId
+                ]);
+
+                const projectId = projectResult.id!;
+
+                // 2. Create financial record if budget/revenue provided
+                if (quote_data.budgeted_cost || quote_data.expected_revenue) {
+                    await db.run(`
+                        INSERT INTO project_financials (
+                            project_id, budgeted_cost, sale_price, budgeted_hours
+                        ) VALUES (?, ?, ?, ?)
+                    `, [
+                        projectId,
+                        quote_data.budgeted_cost || null,
+                        quote_data.expected_revenue || null,
+                        null
+                    ]);
+                }
+
+                // 3. Create default task board
+                const boardResult = await db.run(`
+                    INSERT INTO task_boards (
+                        project_id, name, description, board_type, is_default
+                    ) VALUES (?, ?, ?, 'kanban', 1)
+                `, [
+                    projectId,
+                    `${quote_data.project_name} Board`,
+                    `Main kanban board for ${quote_data.project_name}`
+                ]);
+
+                const boardId = boardResult.id!;
+
+                // 4. Create default columns
+                const defaultColumns = [
+                    { name: 'Backlog', position: 1, color: '#gray', is_done: 0 },
+                    { name: 'To Do', position: 2, color: '#blue', is_done: 0 },
+                    { name: 'In Progress', position: 3, color: '#yellow', is_done: 0, wip_limit: 3 },
+                    { name: 'Review', position: 4, color: '#orange', is_done: 0 },
+                    { name: 'Testing', position: 5, color: '#purple', is_done: 0 },
+                    { name: 'Done', position: 6, color: '#green', is_done: 1 }
+                ];
+
+                const columnIds: { [key: string]: number } = {};
+
+                for (const column of defaultColumns) {
+                    const colResult = await db.run(`
+                        INSERT INTO task_columns (
+                            board_id, name, position, color, is_done_column, wip_limit
+                        ) VALUES (?, ?, ?, ?, ?, ?)
+                    `, [
+                        boardId,
+                        column.name,
+                        column.position,
+                        column.color,
+                        column.is_done,
+                        column.wip_limit || null
+                    ]);
+                    columnIds[column.name] = colResult.id!;
+                }
+
+                // 5. Create tasks from quote data
+                if (quote_data.tasks && quote_data.tasks.length > 0) {
+                    for (let i = 0; i < quote_data.tasks.length; i++) {
+                        const task = quote_data.tasks[i];
+                        await db.run(`
+                            INSERT INTO tasks (
+                                board_id, column_id, title, description,
+                                status, priority, position, estimated_hours
+                            ) VALUES (?, ?, ?, ?, 'todo', ?, ?, ?)
+                        `, [
+                            boardId,
+                            columnIds['To Do'],
+                            task.title,
+                            task.description || null,
+                            task.priority || 'medium',
+                            i,
+                            task.estimated_hours || null
+                        ]);
+                    }
+                }
+
+                // 6. Create milestones from quote data
+                if (quote_data.milestones && quote_data.milestones.length > 0) {
+                    for (const milestone of quote_data.milestones) {
+                        await db.run(`
+                            INSERT INTO project_milestones (
+                                project_id, name, description, target_date, status
+                            ) VALUES (?, ?, ?, ?, 'pending')
+                        `, [
+                            projectId,
+                            milestone.name,
+                            milestone.description || null,
+                            milestone.target_date || null
+                        ]);
+                    }
+                }
+
+                // 7. Log activity
+                await this.logActivity(
+                    userId,
+                    'project',
+                    projectId,
+                    'created_from_quote',
+                    null,
+                    {
+                        project_name: quote_data.project_name,
+                        client: quote_data.client_name,
+                        tasks_count: quote_data.tasks.length,
+                        milestones_count: quote_data.milestones.length
+                    }
+                );
+
+                // Commit transaction
+                await db.commit();
+
+                // Get created project with details
+                const createdProject = await db.get(`
+                    SELECT p.*, u.full_name as created_by_name
+                    FROM projects p
+                    LEFT JOIN users u ON p.created_by = u.id
+                    WHERE p.id = ?
+                `, [projectId]);
+
+                logger.info('Project created from quote successfully', {
+                    project_id: projectId,
+                    project_name: quote_data.project_name
+                });
+
+                res.status(201).json({
+                    message: 'Project created successfully from quote',
+                    project: createdProject,
+                    tasks_created: quote_data.tasks.length,
+                    milestones_created: quote_data.milestones.length
+                });
+
+            } catch (error) {
+                await db.rollback();
+                throw error;
+            }
+
+        } catch (error) {
+            logger.error('Create project from quote error:', error);
+            res.status(500).json({
+                error: error instanceof Error ? error.message : 'Failed to create project from quote'
+            });
         }
     };
 }

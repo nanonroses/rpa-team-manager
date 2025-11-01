@@ -21,11 +21,13 @@ import {
   SearchOutlined,
   FilterOutlined,
   ProjectOutlined,
-  ExclamationCircleOutlined
+  ExclamationCircleOutlined,
+  FileTextOutlined
 } from '@ant-design/icons';
 import { ProjectCard } from '@/components/projects/ProjectCard';
 import { ProjectROICard } from '@/components/projects/ProjectROICard';
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal';
+import { QuoteUploadModal } from '@/components/projects/QuoteUploadModal';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/store/authStore';
 import { Project } from '@/types/project';
@@ -39,6 +41,7 @@ export const ProjectsPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [quoteUploadModalVisible, setQuoteUploadModalVisible] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
 
   const { 
@@ -100,6 +103,14 @@ export const ProjectsPage: React.FC = () => {
 
   const handleViewProject = (project: Project) => {
     navigate(`/projects/${project.id}`);
+  };
+
+  const handleQuoteUploadSuccess = (project: any) => {
+    fetchProjects();
+    message.success('Proyecto creado exitosamente desde cotización');
+    if (project?.id) {
+      navigate(`/projects/${project.id}`);
+    }
   };
 
   const getProjectStats = () => {
@@ -166,13 +177,22 @@ export const ProjectsPage: React.FC = () => {
             Projects
           </Title>
           {canCreateProject && (
-            <Button 
-              type="primary" 
-              icon={<PlusOutlined />}
-              onClick={handleCreateProject}
-            >
-              New Project
-            </Button>
+            <Space>
+              <Button
+                type="default"
+                icon={<FileTextOutlined />}
+                onClick={() => setQuoteUploadModalVisible(true)}
+              >
+                Crear desde Cotización
+              </Button>
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={handleCreateProject}
+              >
+                New Project
+              </Button>
+            </Space>
           )}
         </div>
 
@@ -311,6 +331,13 @@ export const ProjectsPage: React.FC = () => {
           }
         }}
         editProject={editingProject}
+      />
+
+      {/* Quote Upload Modal */}
+      <QuoteUploadModal
+        visible={quoteUploadModalVisible}
+        onCancel={() => setQuoteUploadModalVisible(false)}
+        onSuccess={handleQuoteUploadSuccess}
       />
     </div>
   );

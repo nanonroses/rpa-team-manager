@@ -1,6 +1,49 @@
 import { Router } from 'express';
 import { ProjectController } from '../controllers/projectController';
 import { authenticate, authorize, requirePermission } from '../middleware/auth';
+import multer from 'multer';
+import * as path from 'path';
+import * as fs from 'fs';
+
+// Configure multer for file uploads
+const uploadDir = path.join(__dirname, '../../uploads/quotes');
+
+// Ensure upload directory exists
+if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, uploadDir);
+    },
+    filename: (req, file, cb) => {
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+        const ext = path.extname(file.originalname);
+        cb(null, `quote-${uniqueSuffix}${ext}`);
+    }
+});
+
+const upload = multer({
+    storage: storage,
+    limits: {
+        fileSize: 10 * 1024 * 1024 // 10MB limit
+    },
+    fileFilter: (req, file, cb) => {
+        const allowedMimeTypes = [
+            'application/pdf',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ];
+        const allowedExtensions = ['.pdf', '.docx'];
+        const ext = path.extname(file.originalname).toLowerCase();
+
+        if (allowedMimeTypes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Only PDF and DOCX files are allowed.'));
+        }
+    }
+});
 
 const router = Router();
 const projectController = new ProjectController();
@@ -48,5 +91,20 @@ router.post('/:id/assignments', authorize(['team_lead']), projectController.addP
 
 // DELETE /api/projects/:id/assignments/:assignmentId - Remove specific assignment
 router.delete('/:id/assignments/:assignmentId', authorize(['team_lead']), projectController.removeProjectAssignment);
+
+// === QUOTE UPLOAD ROUTES ===
+
+// POST /api/projects/upload-quote - Upload and process quote document (team_lead only)
+router.post('/upload-quote',
+    authorize(['team_lead']),
+    upload.single('file'),
+    projectController.uploadQuote
+);
+
+// POST /api/projects/from-quote - Create project from extracted quote data (team_lead only)
+router.post('/from-quote',
+    authorize(['team_lead']),
+    projectController.createProjectFromQuote
+);
 
 export default router;
