@@ -1092,5 +1092,121 @@ export const migrations: Migration[] = [
       `ALTER TABLE project_milestones ADD COLUMN financial_impact DECIMAL(10,2) DEFAULT 0`,
       `ALTER TABLE project_milestones ADD COLUMN created_by INTEGER REFERENCES users(id)`
     ]
+  },
+
+  {
+    version: 20,
+    description: 'Agregar sistema completo de Ideas con voting y comentarios',
+    up: [
+      // ========================================
+      // IDEAS MANAGEMENT SYSTEM
+      // ========================================
+      `CREATE TABLE IF NOT EXISTS ideas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title VARCHAR(255) NOT NULL,
+        description TEXT NOT NULL,
+        category VARCHAR(50) DEFAULT 'general' CHECK (category IN ('automation', 'process_improvement', 'tool_enhancement', 'cost_reduction', 'productivity', 'general')),
+        status VARCHAR(20) DEFAULT 'draft' CHECK (status IN ('draft', 'under_review', 'approved', 'in_progress', 'done', 'rejected')),
+        impact_score INTEGER DEFAULT 3 CHECK (impact_score BETWEEN 1 AND 5),
+        effort_score INTEGER DEFAULT 3 CHECK (effort_score BETWEEN 1 AND 5),
+        priority_score DECIMAL(3,2) DEFAULT 1.0,
+        votes_count INTEGER DEFAULT 0,
+        created_by INTEGER NOT NULL,
+        assigned_to INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (created_by) REFERENCES users(id),
+        FOREIGN KEY (assigned_to) REFERENCES users(id)
+      )`,
+
+      // Idea votes
+      `CREATE TABLE IF NOT EXISTS idea_votes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        idea_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        vote_type VARCHAR(10) NOT NULL CHECK (vote_type IN ('up', 'down')),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(idea_id, user_id),
+        FOREIGN KEY (idea_id) REFERENCES ideas(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+
+      // Idea comments
+      `CREATE TABLE IF NOT EXISTS idea_comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        idea_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        comment TEXT NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (idea_id) REFERENCES ideas(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+      )`,
+
+      // Indexes for performance
+      `CREATE INDEX IF NOT EXISTS idx_ideas_status ON ideas(status)`,
+      `CREATE INDEX IF NOT EXISTS idx_ideas_category ON ideas(category)`,
+      `CREATE INDEX IF NOT EXISTS idx_ideas_created_by ON ideas(created_by)`,
+      `CREATE INDEX IF NOT EXISTS idx_ideas_priority ON ideas(priority_score)`,
+      `CREATE INDEX IF NOT EXISTS idx_idea_votes_idea ON idea_votes(idea_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_idea_comments_idea ON idea_comments(idea_id)`,
+
+      // Triggers
+      `CREATE TRIGGER IF NOT EXISTS update_ideas_timestamp
+        AFTER UPDATE ON ideas
+        BEGIN
+          UPDATE ideas SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END`,
+
+      `CREATE TRIGGER IF NOT EXISTS update_idea_comments_timestamp
+        AFTER UPDATE ON idea_comments
+        BEGIN
+          UPDATE idea_comments SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END`,
+
+      // Trigger to calculate priority_score automatically
+      `CREATE TRIGGER IF NOT EXISTS calculate_priority_score_insert
+        AFTER INSERT ON ideas
+        BEGIN
+          UPDATE ideas SET priority_score = CAST(NEW.impact_score AS DECIMAL) / CAST(NEW.effort_score AS DECIMAL) WHERE id = NEW.id;
+        END`,
+
+      `CREATE TRIGGER IF NOT EXISTS calculate_priority_score_update
+        AFTER UPDATE OF impact_score, effort_score ON ideas
+        BEGIN
+          UPDATE ideas SET priority_score = CAST(NEW.impact_score AS DECIMAL) / CAST(NEW.effort_score AS DECIMAL) WHERE id = NEW.id;
+        END`,
+
+      // Trigger to update vote count in ideas
+      `CREATE TRIGGER IF NOT EXISTS update_idea_vote_count_insert
+        AFTER INSERT ON idea_votes
+        BEGIN
+          UPDATE ideas SET votes_count = (
+            SELECT COUNT(*) FROM idea_votes WHERE idea_id = NEW.idea_id AND vote_type = 'up'
+          ) - (
+            SELECT COUNT(*) FROM idea_votes WHERE idea_id = NEW.idea_id AND vote_type = 'down'
+          ) WHERE id = NEW.idea_id;
+        END`,
+
+      `CREATE TRIGGER IF NOT EXISTS update_idea_vote_count_update
+        AFTER UPDATE ON idea_votes
+        BEGIN
+          UPDATE ideas SET votes_count = (
+            SELECT COUNT(*) FROM idea_votes WHERE idea_id = NEW.idea_id AND vote_type = 'up'
+          ) - (
+            SELECT COUNT(*) FROM idea_votes WHERE idea_id = NEW.idea_id AND vote_type = 'down'
+          ) WHERE id = NEW.idea_id;
+        END`,
+
+      `CREATE TRIGGER IF NOT EXISTS update_idea_vote_count_delete
+        AFTER DELETE ON idea_votes
+        BEGIN
+          UPDATE ideas SET votes_count = (
+            SELECT COUNT(*) FROM idea_votes WHERE idea_id = OLD.idea_id AND vote_type = 'up'
+          ) - (
+            SELECT COUNT(*) FROM idea_votes WHERE idea_id = OLD.idea_id AND vote_type = 'down'
+          ) WHERE id = OLD.idea_id;
+        END`
+    ]
   }
 ];
