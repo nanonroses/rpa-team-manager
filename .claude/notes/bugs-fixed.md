@@ -96,3 +96,27 @@ Registro de bugs importantes con análisis de root cause y acciones de prevenci�
 - Al agregar campos nuevos a INSERT/UPDATE, verificar que existan en el schema
 - Crear migración ANTES de modificar el código del controller
 - Agregar test de regresión para verificar columnas requeridas
+
+---
+
+## 2026-01-08 - Get All Contacts Error: Column is_active Does Not Exist
+
+**Síntomas**: HTTP 500 al cargar dropdown de solicitantes. Error: `SQLITE_ERROR: no such column: scc.is_active`
+**Ubicación**: 
+- `backend/src/controllers/supportController.ts` (getAllContacts, línea 1039)
+- `backend/src/database/migrationList.ts`
+
+**Root Cause**: 
+- El query en `getAllContacts` usaba `WHERE scc.is_active = 1`
+- La tabla `support_company_contacts` (migración v5) no tenía la columna `is_active`
+- La columna se esperaba para soft-delete pero nunca fue creada
+
+**Fix**:
+- Crear migración v22: `ALTER TABLE support_company_contacts ADD COLUMN is_active INTEGER DEFAULT 1`
+- Reiniciar backend para aplicar migración
+
+**Prevención**:
+- Al agregar condiciones de soft-delete, verificar que la columna existe
+- Mantener sincronizado el schema.sql con las migraciones
+- Agregar test de regresión para endpoints de Support
+

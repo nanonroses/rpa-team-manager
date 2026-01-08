@@ -1217,5 +1217,14 @@ export const migrations: Migration[] = [
       // Agregar columna end_date si no existe
       `ALTER TABLE project_milestones ADD COLUMN end_date DATE`
     ]
+  },
+
+  {
+    version: 22,
+    description: 'Agregar columna is_active a support_company_contacts para soft delete',
+    up: [
+      // Agregar columna is_active con default 1 (activo)
+      `ALTER TABLE support_company_contacts ADD COLUMN is_active INTEGER DEFAULT 1`
+    ]
   }
 ];
