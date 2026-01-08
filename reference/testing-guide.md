@@ -1,12 +1,32 @@
 # Guía de Testing
 
-## Frameworks de Testing
+## Comandos de Testing
 
-| Capa | Framework | Comando |
-|------|-----------|---------|
-| Backend | Jest | `cd backend && npm test` |
-| Frontend | Vitest | `cd frontend && npm test` |
-| E2E | (Por configurar) | - |
+```bash
+# Backend - Tests unitarios
+cd backend && npm test
+
+# Backend - Watch mode
+cd backend && npm run test:watch
+
+# Backend - Coverage
+cd backend && npm run test:coverage
+
+# Frontend - Tests
+cd frontend && npm test
+
+# Frontend - Watch mode
+cd frontend && npm run test:watch
+
+# Frontend - Coverage
+cd frontend && npm run test:coverage
+
+# Tests de regresión (desde raíz)
+npx jest --config jest.config.js
+
+# Test específico
+npm test -- --testNamePattern="login"
+```
 
 ## Estructura de Tests
 
