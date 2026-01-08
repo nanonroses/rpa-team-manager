@@ -73,3 +73,26 @@ Registro de bugs importantes con análisis de root cause y acciones de prevenci�
 **Prevención**:
 - Siempre contar columnas vs values antes de commit
 - Agregar test unitario para endpoints financieros
+
+---
+
+## 2026-01-08 - Create Milestone Error: Column end_date Does Not Exist
+
+**Síntomas**: HTTP 500 al crear milestone. Error: `SQLITE_ERROR: table project_milestones has no column named end_date`
+**Ubicación**: 
+- `backend/src/controllers/pmoController.ts` (createMilestone, línea 322)
+- `backend/src/database/migrationList.ts`
+
+**Root Cause**: 
+- El código de `createMilestone` intentaba insertar en columna `end_date`
+- La tabla `project_milestones` no tenía esa columna definida
+- La columna fue agregada al código pero no a las migraciones
+
+**Fix**:
+- Crear migración v21: `ALTER TABLE project_milestones ADD COLUMN end_date DATE`
+- Reiniciar backend para aplicar migración
+
+**Prevención**:
+- Al agregar campos nuevos a INSERT/UPDATE, verificar que existan en el schema
+- Crear migración ANTES de modificar el código del controller
+- Agregar test de regresión para verificar columnas requeridas

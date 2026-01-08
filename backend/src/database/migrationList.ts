@@ -17,7 +17,7 @@ export const migrations: Migration[] = [
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
-      
+
       `CREATE TABLE IF NOT EXISTS projects (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -31,7 +31,7 @@ export const migrations: Migration[] = [
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (created_by) REFERENCES users(id)
       )`,
-      
+
       `CREATE TABLE IF NOT EXISTS task_boards (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         project_id INTEGER NOT NULL,
@@ -42,7 +42,7 @@ export const migrations: Migration[] = [
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
       )`,
-      
+
       `CREATE TABLE IF NOT EXISTS task_columns (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         board_id INTEGER NOT NULL,
@@ -54,7 +54,7 @@ export const migrations: Migration[] = [
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (board_id) REFERENCES task_boards(id) ON DELETE CASCADE
       )`,
-      
+
       `CREATE TABLE IF NOT EXISTS tasks (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         board_id INTEGER NOT NULL,
@@ -79,7 +79,7 @@ export const migrations: Migration[] = [
         FOREIGN KEY (assignee_id) REFERENCES users(id),
         FOREIGN KEY (reporter_id) REFERENCES users(id)
       )`,
-      
+
       `CREATE TABLE IF NOT EXISTS project_milestones (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         project_id INTEGER NOT NULL,
@@ -97,7 +97,7 @@ export const migrations: Migration[] = [
         FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
         FOREIGN KEY (responsible_user_id) REFERENCES users(id)
       )`,
-      
+
       `CREATE TABLE IF NOT EXISTS global_settings (
         setting_key TEXT PRIMARY KEY,
         setting_value TEXT NOT NULL,
@@ -110,7 +110,7 @@ export const migrations: Migration[] = [
       )`
     ]
   },
-  
+
   {
     version: 2,
     description: 'Agregar soporte para empresas de soporte',
@@ -128,7 +128,7 @@ export const migrations: Migration[] = [
       )`
     ]
   },
-  
+
   {
     version: 3,
     description: 'Agregar tabla de tickets de soporte',
@@ -153,7 +153,7 @@ export const migrations: Migration[] = [
       )`
     ]
   },
-  
+
   {
     version: 4,
     description: 'Agregar procesos RPA específicos por empresa',
@@ -169,7 +169,7 @@ export const migrations: Migration[] = [
       )`
     ]
   },
-  
+
   {
     version: 5,
     description: 'Agregar contactos por empresa',
@@ -187,7 +187,7 @@ export const migrations: Migration[] = [
       )`
     ]
   },
-  
+
   {
     version: 6,
     description: 'Agregar campos de ticket específicos',
@@ -199,7 +199,7 @@ export const migrations: Migration[] = [
       `ALTER TABLE support_tickets ADD COLUMN completion_date DATE`
     ]
   },
-  
+
   {
     version: 7,
     description: 'Agregar tarifa de horas extra a empresas de soporte',
@@ -207,34 +207,34 @@ export const migrations: Migration[] = [
       `ALTER TABLE support_companies ADD COLUMN hourly_rate_extra DECIMAL(10,2) DEFAULT 0`
     ]
   },
-  
+
   {
     version: 8,
     description: 'Agregar índices para optimización de importación Mermaid',
     up: [
       // Index for project milestones project lookups (used heavily in batch creation)
       `CREATE INDEX IF NOT EXISTS idx_project_milestones_project_id ON project_milestones(project_id)`,
-      
+
       // Index for milestone date-based queries and sorting
       `CREATE INDEX IF NOT EXISTS idx_project_milestones_planned_date ON project_milestones(planned_date)`,
-      
+
       // Index for milestone status and date combinations (for dashboard queries)
       `CREATE INDEX IF NOT EXISTS idx_project_milestones_status_date ON project_milestones(status, planned_date)`,
-      
+
       // Composite index for task board and column operations (position calculations)
       `CREATE INDEX IF NOT EXISTS idx_tasks_board_column ON tasks(board_id, column_id)`,
-      
+
       // Index for task position calculations within columns
       `CREATE INDEX IF NOT EXISTS idx_tasks_column_position ON tasks(column_id, position)`,
-      
+
       // Index for task date-based queries during Gantt operations
       `CREATE INDEX IF NOT EXISTS idx_tasks_dates ON tasks(start_date, due_date)`,
-      
+
       // Index for project board relationships (used in board lookups)
       `CREATE INDEX IF NOT EXISTS idx_task_boards_project ON task_boards(project_id)`
     ]
   },
-  
+
   {
     version: 9,
     description: 'Agregar tabla user_cost_rates para costos de empleados',
@@ -255,10 +255,10 @@ export const migrations: Migration[] = [
         FOREIGN KEY (user_id) REFERENCES users(id),
         FOREIGN KEY (created_by) REFERENCES users(id)
       )`,
-      
+
       `CREATE INDEX IF NOT EXISTS idx_user_cost_rates_user ON user_cost_rates(user_id)`,
       `CREATE INDEX IF NOT EXISTS idx_user_cost_rates_active ON user_cost_rates(is_active, effective_from, effective_to)`,
-      
+
       `CREATE TRIGGER IF NOT EXISTS update_user_cost_rates_timestamp 
         AFTER UPDATE ON user_cost_rates
         BEGIN
@@ -266,7 +266,7 @@ export const migrations: Migration[] = [
         END`
     ]
   },
-  
+
   {
     version: 10,
     description: 'Agregar project_pmo_metrics y project_financials con roi_percentage',
@@ -299,7 +299,7 @@ export const migrations: Migration[] = [
         FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
         FOREIGN KEY (updated_by) REFERENCES users(id)
       )`,
-      
+
       `CREATE TABLE IF NOT EXISTS project_financials (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         project_id INTEGER NOT NULL UNIQUE,
@@ -328,7 +328,7 @@ export const migrations: Migration[] = [
       )`
     ]
   },
-  
+
   {
     version: 11,
     description: 'Agregar sistema completo de archivos y gestión de documentos',
@@ -351,7 +351,7 @@ export const migrations: Migration[] = [
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (uploaded_by) REFERENCES users(id)
       )`,
-      
+
       // File categories for organization and validation
       `CREATE TABLE IF NOT EXISTS file_categories (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -364,7 +364,7 @@ export const migrations: Migration[] = [
         is_active BOOLEAN DEFAULT 1,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP
       )`,
-      
+
       // File associations to link files with entities
       `CREATE TABLE IF NOT EXISTS file_associations (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -378,7 +378,7 @@ export const migrations: Migration[] = [
         FOREIGN KEY (created_by) REFERENCES users(id),
         UNIQUE(file_id, entity_type, entity_id, association_type)
       )`,
-      
+
       // File versions for version control
       `CREATE TABLE IF NOT EXISTS file_versions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -395,7 +395,7 @@ export const migrations: Migration[] = [
         FOREIGN KEY (uploaded_by) REFERENCES users(id),
         UNIQUE(file_id, version_number)
       )`,
-      
+
       // File access log for audit and security
       `CREATE TABLE IF NOT EXISTS file_access_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -408,7 +408,7 @@ export const migrations: Migration[] = [
         FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES users(id)
       )`,
-      
+
       // Create indexes for better performance
       `CREATE INDEX IF NOT EXISTS idx_files_hash ON files(file_hash)`,
       `CREATE INDEX IF NOT EXISTS idx_files_uploaded_by ON files(uploaded_by)`,
@@ -422,7 +422,7 @@ export const migrations: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_file_access_file ON file_access_log(file_id)`,
       `CREATE INDEX IF NOT EXISTS idx_file_access_user ON file_access_log(user_id)`,
       `CREATE INDEX IF NOT EXISTS idx_file_access_date ON file_access_log(access_date)`,
-      
+
       // Insert default file categories
       `INSERT OR IGNORE INTO file_categories (name, description, allowed_extensions, max_file_size, icon, color) VALUES 
         ('Imágenes', 'Archivos de imagen como JPEG, PNG, GIF', '["jpg", "jpeg", "png", "gif", "webp", "svg"]', 10485760, 'image', '#10b981'),
@@ -435,14 +435,14 @@ export const migrations: Migration[] = [
         ('Otros', 'Otros tipos de archivo', '["*"]', 104857600, 'file', '#6b7280')`
     ]
   },
-  
+
   {
     version: 12,
     description: 'Fix global_settings table schema to match controller expectations',
     up: [
       // Drop existing table if it has wrong schema
       `DROP TABLE IF EXISTS global_settings`,
-      
+
       // Recreate with correct schema
       `CREATE TABLE global_settings (
         setting_key TEXT PRIMARY KEY,
@@ -454,17 +454,17 @@ export const migrations: Migration[] = [
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (updated_by) REFERENCES users(id)
       )`,
-      
+
       // Insert the required seed data
       `INSERT INTO global_settings (setting_key, setting_value, setting_type, description, updated_by) VALUES 
         ('usd_rate', '925.50', 'decimal', 'Tipo de cambio USD a CLP (actualizar mensualmente)', 1),
         ('uf_rate', '37250.85', 'decimal', 'Valor de la UF en CLP (actualizar mensualmente)', 1),
         ('monthly_hours', '176', 'number', 'Horas laborales mensuales en Chile (44h semanales)', 1),
         ('weekly_hours', '44', 'number', 'Horas laborales semanales en Chile', 1)`,
-      
+
       // Create index and trigger
       `CREATE INDEX IF NOT EXISTS idx_global_settings_key ON global_settings(setting_key)`,
-      
+
       `CREATE TRIGGER IF NOT EXISTS update_global_settings_timestamp 
         AFTER UPDATE ON global_settings
         BEGIN
@@ -1207,6 +1207,15 @@ export const migrations: Migration[] = [
             SELECT COUNT(*) FROM idea_votes WHERE idea_id = OLD.idea_id AND vote_type = 'down'
           ) WHERE id = OLD.idea_id;
         END`
+    ]
+  },
+
+  {
+    version: 21,
+    description: 'Agregar columna end_date a project_milestones para soporte de rangos de fecha',
+    up: [
+      // Agregar columna end_date si no existe
+      `ALTER TABLE project_milestones ADD COLUMN end_date DATE`
     ]
   }
 ];
