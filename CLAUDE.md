@@ -64,7 +64,26 @@ npm run lint
 | Testing | `reference/testing-guide.md` |
 | ML Service | `reference/ml-service.md` |
 
+## Workflows (Slash Commands)
+
+| Comando | Uso |
+|---------|-----|
+| `/start-dev` | Iniciar servidores de desarrollo |
+| `/build-and-test` | Compilar y ejecutar tests |
+| `/new-feature` | Implementar nueva feature |
+| `/fix-bug` | Proceso para arreglar bugs |
+| `/code-review` | Checklist de code review |
+| `/deploy` | Proceso de deployment |
+| `/system-evolution` | Auto-reflexión post-tarea |
+
+## Notas Estructuradas
+
+- Decisiones: `.claude/notes/decisions.md`
+- Bugs corregidos: `.claude/notes/bugs-fixed.md`
+- Lecciones: `.claude/notes/lessons-learned.md`
+
 ## Git
 
 - Commits descriptivos que capturen el alcance completo
 - Agregar y commitear automáticamente al completar tareas
+
