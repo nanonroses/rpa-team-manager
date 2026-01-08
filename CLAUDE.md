@@ -78,12 +78,22 @@ npm run lint
 
 ## Notas Estructuradas
 
-- Decisiones: `.claude/notes/decisions.md`
-- Bugs corregidos: `.claude/notes/bugs-fixed.md`
-- Lecciones: `.claude/notes/lessons-learned.md`
+| Archivo | Propósito |
+|---------|-----------|
+| `.claude/notes/decisions.md` | Decisiones arquitectónicas |
+| `.claude/notes/bugs-fixed.md` | Post-mortems de bugs |
+| `.claude/notes/lessons-learned.md` | Lecciones aprendidas |
+| `.claude/notes/evolution-checklist.md` | Checklist rápido |
+| `.claude/notes/metrics.md` | Métricas del sistema |
+
+## Sistema de Evolución
+
+**Después de cada tarea importante, ejecutar `/system-evolution`**
+
+Filosofía: Cada bug/problema es una oportunidad para fortalecer el sistema.
+Ver guía completa: `docs/SYSTEM_EVOLUTION.md`
 
 ## Git
 
 - Commits descriptivos que capturen el alcance completo
 - Agregar y commitear automáticamente al completar tareas
-
