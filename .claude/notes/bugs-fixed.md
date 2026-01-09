@@ -120,3 +120,54 @@ Registro de bugs importantes con análisis de root cause y acciones de prevenci�
 - Mantener sincronizado el schema.sql con las migraciones
 - Agregar test de regresión para endpoints de Support
 
+---
+
+## 2026-01-08 - Create Ticket Error: Columnas Faltantes en Support
+
+**Síntomas**: HTTP 500 al crear ticket. Múltiples errores:
+1. `SQLITE_ERROR: no such column: is_active` (en support_rpa_processes)
+2. `SQLITE_ERROR: table support_tickets has no column named id_ticket`
+
+**Ubicación**: 
+- `backend/src/controllers/supportController.ts` (createSupportTicket, getRPAProcesses)
+- `backend/src/database/migrationList.ts`
+
+**Root Cause**: 
+- El código de `createSupportTicket` usaba columna `id_ticket` para identificador legible
+- El código de `getRPAProcesses` usaba `is_active` para soft-delete
+- Ninguna de estas columnas existía en las migraciones originales
+
+**Fix**:
+- Crear migración v23 con:
+  - `ALTER TABLE support_tickets ADD COLUMN id_ticket TEXT`
+  - `ALTER TABLE support_rpa_processes ADD COLUMN is_active INTEGER DEFAULT 1`
+- Reiniciar backend para aplicar migración
+
+**Prevención**:
+- Antes de agregar columnas nuevas en código, verificar que existan en migraciones
+- Ejecutar tests de regresión antes de deploy
+- Crear tests E2E para flujos críticos como crear ticket
+
+---
+
+## 2026-01-08 - Create Ticket Error: CHECK Constraint Failed
+
+**Síntomas**: HTTP 500 al crear ticket. Error: `SQLITE_CONSTRAINT: CHECK constraint failed`
+
+**Ubicación**: 
+- `frontend/src/pages/support/SupportPage.tsx` (dropdown de ticket_type y priority)
+- `backend/src/database/migrationList.ts` (CHECK constraints en v3)
+
+**Root Cause**: 
+- Frontend enviaba valores para `ticket_type`: `Bug`, `Enhancement`, `Training`
+- BD solo acepta: `support`, `maintenance`, `development`, `consultation`
+- Frontend enviaba `critical` para priority pero BD solo acepta `urgent`
+
+**Fix**:
+- Corregir valores de `ticket_type` en frontend: Bug→support, Enhancement→development, Training→consultation
+- Cambiar `critical` por `urgent` en dropdown de prioridad
+
+**Prevención**:
+- Documentar valores permitidos por CHECK constraints
+- Validar en frontend antes de enviar
+- Tests de regresión para verificar valores válidos

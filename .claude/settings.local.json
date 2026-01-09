@@ -5,7 +5,8 @@
       "Bash(npm run:*)",
       "Bash(timeout 10 bash -c 'while ! curl -s http://localhost:5001/health > /dev/null; do sleep 1; done && echo \"\"Backend started successfully\"\"')",
       "Bash(curl:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": [],

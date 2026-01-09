@@ -60,8 +60,8 @@ export class SupportController {
                 LEFT JOIN (
                     SELECT st.company_id,
                            SUM(
-                               CASE WHEN strftime('%Y-%m', st.close_date) = ? OR strftime('%Y-%m', st.open_date) = ?
-                               THEN st.time_invested_minutes / 60.0 
+                               CASE WHEN strftime('%Y-%m', st.resolved_at) = ? OR strftime('%Y-%m', st.created_at) = ?
+                               THEN st.hours_spent
                                ELSE 0 END
                            ) as current_month_consumed_hours
                     FROM support_tickets st
@@ -172,7 +172,7 @@ export class SupportController {
                 ) t ON sc.id = t.company_id
                 LEFT JOIN (
                     SELECT st.company_id,
-                           SUM(st.time_invested_minutes / 60.0) as current_month_consumed_hours
+                           SUM(st.hours_spent) as current_month_consumed_hours
                     FROM support_tickets st
                     WHERE st.company_id = ?
                     GROUP BY st.company_id
@@ -386,10 +386,10 @@ export class SupportController {
             } = req.query;
             
             let query = `
-                SELECT st.*, 
+                SELECT st.*,
                        sc.company_name,
                        u.full_name as resolver_name,
-                       ROUND(st.time_invested_minutes / 60.0, 2) as hours_calculated
+                       st.hours_spent as hours_calculated
                 FROM support_tickets st
                 LEFT JOIN support_companies sc ON st.company_id = sc.id
                 LEFT JOIN users u ON st.resolver_id = u.id
@@ -429,16 +429,16 @@ export class SupportController {
             }
 
             if (date_from) {
-                query += ' AND DATE(st.open_date) >= DATE(?)';
+                query += ' AND DATE(st.created_at) >= DATE(?)';
                 params.push(date_from);
             }
 
             if (date_to) {
-                query += ' AND DATE(st.open_date) <= DATE(?)';
+                query += ' AND DATE(st.created_at) <= DATE(?)';
                 params.push(date_to);
             }
 
-            query += ' ORDER BY st.open_date DESC';
+            query += ' ORDER BY st.created_at DESC';
 
             const offset = (parseInt(page as string) - 1) * parseInt(limit as string);
             query += ` LIMIT ? OFFSET ?`;
@@ -481,12 +481,12 @@ export class SupportController {
             }
 
             if (date_from) {
-                countQuery += ' AND DATE(st.open_date) >= DATE(?)';
+                countQuery += ' AND DATE(st.created_at) >= DATE(?)';
                 countParams.push(date_from);
             }
 
             if (date_to) {
-                countQuery += ' AND DATE(st.open_date) <= DATE(?)';
+                countQuery += ' AND DATE(st.created_at) <= DATE(?)';
                 countParams.push(date_to);
             }
 
@@ -556,29 +556,28 @@ export class SupportController {
 
             await db.run(`
                 INSERT INTO support_tickets (
-                    id, id_ticket, company_id, client_name, ticket_type, attention_method,
-                    rpa_process, requester, description, solution, status, priority,
-                    open_date, close_date, time_invested_minutes, customer_satisfaction,
-                    created_by, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?, ?, NULL, ?, datetime('now'), datetime('now'))
+                    id, id_ticket, company_id, title, description, priority, status,
+                    ticket_type, created_by, resolver_id, hours_spent,
+                    created_at, resolved_at, updated_at,
+                    attention_method, work_date, completion_date
+                ) VALUES (?, ?, ?, ?, ?, ?, 'open', ?, ?, NULL, ?, datetime('now'), NULL, datetime('now'), ?, ?, ?)
             `, [
-                nextId, finalTicketId, company_id, client_name, ticket_type, attention_method,
-                rpa_process, requester || client_name, description, solution, priority,
-                work_date, completion_date, time_invested_minutes || 0,
-                req.user?.id
+                nextId, finalTicketId, company_id, client_name, description, priority,
+                ticket_type, req.user?.id, (time_invested_minutes || 0) / 60.0,
+                attention_method, work_date, completion_date
             ]);
 
             // Get the created ticket with company info
             const newTicket = await db.get(`
-                SELECT st.*, 
+                SELECT st.*,
                        sc.company_name,
                        u.full_name as resolver_name,
-                       ROUND(st.time_invested_minutes / 60.0, 2) as hours_calculated
+                       st.hours_spent as hours_calculated
                 FROM support_tickets st
                 LEFT JOIN support_companies sc ON st.company_id = sc.id
                 LEFT JOIN users u ON st.resolver_id = u.id
                 WHERE st.id_ticket = ?
-            `, [id_ticket]);
+            `, [finalTicketId]);
 
             logger.info(`Support ticket created: ${id_ticket} for ${company.company_name}`);
             res.status(201).json(newTicket);
@@ -621,9 +620,9 @@ export class SupportController {
                 return;
             }
 
-            // Auto-set close_date if status is resolved or closed
+            // Auto-set resolved_at if status is resolved or closed
             if (updates.status && ['resolved', 'closed'].includes(updates.status)) {
-                fields.push('close_date = datetime(\'now\')');
+                fields.push('resolved_at = datetime(\'now\')');
             }
 
             fields.push('updated_at = datetime(\'now\')');
@@ -637,10 +636,10 @@ export class SupportController {
 
             // Get updated ticket
             const updatedTicket = await db.get(`
-                SELECT st.*, 
+                SELECT st.*,
                        sc.company_name,
                        u.full_name as resolver_name,
-                       ROUND(st.time_invested_minutes / 60.0, 2) as hours_calculated
+                       st.hours_spent as hours_calculated
                 FROM support_tickets st
                 LEFT JOIN support_companies sc ON st.company_id = sc.id
                 LEFT JOIN users u ON st.resolver_id = u.id
@@ -665,16 +664,16 @@ export class SupportController {
 
             // Summary statistics for selected month
             const summaryStats = await db.get(`
-                SELECT 
+                SELECT
                     (SELECT COUNT(*) FROM support_companies) as totalCompanies,
                     (SELECT COUNT(*) FROM support_companies WHERE status = 'active') as activeCompanies,
-                    (SELECT COUNT(*) FROM support_tickets WHERE strftime('%Y-%m', open_date) = ?) as thisMonthTickets,
-                    (SELECT COUNT(*) FROM support_tickets WHERE status IN ('resolved', 'closed') AND strftime('%Y-%m', close_date) = ?) as thisMonthResolved
+                    (SELECT COUNT(*) FROM support_tickets WHERE strftime('%Y-%m', created_at) = ?) as thisMonthTickets,
+                    (SELECT COUNT(*) FROM support_tickets WHERE status IN ('resolved', 'closed') AND strftime('%Y-%m', resolved_at) = ?) as thisMonthResolved
             `, [selectedMonth, selectedMonth]);
 
             // All companies by hour consumption for selected month
             const topCompanies = await db.query(`
-                SELECT 
+                SELECT
                     sc.id,
                     sc.company_name,
                     sc.contracted_hours_monthly,
@@ -683,45 +682,45 @@ export class SupportController {
                     sc.hourly_rate_currency,
                     sc.status,
                     COALESCE(SUM(
-                        CASE WHEN strftime('%Y-%m', st.close_date) = ? OR strftime('%Y-%m', st.open_date) = ?
-                        THEN st.time_invested_minutes / 60.0 
+                        CASE WHEN strftime('%Y-%m', st.resolved_at) = ? OR strftime('%Y-%m', st.created_at) = ?
+                        THEN st.hours_spent
                         ELSE 0 END
                     ), 0) as consumed_hours,
                     (sc.contracted_hours_monthly - COALESCE(SUM(
-                        CASE WHEN strftime('%Y-%m', st.close_date) = ? OR strftime('%Y-%m', st.open_date) = ?
-                        THEN st.time_invested_minutes / 60.0 
+                        CASE WHEN strftime('%Y-%m', st.resolved_at) = ? OR strftime('%Y-%m', st.created_at) = ?
+                        THEN st.hours_spent
                         ELSE 0 END
                     ), 0)) as remaining_hours,
-                    CASE 
+                    CASE
                         WHEN COALESCE(SUM(
-                            CASE WHEN strftime('%Y-%m', st.close_date) = ? OR strftime('%Y-%m', st.open_date) = ?
-                            THEN st.time_invested_minutes / 60.0 
+                            CASE WHEN strftime('%Y-%m', st.resolved_at) = ? OR strftime('%Y-%m', st.created_at) = ?
+                            THEN st.hours_spent
                             ELSE 0 END
                         ), 0) > sc.contracted_hours_monthly THEN 'exceeded'
                         WHEN COALESCE(SUM(
-                            CASE WHEN strftime('%Y-%m', st.close_date) = ? OR strftime('%Y-%m', st.open_date) = ?
-                            THEN st.time_invested_minutes / 60.0 
+                            CASE WHEN strftime('%Y-%m', st.resolved_at) = ? OR strftime('%Y-%m', st.created_at) = ?
+                            THEN st.hours_spent
                             ELSE 0 END
                         ), 0) > (sc.contracted_hours_monthly * 0.8) THEN 'near_limit'
                         ELSE 'normal'
                     END as hour_status
                 FROM support_companies sc
-                LEFT JOIN support_tickets st ON sc.id = st.company_id 
+                LEFT JOIN support_tickets st ON sc.id = st.company_id
                 GROUP BY sc.id, sc.company_name, sc.contracted_hours_monthly, sc.hourly_rate, sc.hourly_rate_extra, sc.hourly_rate_currency, sc.status
                 ORDER BY consumed_hours DESC
             `, [selectedMonth, selectedMonth, selectedMonth, selectedMonth, selectedMonth, selectedMonth, selectedMonth, selectedMonth]);
 
             // Recent tickets from selected month
             const recentTickets = await db.query(`
-                SELECT st.*, 
+                SELECT st.*,
                        sc.company_name,
                        u.full_name as resolver_name,
-                       ROUND(st.time_invested_minutes / 60.0, 2) as hours_calculated
+                       st.hours_spent as hours_calculated
                 FROM support_tickets st
                 LEFT JOIN support_companies sc ON st.company_id = sc.id
                 LEFT JOIN users u ON st.resolver_id = u.id
-                WHERE strftime('%Y-%m', st.open_date) = ?
-                ORDER BY st.open_date DESC
+                WHERE strftime('%Y-%m', st.created_at) = ?
+                ORDER BY st.created_at DESC
                 LIMIT 10
             `, [selectedMonth]);
 
@@ -732,15 +731,15 @@ export class SupportController {
             if (company_id) {
                 // Calculations for specific company
                 billingQuery = `
-                    SELECT 
+                    SELECT
                         sc.company_name,
                         sc.contracted_hours_monthly,
                         sc.hourly_rate,
                         sc.hourly_rate_extra,
                         sc.hourly_rate_currency,
-                        COALESCE(SUM(st.time_invested_minutes / 60.0), 0) as consumed_hours
+                        COALESCE(SUM(st.hours_spent), 0) as consumed_hours
                     FROM support_companies sc
-                    LEFT JOIN support_tickets st ON sc.id = st.company_id 
+                    LEFT JOIN support_tickets st ON sc.id = st.company_id
                     WHERE sc.id = ? AND sc.status = 'active'
                     GROUP BY sc.id
                 `;
@@ -748,14 +747,14 @@ export class SupportController {
             } else {
                 // Global calculations for all companies
                 billingQuery = `
-                    SELECT 
+                    SELECT
                         SUM(sc.contracted_hours_monthly) as total_contracted_hours,
                         SUM(COALESCE(consumed.total_hours, 0)) as total_consumed_hours
                     FROM support_companies sc
                     LEFT JOIN (
-                        SELECT 
+                        SELECT
                             st.company_id,
-                            SUM(st.time_invested_minutes / 60.0) as total_hours
+                            SUM(st.hours_spent) as total_hours
                         FROM support_tickets st
                         GROUP BY st.company_id
                     ) consumed ON sc.id = consumed.company_id
@@ -794,24 +793,24 @@ export class SupportController {
                 // Global calculations - get all companies and sum their individual calculations for selected month
                 // Only include companies that have tickets in the selected month OR are actively contracted for that month
                 const allCompanies = await db.query(`
-                    SELECT 
+                    SELECT
                         sc.id,
                         sc.contracted_hours_monthly,
                         sc.hourly_rate,
                         sc.hourly_rate_extra,
                         sc.hourly_rate_currency,
                         COALESCE(SUM(
-                            CASE WHEN strftime('%Y-%m', st.close_date) = ? OR strftime('%Y-%m', st.open_date) = ?
-                            THEN st.time_invested_minutes / 60.0 
+                            CASE WHEN strftime('%Y-%m', st.resolved_at) = ? OR strftime('%Y-%m', st.created_at) = ?
+                            THEN st.hours_spent
                             ELSE 0 END
                         ), 0) as consumed_hours,
                         COUNT(
-                            CASE WHEN strftime('%Y-%m', st.close_date) = ? OR strftime('%Y-%m', st.open_date) = ?
-                            THEN st.id 
+                            CASE WHEN strftime('%Y-%m', st.resolved_at) = ? OR strftime('%Y-%m', st.created_at) = ?
+                            THEN st.id
                             END
                         ) as tickets_in_month
                     FROM support_companies sc
-                    LEFT JOIN support_tickets st ON sc.id = st.company_id 
+                    LEFT JOIN support_tickets st ON sc.id = st.company_id
                     WHERE sc.status = 'active'
                     GROUP BY sc.id
                     HAVING tickets_in_month > 0 OR sc.contracted_hours_monthly > 0
@@ -828,13 +827,13 @@ export class SupportController {
                     // FIXED MONTHLY CONTRACT: Always bill contracted hours + extra hours
                     const contractedHours = company.contracted_hours_monthly;
                     const extraHours = Math.max(0, company.consumed_hours - company.contracted_hours_monthly);
-                    
+
                     const baseValueInOriginalCurrency = contractedHours * company.hourly_rate; // Always bill full contracted hours
                     const extraValueInOriginalCurrency = extraHours * (company.hourly_rate_extra || company.hourly_rate);
-                    
+
                     const baseValueInCLP = await this.convertToCLP(baseValueInOriginalCurrency, company.hourly_rate_currency);
                     const extraValueInCLP = await this.convertToCLP(extraValueInOriginalCurrency, company.hourly_rate_currency);
-                    
+
                     totalBaseValueInCLP += baseValueInCLP;
                     totalExtraValueInCLP += extraValueInCLP;
                     totalToInvoiceInCLP += baseValueInCLP + extraValueInCLP;
@@ -867,15 +866,15 @@ export class SupportController {
             const { id } = req.params;
 
             const billingData = await db.get(`
-                SELECT 
+                SELECT
                     sc.company_name,
                     sc.contracted_hours_monthly,
                     sc.hourly_rate,
                     sc.hourly_rate_extra,
                     sc.hourly_rate_currency,
-                    COALESCE(SUM(st.time_invested_minutes / 60.0), 0) as consumed_hours
+                    COALESCE(SUM(st.hours_spent), 0) as consumed_hours
                 FROM support_companies sc
-                LEFT JOIN support_tickets st ON sc.id = st.company_id 
+                LEFT JOIN support_tickets st ON sc.id = st.company_id
                 WHERE sc.id = ? AND sc.status = 'active'
                 GROUP BY sc.id, sc.company_name, sc.contracted_hours_monthly, sc.hourly_rate, sc.hourly_rate_extra, sc.hourly_rate_currency
             `, [id]);
@@ -1393,34 +1392,34 @@ export class SupportController {
                     // First get next ID number
                     const nextIdResult = await db.get('SELECT COALESCE(MAX(id), 0) + 1 as next_id FROM support_tickets');
                     const nextId = nextIdResult.next_id;
-                    
+
                     // Debug logging
                     console.log(`Row ${i + 2}: Original status = '${ticketData.status}', Mapped status = '${mappedStatus}'`);
-                    
+
                     const insertResult = await db.run(`
                         INSERT INTO support_tickets (
-                            id, id_ticket, company_id, client_name, ticket_type, attention_method, rpa_process,
-                            requester, resolver_id, description, solution, status, priority,
-                            open_date, close_date, time_invested_minutes, created_by
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            id, id_ticket, company_id, title, description, priority, status,
+                            ticket_type, created_by, resolver_id, hours_spent,
+                            created_at, resolved_at, updated_at,
+                            attention_method, work_date, completion_date
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), ?, ?, ?)
                     `, [
                         nextId,
                         ticketData.id_ticket || `SUP-${new Date().getFullYear()}-${String(nextId).padStart(3, '0')}`,
                         company.id,
-                        ticketData.requester_name || 'Imported Client', // client_name
-                        ticketData.ticket_type || 'support',
-                        ticketData.attention_method || 'email',
-                        ticketData.rpa_process_name, // rpa_process (texto, no ID)
-                        ticketData.requester_name || 'Imported Client', // requester
-                        resolverId,
+                        ticketData.requester_name || 'Imported Client', // title
                         ticketData.description,
-                        ticketData.solution || null,
-                        mappedStatus,
                         mappedPriority,
-                        parseDate(ticketData.opened_date) || new Date().toISOString(), // open_date
-                        parseDate(ticketData.closed_date), // close_date
-                        timeInMinutes || 0, // time_invested_minutes
-                        req.user?.id
+                        mappedStatus,
+                        ticketData.ticket_type || 'support',
+                        req.user?.id,
+                        resolverId,
+                        timeInMinutes ? timeInMinutes / 60.0 : 0, // Convert minutes to hours
+                        parseDate(ticketData.opened_date) || new Date().toISOString(), // created_at
+                        parseDate(ticketData.closed_date), // resolved_at
+                        ticketData.attention_method || 'email',
+                        parseDate(ticketData.work_date),
+                        parseDate(ticketData.closed_date) // completion_date
                     ]);
 
                     results.successCount++;

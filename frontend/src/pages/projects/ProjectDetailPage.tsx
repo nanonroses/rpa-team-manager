@@ -38,13 +38,15 @@ import {
   FolderOutlined,
   PictureOutlined,
   FundOutlined,
-  RobotOutlined
+  RobotOutlined,
+  RocketOutlined
 } from '@ant-design/icons';
 import { ProjectROICard } from '@/components/projects/ProjectROICard';
 import { ProjectPMOView } from '@/components/projects/ProjectPMOView';
 import { ProjectMLAnalytics } from '@/components/projects/ProjectMLAnalytics';
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal';
 import { FileManager, EvidenceGallery } from '@/components/files';
+import { ProjectLifecyclePage } from '@/pages/lifecycle/ProjectLifecyclePage';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/store/authStore';
 import { Project, ProjectStatusLabels, PriorityLabels } from '@/types/project';
@@ -606,6 +608,18 @@ export const ProjectDetailPage: React.FC = () => {
                   startDate={project.start_date}
                   endDate={project.end_date}
                 />
+              )
+            },
+            {
+              key: 'lifecycle',
+              label: (
+                <span>
+                  <RocketOutlined />
+                  Lifecycle & Real ROI
+                </span>
+              ),
+              children: (
+                <ProjectLifecyclePage />
               )
             }
           ]}

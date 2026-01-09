@@ -1,33 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Layout, 
-  Tabs, 
-  Card, 
-  Table, 
-  Button, 
-  Space, 
-  Tag, 
-  Statistic, 
-  Row, 
-  Col, 
-  Modal, 
-  Form, 
-  Input, 
-  Select, 
-  InputNumber, 
-  DatePicker, 
-  Progress, 
-  Typography, 
-  message, 
+import {
+  Layout,
+  Tabs,
+  Card,
+  Table,
+  Button,
+  Space,
+  Tag,
+  Statistic,
+  Row,
+  Col,
+  Modal,
+  Form,
+  Input,
+  Select,
+  InputNumber,
+  DatePicker,
+  Progress,
+  Typography,
+  message,
   Alert,
   Tooltip,
   Divider,
   Checkbox
 } from 'antd';
-import { 
-  PlusOutlined, 
-  EditOutlined, 
-  DeleteOutlined, 
+import {
+  PlusOutlined,
+  EditOutlined,
+  DeleteOutlined,
   EyeOutlined,
   CustomerServiceOutlined,
   DollarCircleOutlined,
@@ -96,9 +96,9 @@ interface SupportTicket {
   solution: string;
   status: string;
   priority: string;
-  open_date: string;
-  close_date: string;
-  time_invested_minutes: number;
+  created_at: string;
+  resolved_at: string;
+  hours_spent: number;
   hours_calculated: number;
   customer_satisfaction: number;
 }
@@ -134,13 +134,13 @@ const SupportPage: React.FC = () => {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(dayjs()); // Mes actual por defecto
-  
+
   // Data for dropdowns
   const [rpaProcesses, setRpaProcesses] = useState<any[]>([]);
   const [allContacts, setAllContacts] = useState<any[]>([]);
   const [teamMembers, setTeamMembers] = useState<any[]>([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState<number | null>(null);
-  
+
   // Modal states
   const [companyModalVisible, setCompanyModalVisible] = useState(false);
   const [ticketModalVisible, setTicketModalVisible] = useState(false);
@@ -149,7 +149,7 @@ const SupportPage: React.FC = () => {
   const [importModalVisible, setImportModalVisible] = useState(false);
   const [editingCompany, setEditingCompany] = useState<SupportCompany | null>(null);
   const [editingTicket, setEditingTicket] = useState<SupportTicket | null>(null);
-  
+
   // Forms
   const [companyForm] = Form.useForm();
   const [ticketForm] = Form.useForm();
@@ -190,6 +190,10 @@ const SupportPage: React.FC = () => {
       // Load team members
       const usersData = await apiService.getUsers();
       setTeamMembers(usersData.filter((user: any) => user.role !== 'team_lead'));
+
+      // Load companies for dropdown (needed for ticket modal)
+      const companiesData = await apiService.getSupportCompanies({ limit: '100' });
+      setCompanies(companiesData.data || []);
     } catch (error) {
       console.error('Error loading dropdown data:', error);
     }
@@ -298,8 +302,9 @@ const SupportPage: React.FC = () => {
           solution: '',
           status: 'in_progress',
           priority: 'high',
-          open_date: '2025-01-20T10:30:00Z',
-          close_date: '',
+          created_at: '2025-01-20T10:30:00Z',
+          resolved_at: '',
+          hours_spent: 2.5,
           hours_calculated: 2.5,
           customer_satisfaction: 0
         }
@@ -346,8 +351,8 @@ const SupportPage: React.FC = () => {
       loadRPAProcesses(ticket.company_id);
       ticketForm.setFieldsValue({
         ...ticket,
-        open_date: ticket.open_date ? dayjs(ticket.open_date) : null,
-        close_date: ticket.close_date ? dayjs(ticket.close_date) : null,
+        created_at: ticket.created_at ? dayjs(ticket.created_at) : null,
+        resolved_at: ticket.resolved_at ? dayjs(ticket.resolved_at) : null,
         rpa_process: ticket.rpa_process ? [ticket.rpa_process] : [],
         client_name: ticket.client_name ? [ticket.client_name] : []
       });
@@ -381,7 +386,7 @@ const SupportPage: React.FC = () => {
         console.error('No company selected');
         return;
       }
-      
+
       await apiService.createRPAProcess({
         company_id: selectedCompanyId,
         process_name: values.process_name,
@@ -474,8 +479,8 @@ const SupportPage: React.FC = () => {
             <Col span={24}>
               <Divider />
               <Text strong>Consumo Actual:</Text><br />
-              <Progress 
-                percent={Math.min((company.current_month_consumed_hours / company.contracted_hours_monthly) * 100, 100)} 
+              <Progress
+                percent={Math.min((company.current_month_consumed_hours / company.contracted_hours_monthly) * 100, 100)}
                 status={getConsumptionStatus(company.current_month_consumed_hours, company.contracted_hours_monthly).status as any}
               />
               <Text>{company.current_month_consumed_hours}h consumidas de {company.contracted_hours_monthly}h contratadas</Text>
@@ -494,10 +499,10 @@ const SupportPage: React.FC = () => {
   const handleDeleteCompany = (company: SupportCompany) => {
     const isAdmin = user?.role === 'team_lead';
     const hasTickets = company.total_tickets > 0;
-    
+
     let title = '¿Eliminar Empresa?';
     let content: React.ReactNode;
-    
+
     if (hasTickets && isAdmin) {
       content = (
         <div>
@@ -539,18 +544,18 @@ const SupportPage: React.FC = () => {
       onOk: async () => {
         try {
           const response = await apiService.deleteSupportCompany(company.id);
-          
+
           if (response.deletedTickets > 0) {
             Modal.success({
               title: 'Eliminación Completada',
               content: `Se eliminó la empresa "${company.company_name}" y ${response.deletedTickets} tickets asociados.`,
             });
           }
-          
+
           loadCompanies();
         } catch (error: any) {
           console.error('Error deleting company:', error);
-          
+
           const errorMessage = error.response?.data?.error || 'No se pudo eliminar la empresa. Inténtalo de nuevo.';
           Modal.error({
             title: 'Error',
@@ -589,9 +594,9 @@ const SupportPage: React.FC = () => {
               <Text strong>Estado:</Text><br />
               <Tag color={getSupportStatusColor(ticket.status)}>
                 {ticket.status === 'open' ? 'Abierto' :
-                 ticket.status === 'in_progress' ? 'En Progreso' :
-                 ticket.status === 'resolved' ? 'Resuelto' :
-                 ticket.status === 'closed' ? 'Cerrado' : ticket.status}
+                  ticket.status === 'in_progress' ? 'En Progreso' :
+                    ticket.status === 'resolved' ? 'Resuelto' :
+                      ticket.status === 'closed' ? 'Cerrado' : ticket.status}
               </Tag>
             </Col>
             <Col span={12}>
@@ -618,15 +623,15 @@ const SupportPage: React.FC = () => {
             </Col>
             <Col span={12}>
               <Text strong>Tiempo Invertido:</Text><br />
-              <Text>{ticket.time_invested_minutes || 0} minutos</Text>
+              <Text>{ticket.hours_spent || 0} horas</Text>
             </Col>
             <Col span={12}>
               <Text strong>Fecha Apertura:</Text><br />
-              <Text>{dayjs(ticket.open_date).format('DD/MM/YYYY HH:mm')}</Text>
+              <Text>{dayjs(ticket.created_at).format('DD/MM/YYYY HH:mm')}</Text>
             </Col>
             <Col span={12}>
               <Text strong>Fecha Cierre:</Text><br />
-              <Text>{ticket.close_date ? dayjs(ticket.close_date).format('DD/MM/YYYY HH:mm') : 'Abierto'}</Text>
+              <Text>{ticket.resolved_at ? dayjs(ticket.resolved_at).format('DD/MM/YYYY HH:mm') : 'Abierto'}</Text>
             </Col>
           </Row>
         </div>
@@ -662,15 +667,15 @@ const SupportPage: React.FC = () => {
       key: 'hours_info',
       render: (_, record) => {
         const consumption = getConsumptionStatus(
-          record.current_month_consumed_hours, 
+          record.current_month_consumed_hours,
           record.contracted_hours_monthly
         );
         const percentage = (record.current_month_consumed_hours / record.contracted_hours_monthly) * 100;
-        
+
         return (
           <div>
-            <Progress 
-              percent={Math.min(percentage, 100)} 
+            <Progress
+              percent={Math.min(percentage, 100)}
               status={consumption.status as any}
               size="small"
               showInfo={false}
@@ -722,7 +727,7 @@ const SupportPage: React.FC = () => {
         if (!billing || billing.total_to_invoice_clp === 0) {
           return <Text type="secondary">$0</Text>;
         }
-        
+
         return (
           <div>
             <div>
@@ -757,7 +762,7 @@ const SupportPage: React.FC = () => {
         const isAdmin = user?.role === 'team_lead';
         const hasTickets = record.total_tickets > 0;
         const canDelete = !hasTickets || isAdmin;
-        
+
         return (
           <Space>
             <Tooltip title="Ver detalles">
@@ -768,19 +773,19 @@ const SupportPage: React.FC = () => {
             </Tooltip>
             {canDelete ? (
               <Tooltip title={hasTickets && isAdmin ? "Eliminar empresa y todos sus tickets" : "Eliminar empresa"}>
-                <Button 
-                  icon={<DeleteOutlined />} 
-                  size="small" 
-                  danger 
-                  onClick={() => handleDeleteCompany(record)} 
+                <Button
+                  icon={<DeleteOutlined />}
+                  size="small"
+                  danger
+                  onClick={() => handleDeleteCompany(record)}
                 />
               </Tooltip>
             ) : (
               <Tooltip title="Solo administradores pueden eliminar empresas con tickets">
-                <Button 
-                  icon={<DeleteOutlined />} 
-                  size="small" 
-                  danger 
+                <Button
+                  icon={<DeleteOutlined />}
+                  size="small"
+                  danger
                   disabled
                 />
               </Tooltip>
@@ -832,19 +837,19 @@ const SupportPage: React.FC = () => {
       render: (status) => (
         <Tag color={getSupportStatusColor(status)}>
           {status === 'open' ? 'Abierto' :
-           status === 'in_progress' ? 'En Progreso' :
-           status === 'resolved' ? 'Resuelto' :
-           status === 'closed' ? 'Cerrado' : status}
+            status === 'in_progress' ? 'En Progreso' :
+              status === 'resolved' ? 'Resuelto' :
+                status === 'closed' ? 'Cerrado' : status}
         </Tag>
       )
     },
     {
-      title: 'Tiempo (min)',
-      dataIndex: 'time_invested_minutes',
-      key: 'time_invested_minutes',
-      render: (minutes) => (
+      title: 'Tiempo (hrs)',
+      dataIndex: 'hours_spent',
+      key: 'hours_spent',
+      render: (hours) => (
         <div>
-          <ClockCircleOutlined /> {minutes || 0}min
+          <ClockCircleOutlined /> {hours || 0}h
         </div>
       )
     },
@@ -856,8 +861,8 @@ const SupportPage: React.FC = () => {
     },
     {
       title: 'Fecha',
-      dataIndex: 'open_date',
-      key: 'open_date',
+      dataIndex: 'created_at',
+      key: 'created_at',
       render: (date) => dayjs(date).format('DD/MM/YYYY')
     },
     {
@@ -902,7 +907,7 @@ const SupportPage: React.FC = () => {
           </Card>
         </Col>
       </Row>
-      
+
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         <Col span={6}>
           <Card>
@@ -952,15 +957,15 @@ const SupportPage: React.FC = () => {
             {dashboardData?.topCompanies.map((company, index) => {
               const percentage = (company.consumed_hours / company.contracted_hours_monthly) * 100;
               const status = getConsumptionStatus(company.consumed_hours, company.contracted_hours_monthly);
-              
+
               return (
                 <div key={index} style={{ marginBottom: '16px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                     <Text strong>{company.company_name}</Text>
                     <Text>{company.consumed_hours}h / {company.contracted_hours_monthly}h</Text>
                   </div>
-                  <Progress 
-                    percent={Math.min(percentage, 100)} 
+                  <Progress
+                    percent={Math.min(percentage, 100)}
                     status={status.status as any}
                     size="small"
                   />
@@ -1023,8 +1028,8 @@ const SupportPage: React.FC = () => {
         </Text>
       </div>
 
-      <Tabs 
-        activeKey={activeTab} 
+      <Tabs
+        activeKey={activeTab}
         onChange={setActiveTab}
         items={[
           {
@@ -1065,14 +1070,14 @@ const SupportPage: React.FC = () => {
                   <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
                     <Title level={4}>Empresas Clientes</Title>
                     <div style={{ display: 'flex', gap: '8px' }}>
-                      <Button 
+                      <Button
                         icon={<ImportOutlined />}
                         onClick={() => setImportModalVisible(true)}
                       >
                         Importar Excel
                       </Button>
-                      <Button 
-                        type="primary" 
+                      <Button
+                        type="primary"
                         icon={<PlusOutlined />}
                         onClick={() => openCompanyModal()}
                       >
@@ -1099,14 +1104,14 @@ const SupportPage: React.FC = () => {
                 <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between' }}>
                   <Title level={4}>Tickets de Soporte</Title>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <Button 
+                    <Button
                       icon={<ImportOutlined />}
                       onClick={() => setImportModalVisible(true)}
                     >
                       Importar Excel
                     </Button>
-                    <Button 
-                      type="primary" 
+                    <Button
+                      type="primary"
                       icon={<PlusOutlined />}
                       onClick={() => openTicketModal()}
                     >
@@ -1159,7 +1164,7 @@ const SupportPage: React.FC = () => {
               </Form.Item>
             </Col>
           </Row>
-          
+
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
@@ -1280,8 +1285,8 @@ const SupportPage: React.FC = () => {
                 label="Cliente (Empresa)"
                 rules={[{ required: true, message: 'Seleccione la empresa' }]}
               >
-                <Select 
-                  placeholder="Seleccione empresa" 
+                <Select
+                  placeholder="Seleccione empresa"
                   disabled={!!editingTicket}
                   onChange={(companyId) => {
                     setSelectedCompanyId(companyId);
@@ -1308,11 +1313,10 @@ const SupportPage: React.FC = () => {
                 rules={[{ required: true, message: 'Seleccione el tipo' }]}
               >
                 <Select>
-                  <Option value="Bug">Bug</Option>
-                  <Option value="Enhancement">Mejora</Option>
-                  <Option value="Consultation">Consulta</Option>
-                  <Option value="Maintenance">Mantenimiento</Option>
-                  <Option value="Training">Capacitación</Option>
+                  <Option value="support">Soporte</Option>
+                  <Option value="maintenance">Mantenimiento</Option>
+                  <Option value="development">Desarrollo</Option>
+                  <Option value="consultation">Consulta</Option>
                 </Select>
               </Form.Item>
             </Col>
@@ -1343,7 +1347,7 @@ const SupportPage: React.FC = () => {
                   <Option value="low">Baja</Option>
                   <Option value="medium">Media</Option>
                   <Option value="high">Alta</Option>
-                  <Option value="critical">Crítica</Option>
+                  <Option value="urgent">Urgente</Option>
                 </Select>
               </Form.Item>
             </Col>
@@ -1355,7 +1359,7 @@ const SupportPage: React.FC = () => {
                 name="rpa_process"
                 label="Proceso RPA"
               >
-                <Select 
+                <Select
                   placeholder="Seleccione proceso RPA o escriba uno nuevo"
                   showSearch
                   allowClear
@@ -1393,7 +1397,7 @@ const SupportPage: React.FC = () => {
                 label="Solicitante"
                 rules={[{ required: true, message: 'Ingrese el solicitante' }]}
               >
-                <Select 
+                <Select
                   placeholder="Seleccione solicitante o escriba uno nuevo"
                   showSearch
                   allowClear
@@ -1465,14 +1469,14 @@ const SupportPage: React.FC = () => {
               </Form.Item>
             </Col>
           </Row>
-          
+
           <Row gutter={16}>
             <Col span={8}>
               <Form.Item
-                name="open_date"
+                name="created_at"
                 label="Fecha Apertura"
               >
-                <DatePicker 
+                <DatePicker
                   style={{ width: '100%' }}
                   format="DD/MM/YYYY"
                 />
@@ -1480,10 +1484,10 @@ const SupportPage: React.FC = () => {
             </Col>
             <Col span={8}>
               <Form.Item
-                name="close_date"
+                name="resolved_at"
                 label="Fecha Cierre"
               >
-                <DatePicker 
+                <DatePicker
                   style={{ width: '100%' }}
                   format="DD/MM/YYYY"
                 />
@@ -1491,10 +1495,10 @@ const SupportPage: React.FC = () => {
             </Col>
             <Col span={8}>
               <Form.Item
-                name="time_invested_minutes"
-                label="Tiempo Invertido (min)"
+                name="hours_spent"
+                label="Tiempo Invertido (horas)"
               >
-                <InputNumber min={0} style={{ width: '100%' }} placeholder="Minutos trabajados" />
+                <InputNumber min={0} step={0.5} style={{ width: '100%' }} placeholder="Horas trabajadas" />
               </Form.Item>
             </Col>
           </Row>
@@ -1505,7 +1509,7 @@ const SupportPage: React.FC = () => {
           >
             <TextArea rows={3} placeholder="Describe la solución aplicada (opcional)" />
           </Form.Item>
-          
+
           <Form.Item
             name="customer_satisfaction"
             label="Satisfacción Cliente (1-5)"
@@ -1549,7 +1553,7 @@ const SupportPage: React.FC = () => {
           >
             <Input placeholder="Ej: Facturación Automática" />
           </Form.Item>
-          
+
           <Form.Item
             name="process_description"
             label="Descripción (Opcional)"
@@ -1615,7 +1619,7 @@ const SupportPage: React.FC = () => {
               </Form.Item>
             </Col>
           </Row>
-          
+
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
@@ -1635,7 +1639,7 @@ const SupportPage: React.FC = () => {
               </Form.Item>
             </Col>
           </Row>
-          
+
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item

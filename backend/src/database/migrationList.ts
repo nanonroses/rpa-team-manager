@@ -1226,5 +1226,28 @@ export const migrations: Migration[] = [
       // Agregar columna is_active con default 1 (activo)
       `ALTER TABLE support_company_contacts ADD COLUMN is_active INTEGER DEFAULT 1`
     ]
+  },
+
+  {
+    version: 23,
+    description: 'Agregar columnas faltantes en tablas de Support (id_ticket, is_active)',
+    up: [
+      // Agregar id_ticket a support_tickets (para identificador legible como SUP-2026-001)
+      `ALTER TABLE support_tickets ADD COLUMN id_ticket TEXT`,
+      // Agregar is_active a support_rpa_processes para soft delete
+      `ALTER TABLE support_rpa_processes ADD COLUMN is_active INTEGER DEFAULT 1`
+    ]
+  },
+
+  {
+    version: 24,
+    description: 'Agregar columnas faltantes en support_companies (contracted_hours_monthly, hourly_rate_currency)',
+    up: [
+      // El código usa contracted_hours_monthly pero la tabla tiene monthly_hours_contracted
+      // Agregar la columna con el nombre que usa el código
+      `ALTER TABLE support_companies ADD COLUMN contracted_hours_monthly INTEGER DEFAULT 0`,
+      // Agregar columna de moneda
+      `ALTER TABLE support_companies ADD COLUMN hourly_rate_currency TEXT DEFAULT 'CLP'`
+    ]
   }
 ];

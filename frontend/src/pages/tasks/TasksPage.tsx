@@ -97,6 +97,8 @@ interface Board {
 }
 
 export const TasksPage: React.FC = () => {
+  console.log('🚀 TasksPage component loaded - VERSION 2.0 - INTERACTIVE BUTTONS ENABLED');
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [boards, setBoards] = useState<Board[]>([]);
@@ -394,6 +396,8 @@ export const TasksPage: React.FC = () => {
   };
 
   const openEditTaskModal = (task: Task) => {
+    console.log('📝 Opening edit modal for task:', task.id, task.title);
+    console.log('📋 Task data:', task);
     setEditingTask(task);
     form.setFieldsValue({
       title: task.title,
@@ -406,6 +410,7 @@ export const TasksPage: React.FC = () => {
       due_date: task.due_date ? dayjs(task.due_date) : null,
       column_id: task.column_id
     });
+    console.log('✅ Edit modal opened, form populated');
   };
 
 
@@ -419,122 +424,154 @@ export const TasksPage: React.FC = () => {
     }
   };
 
-  const renderTaskCard = (task: Task, index: number) => (
-    <Draggable key={task.id} draggableId={task.id.toString()} index={index}>
-      {(provided, snapshot) => (
-        <div
-          ref={provided.innerRef}
-          {...provided.draggableProps}
-          style={{
-            ...provided.draggableProps.style,
-            marginBottom: 8
-          }}
-        >
-          <Card
-            size="small"
+  const renderTaskCard = (task: Task, index: number) => {
+    console.log(`🎨 Rendering task card: ID=${task.id}, Title="${task.title}"`);
+
+    return (
+      <Draggable key={task.id} draggableId={task.id.toString()} index={index}>
+        {(provided, snapshot) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.draggableProps}
             style={{
-              backgroundColor: snapshot.isDragging ? '#f0f0f0' : 'white',
-              boxShadow: snapshot.isDragging ? '0 4px 8px rgba(0,0,0,0.2)' : undefined,
-              cursor: snapshot.isDragging ? 'grabbing' : 'grab'
+              ...provided.draggableProps.style,
+              marginBottom: 8
             }}
           >
-            {/* Drag handle area */}
-            <div {...provided.dragHandleProps} style={{ position: 'relative' }}>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-                <span style={{ marginRight: 8 }}>{getTaskTypeIcon(task.task_type)}</span>
-                <Text strong style={{ flex: 1 }}>{task.title}</Text>
-                <Tag color={getPriorityColor(task.priority)}>
-                  {task.priority.toUpperCase()}
-                </Tag>
-              </div>
-              
-              {task.description && (
-                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
-                  {task.description.substring(0, 100)}
-                  {task.description.length > 100 ? '...' : ''}
-                </Text>
-              )}
-              
-              <Space wrap size="small">
-                {task.assignee_name && (
-                  <Tooltip title={task.assignee_name}>
-                    <Avatar size="small" icon={<UserOutlined />} />
-                  </Tooltip>
-                )}
-                
-                {task.due_date && (
-                  <Tooltip title={`Vence: ${dayjs(task.due_date).format('DD/MM/YYYY')}`}>
-                    <Tag icon={<CalendarOutlined />}>
-                      {dayjs(task.due_date).format('DD/MM')}
-                    </Tag>
-                  </Tooltip>
-                )}
-                
-                {task.estimated_hours && (
-                  <Tooltip title={`Estimado: ${task.estimated_hours}h`}>
-                    <Tag icon={<ClockCircleOutlined />}>
-                      {task.estimated_hours}h
-                    </Tag>
-                  </Tooltip>
-                )}
-                
-                {task.total_hours && (
-                  <Tooltip title={`Trabajado: ${task.total_hours}h - $${task.total_value?.toLocaleString()}`}>
-                    <Tag icon={<DollarOutlined />} color="green">
-                      ${task.total_value?.toLocaleString()}
-                    </Tag>
-                  </Tooltip>
-                )}
-              </Space>
-            </div>
-
-            {/* Action buttons - outside drag handle */}
-            <div 
-              style={{ 
-                marginTop: 8, 
-                paddingTop: 8, 
-                borderTop: '1px solid #f0f0f0',
-                display: 'flex',
-                justifyContent: 'flex-end',
-                gap: 4
+            <Card
+              size="small"
+              style={{
+                backgroundColor: snapshot.isDragging ? '#f0f0f0' : 'white',
+                boxShadow: snapshot.isDragging ? '0 4px 8px rgba(0,0,0,0.2)' : undefined,
+                cursor: snapshot.isDragging ? 'grabbing' : 'default',
+                position: 'relative'
               }}
             >
-              <Tooltip title="Editar">
-                <Button 
-                  size="small"
-                  type="text" 
-                  icon={<EditOutlined />} 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openEditTaskModal(task);
-                  }}
-                />
-              </Tooltip>
-              <Tooltip title="Eliminar">
-                <Button 
-                  size="small"
-                  type="text" 
-                  danger 
-                  icon={<DeleteOutlined />} 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    Modal.confirm({
-                      title: '¿Eliminar tarea?',
-                      content: 'Esta acción no se puede deshacer.',
-                      okText: 'Eliminar',
-                      okType: 'danger',
-                      cancelText: 'Cancelar',
-                      onOk: () => handleDeleteTask(task.id)
-                    });
-                  }}
-                />
-              </Tooltip>
-            </div>
-          </Card>
-        </div>
-      )}
-    </Draggable>
-  );
+              {/* Drag handle area */}
+              <div
+                {...provided.dragHandleProps}
+                style={{
+                  position: 'relative',
+                  cursor: 'grab',
+                  userSelect: 'none'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+                  <span style={{ marginRight: 8 }}>{getTaskTypeIcon(task.task_type)}</span>
+                  <Text strong style={{ flex: 1 }}>{task.title}</Text>
+                  <Tag color={getPriorityColor(task.priority)}>
+                    {task.priority.toUpperCase()}
+                  </Tag>
+                </div>
+
+                {task.description && (
+                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>
+                    {task.description.substring(0, 100)}
+                    {task.description.length > 100 ? '...' : ''}
+                  </Text>
+                )}
+
+                <Space wrap size="small">
+                  {task.assignee_name && (
+                    <Tooltip title={task.assignee_name}>
+                      <Avatar size="small" icon={<UserOutlined />} />
+                    </Tooltip>
+                  )}
+
+                  {task.due_date && (
+                    <Tooltip title={`Vence: ${dayjs(task.due_date).format('DD/MM/YYYY')}`}>
+                      <Tag icon={<CalendarOutlined />}>
+                        {dayjs(task.due_date).format('DD/MM')}
+                      </Tag>
+                    </Tooltip>
+                  )}
+
+                  {task.estimated_hours && (
+                    <Tooltip title={`Estimado: ${task.estimated_hours}h`}>
+                      <Tag icon={<ClockCircleOutlined />}>
+                        {task.estimated_hours}h
+                      </Tag>
+                    </Tooltip>
+                  )}
+
+                  {task.total_hours && (
+                    <Tooltip title={`Trabajado: ${task.total_hours}h - $${task.total_value?.toLocaleString()}`}>
+                      <Tag icon={<DollarOutlined />} color="green">
+                        ${task.total_value?.toLocaleString()}
+                      </Tag>
+                    </Tooltip>
+                  )}
+                </Space>
+              </div>
+
+              {/* Action buttons - CRITICAL: outside drag handle with pointer events enabled */}
+              <div
+                style={{
+                  marginTop: 8,
+                  paddingTop: 8,
+                  borderTop: '1px solid #f0f0f0',
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  gap: 4,
+                  position: 'relative',
+                  zIndex: 10,
+                  pointerEvents: 'auto',
+                  cursor: 'default'
+                }}
+                onClick={(e) => {
+                  console.log('🖱️ Action buttons container clicked');
+                  e.stopPropagation();
+                }}
+              >
+                <Tooltip title="Editar">
+                  <Button
+                    size="small"
+                    type="text"
+                    icon={<EditOutlined />}
+                    onClick={(e) => {
+                      console.log('✏️ Edit button clicked for task:', task.id);
+                      e.stopPropagation();
+                      e.preventDefault();
+                      openEditTaskModal(task);
+                    }}
+                    style={{
+                      cursor: 'pointer',
+                      pointerEvents: 'auto'
+                    }}
+                  />
+                </Tooltip>
+                <Tooltip title="Eliminar">
+                  <Button
+                    size="small"
+                    type="text"
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={(e) => {
+                      console.log('🗑️ Delete button clicked for task:', task.id);
+                      e.stopPropagation();
+                      e.preventDefault();
+                      Modal.confirm({
+                        title: '¿Eliminar tarea?',
+                        content: 'Esta acción no se puede deshacer.',
+                        okText: 'Eliminar',
+                        okType: 'danger',
+                        cancelText: 'Cancelar',
+                        onOk: () => handleDeleteTask(task.id)
+                      });
+                    }}
+                    style={{
+                      cursor: 'pointer',
+                      pointerEvents: 'auto'
+                    }}
+                  />
+                </Tooltip>
+              </div>
+            </Card>
+          </div>
+        )}
+      </Draggable>
+    );
+  };
 
   const renderColumn = (column: TaskColumn) => {
     const columnTasks = selectedBoard?.tasks.filter(task => task.column_id === column.id) || [];
