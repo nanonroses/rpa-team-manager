@@ -1249,5 +1249,139 @@ export const migrations: Migration[] = [
       // Agregar columna de moneda
       `ALTER TABLE support_companies ADD COLUMN hourly_rate_currency TEXT DEFAULT 'CLP'`
     ]
+  },
+
+  {
+    version: 25,
+    description: 'Fase 1: crear business_areas (RPA/IA, SAP) y asignar area_id a usuarios existentes',
+    up: [
+      `CREATE TABLE IF NOT EXISTS business_areas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name VARCHAR(100) NOT NULL,
+        code VARCHAR(20) UNIQUE NOT NULL,
+        is_active BOOLEAN DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      `INSERT OR IGNORE INTO business_areas (name, code) VALUES ('RPA/IA', 'RPA_IA')`,
+      `INSERT OR IGNORE INTO business_areas (name, code) VALUES ('SAP', 'SAP')`,
+
+      `ALTER TABLE users ADD COLUMN area_id INTEGER REFERENCES business_areas(id)`,
+
+      // Todo el equipo actual pertenece a RPA/IA (aún no hay personal de SAP)
+      `UPDATE users SET area_id = (SELECT id FROM business_areas WHERE code = 'RPA_IA') WHERE area_id IS NULL`
+    ]
+  },
+
+  {
+    version: 26,
+    description: 'Fase 1: crear clients (entidad de cliente unificada), vincular support_companies y agregar columnas que el controller ya esperaba (contact_person, email, phone, address, notes, fechas de contrato)',
+    up: [
+      `CREATE TABLE IF NOT EXISTS clients (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name VARCHAR(200) NOT NULL,
+        tax_id VARCHAR(20),
+        contact_person VARCHAR(100),
+        email VARCHAR(100),
+        phone VARCHAR(50),
+        address TEXT,
+        notes TEXT,
+        is_active BOOLEAN DEFAULT 1,
+        created_by INTEGER REFERENCES users(id),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_clients_name ON clients(name)`,
+
+      // Columnas que supportController.createSupportCompany/updateSupportCompany ya leían y escribían
+      // pero no existían en la tabla real (bug pre-existente: la creación de empresas fallaba en runtime)
+      `ALTER TABLE support_companies ADD COLUMN client_id INTEGER REFERENCES clients(id)`,
+      `ALTER TABLE support_companies ADD COLUMN contact_person TEXT`,
+      `ALTER TABLE support_companies ADD COLUMN email TEXT`,
+      `ALTER TABLE support_companies ADD COLUMN phone TEXT`,
+      `ALTER TABLE support_companies ADD COLUMN address TEXT`,
+      `ALTER TABLE support_companies ADD COLUMN notes TEXT`,
+      `ALTER TABLE support_companies ADD COLUMN contract_start_date DATE`,
+      `ALTER TABLE support_companies ADD COLUMN contract_end_date DATE`,
+      `ALTER TABLE support_companies ADD COLUMN created_by INTEGER REFERENCES users(id)`,
+
+      // Un cliente por cada empresa de soporte real ya existente
+      `INSERT INTO clients (name, contact_person, email, phone, is_active)
+        SELECT company_name, NULL, contact_email, contact_phone, 1 FROM support_companies`,
+
+      `UPDATE support_companies SET client_id = (
+        SELECT c.id FROM clients c WHERE c.name = support_companies.company_name LIMIT 1
+      ) WHERE client_id IS NULL`
+    ]
+  },
+
+  {
+    version: 27,
+    description: 'Fase 1: extender projects con area_id, client_id, project_type, pm_user_id y currency',
+    up: [
+      `ALTER TABLE projects ADD COLUMN area_id INTEGER REFERENCES business_areas(id)`,
+      `ALTER TABLE projects ADD COLUMN client_id INTEGER REFERENCES clients(id)`,
+      `ALTER TABLE projects ADD COLUMN project_type VARCHAR(20) DEFAULT 'commercial' CHECK (project_type IN ('internal', 'commercial'))`,
+      `ALTER TABLE projects ADD COLUMN pm_user_id INTEGER REFERENCES users(id)`,
+      `ALTER TABLE projects ADD COLUMN currency VARCHAR(3) DEFAULT 'CLP'`,
+
+      // Los 5 proyectos reales de hoy son comerciales y del área RPA/IA
+      `UPDATE projects SET area_id = (SELECT id FROM business_areas WHERE code = 'RPA_IA') WHERE area_id IS NULL`,
+      `UPDATE projects SET project_type = 'commercial' WHERE project_type IS NULL`,
+
+      // Vincular por nombre: el proyecto "AGROSUPER - Toma de Control" contiene el nombre del cliente "AGROSUPER"
+      `UPDATE projects SET client_id = (
+        SELECT c.id FROM clients c WHERE projects.name LIKE '%' || c.name || '%' LIMIT 1
+      ) WHERE client_id IS NULL`
+    ]
+  },
+
+  {
+    version: 28,
+    description: 'Fase 1: crear exchange_rates (histórico por fecha, reemplaza el valor único de global_settings) y project_baselines (línea base, se usa desde Fase 4)',
+    up: [
+      `CREATE TABLE IF NOT EXISTS exchange_rates (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        currency VARCHAR(3) NOT NULL CHECK (currency IN ('USD', 'UF')),
+        rate_date DATE NOT NULL,
+        rate_to_clp DECIMAL(14,4) NOT NULL,
+        source VARCHAR(50) DEFAULT 'manual',
+        created_by INTEGER REFERENCES users(id),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(currency, rate_date)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_exchange_rates_currency_date ON exchange_rates(currency, rate_date DESC)`,
+
+      // Se migra el valor único que vivía en global_settings como el primer punto de la serie histórica.
+      // OJO: son los mismos valores que ya estaban configurados, no cifras nuevas verificadas.
+      `INSERT OR IGNORE INTO exchange_rates (currency, rate_date, rate_to_clp, source)
+        SELECT 'USD', date('now'), CAST(setting_value AS DECIMAL), 'migrated_from_global_settings'
+        FROM global_settings WHERE setting_key = 'usd_rate'`,
+      `INSERT OR IGNORE INTO exchange_rates (currency, rate_date, rate_to_clp, source)
+        SELECT 'UF', date('now'), CAST(setting_value AS DECIMAL), 'migrated_from_global_settings'
+        FROM global_settings WHERE setting_key = 'uf_rate'`,
+
+      `CREATE TABLE IF NOT EXISTS project_baselines (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        version INTEGER NOT NULL DEFAULT 1,
+        baseline_date DATE NOT NULL DEFAULT (date('now')),
+        start_date DATE,
+        end_date DATE,
+        budget DECIMAL(12,2),
+        budgeted_hours DECIMAL(8,2),
+        is_current BOOLEAN DEFAULT 1,
+        notes TEXT,
+        created_by INTEGER REFERENCES users(id),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        UNIQUE(project_id, version)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_project_baselines_project ON project_baselines(project_id)`
+    ]
   }
 ];

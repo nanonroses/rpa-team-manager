@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { db } from '../database/database';
 import { logger } from '../utils/logger';
+import { financeService } from '../services/financeService';
 
 // ========================================
 // PHASE TEMPLATES
@@ -714,8 +715,8 @@ export const getProjectROIAnalysis = async (req: Request, res: Response) => {
 
     const salePrice = financials?.sale_price || 0;
 
-    // Calculate costs (simplified - you can enhance with actual user hourly rates)
-    const avgHourlyRate = 50; // TODO: Calculate from user_cost_rates
+    // Costo por hora combinado real del equipo asignado (financeService), no un valor fijo
+    const { hourlyCostCLP: avgHourlyRate } = await financeService.getBlendedHourlyCostCLP(parseInt(projectId));
 
     const breakdown = phases.map(phase => ({
       phase_name: phase.name,

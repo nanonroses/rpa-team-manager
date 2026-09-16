@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { db } from '../database/database';
 import { logger } from '../utils/logger';
+import { financeService } from '../services/financeService';
 
 export class FinancialController {
 
@@ -129,181 +130,33 @@ export class FinancialController {
     };
 
     // GET /api/financial/project-roi/:projectId
+    // Fuente de verdad: financeService.calculateProjectFinancials (siempre recalculado, nunca leído de columnas cacheadas)
     getProjectROI = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             const { projectId } = req.params;
 
-            // Get project basic data
-            const project = await db.get(`
-                SELECT p.*, pf.* 
-                FROM projects p
-                LEFT JOIN project_financials pf ON p.id = pf.project_id
-                WHERE p.id = ?
-            `, [projectId]);
-
+            const project = await db.get(`SELECT id FROM projects WHERE id = ?`, [projectId]);
             if (!project) {
                 res.status(404).json({ error: 'Project not found' });
                 return;
             }
 
-            // Get settings (UF value and hours per month)
-            const ufValue = await db.get(`SELECT setting_value FROM global_settings WHERE setting_key = 'uf_rate'`);
-            const hoursPerMonth = await db.get(`SELECT setting_value FROM global_settings WHERE setting_key = 'monthly_hours'`);
-            
-            const ufValueCLP = parseFloat(ufValue?.setting_value || '37250.85'); // Default UF value
-            const monthlyHours = parseFloat(hoursPerMonth?.setting_value || '176'); // Default hours
+            const financials = await financeService.calculateProjectFinancials(parseInt(projectId));
 
-            // Get ALL assigned users and their costs
-            const assignedUsers = await db.query(`
-                SELECT 
-                    pa.user_id,
-                    pa.allocation_percentage,
-                    pa.role as project_role,
-                    u.full_name,
-                    u.role as user_role,
-                    ucr.monthly_cost,
-                    ucr.hourly_rate
-                FROM project_assignments pa
-                JOIN users u ON pa.user_id = u.id
-                LEFT JOIN user_cost_rates ucr ON pa.user_id = ucr.user_id AND ucr.is_active = 1
-                WHERE pa.project_id = ? AND pa.is_active = 1
-            `, [projectId]);
-
-            // Fallback to old single assignment if no multi-assignments found
-            if (assignedUsers.length === 0 && project.assigned_to) {
-                const singleUser = await db.get(`
-                    SELECT 
-                        u.id as user_id,
-                        100 as allocation_percentage,
-                        'primary' as project_role,
-                        u.full_name,
-                        u.role as user_role,
-                        ucr.monthly_cost,
-                        ucr.hourly_rate
-                    FROM users u
-                    LEFT JOIN user_cost_rates ucr ON u.id = ucr.user_id AND ucr.is_active = 1
-                    WHERE u.id = ?
-                `, [project.assigned_to]);
-                
-                if (singleUser) {
-                    assignedUsers.push(singleUser);
-                }
-            }
-
-            // Calculate total hourly cost from all assigned users
-            let totalHourlyEngineerCost = 0;
-            const userCostBreakdown: any[] = [];
-            
-            for (const user of assignedUsers) {
-                const monthlySalary = user.monthly_cost || 1000000; // Default salary
-                const userHourlyCost = monthlySalary / monthlyHours;
-                const adjustedHourlyCost = (userHourlyCost * user.allocation_percentage) / 100;
-                
-                totalHourlyEngineerCost += adjustedHourlyCost;
-                
-                userCostBreakdown.push({
-                    user_name: user.full_name,
-                    user_role: user.user_role,
-                    project_role: user.project_role,
-                    allocation_percentage: user.allocation_percentage,
-                    monthly_salary: monthlySalary,
-                    hourly_cost: userHourlyCost,
-                    adjusted_hourly_cost: adjustedHourlyCost
-                });
-            }
-
-            const hourlyEngineerCost = totalHourlyEngineerCost;
-
-            // Get client delay hours from milestones
-            const clientDelays = await db.get(`
-                SELECT COALESCE(SUM(estimated_delay_days * 8), 0) as total_delay_hours
-                FROM project_milestones
-                WHERE project_id = ? AND responsibility = 'client'
-            `, [projectId]);
-
-            const clientDelayHours = clientDelays?.total_delay_hours || 0;
-
-            // CALCULATIONS BASED ON YOUR LOGIC
-            const plannedHours = project.budgeted_hours || 100; // Default if not set
-            const hourlyRateUF = project.hourly_rate || 1.2; // Default if not set
-            
-            // 1. SALE PRICE (VENTA)
-            const salePrice = plannedHours * hourlyRateUF * ufValueCLP;
-            
-            // 2. PLANNED COST (COSTO PLANIFICADO)
-            const plannedCost = plannedHours * hourlyEngineerCost;
-            
-            // 3. REAL HOURS (with client delays)
-            const realHours = plannedHours + clientDelayHours;
-            
-            // 4. REAL COST (COSTO REAL)
-            const realCost = realHours * hourlyEngineerCost;
-            
-            // 5. PLANNED PROFIT (UTILIDAD PLANIFICADA)
-            const plannedProfit = salePrice - plannedCost;
-            
-            // 6. REAL PROFIT (GANANCIA REAL)
-            const realProfit = salePrice - realCost;
-            
-            // 7. ROI CALCULATIONS
-            const plannedROI = plannedCost > 0 ? (plannedProfit / plannedCost) * 100 : 0;
-            const realROI = realCost > 0 ? (realProfit / realCost) * 100 : 0;
-            
-            // 8. IMPACT OF CLIENT DELAYS
-            const delayImpact = realCost - plannedCost;
-            const lostProfit = plannedProfit - realProfit;
-
-            // Update financial record
+            // Cache opcional para reportes que consultan project_financials directamente;
+            // financeService siempre recalcula en vivo, esto solo mantiene el cache al día.
             await db.run(`
-                INSERT OR REPLACE INTO project_financials (
-                    project_id, sale_price, sale_price_currency,
-                    hourly_rate, hourly_rate_currency,
-                    budgeted_hours, budgeted_cost,
-                    actual_cost, profit_margin, roi_percentage,
-                    updated_at
-                ) VALUES (?, ?, 'CLP', ?, 'UF', ?, ?, ?, ?, ?, datetime('now'))
-            `, [
-                projectId, salePrice, hourlyRateUF,
-                plannedHours, plannedCost,
-                realCost, plannedProfit, plannedROI
-            ]);
+                UPDATE project_financials
+                SET actual_cost = ?, profit_margin = ?, roi_percentage = ?, updated_at = datetime('now')
+                WHERE project_id = ?
+            `, [financials.real_cost, financials.planned_profit, financials.planned_roi, projectId]);
 
             const result = {
-                project_id: parseInt(projectId),
-                project_name: project.name,
-                
-                // BASIC PARAMETERS
-                planned_hours: plannedHours,
-                real_hours: realHours,
-                client_delay_hours: clientDelayHours,
-                hourly_rate_uf: hourlyRateUF,
-                uf_value_clp: ufValueCLP,
-                engineer_hourly_cost: Math.round(hourlyEngineerCost),
-                
-                // ASSIGNED USERS BREAKDOWN
-                assigned_users: assignedUsers.length,
-                user_cost_breakdown: userCostBreakdown,
-                
-                // FINANCIAL RESULTS
-                sale_price: Math.round(salePrice),
-                planned_cost: Math.round(plannedCost),
-                real_cost: Math.round(realCost),
-                planned_profit: Math.round(plannedProfit),
-                real_profit: Math.round(realProfit),
-                
-                // ROI METRICS
-                planned_roi: Math.round(plannedROI * 100) / 100,
-                real_roi: Math.round(realROI * 100) / 100,
-                
-                // CLIENT IMPACT
-                delay_impact: Math.round(delayImpact),
-                lost_profit: Math.round(lostProfit),
-                
-                // ALERTS
-                alerts: this.generateROIAlerts(plannedROI, realROI, clientDelayHours)
+                ...financials,
+                alerts: this.generateROIAlerts(financials.planned_roi, financials.real_roi, financials.client_delay_hours)
             };
 
-            logger.info(`ROI calculated for project ${projectId}: Planned=${plannedROI.toFixed(1)}%, Real=${realROI.toFixed(1)}%`);
+            logger.info(`ROI calculated for project ${projectId}: Planned=${financials.planned_roi.toFixed(1)}%, Real=${financials.real_roi.toFixed(1)}%`);
             res.json(result);
         } catch (error) {
             logger.error('Get project ROI error:', error);
@@ -364,59 +217,69 @@ export class FinancialController {
     };
 
     // GET /api/financial/dashboard
+    // Todas las métricas se recalculan en vivo con financeService (no se leen columnas cacheadas
+    // de project_financials, que pueden estar desactualizadas o venir de datos de carga defectuosos).
     getROIDashboard = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
-            // Overall metrics (filtered to reasonable amounts)
-            const overallMetrics = await db.get(`
-                SELECT 
-                    COUNT(*) as total_projects,
-                    AVG(roi_percentage) as avg_roi,
-                    SUM(CASE WHEN sale_price <= 1000000 THEN sale_price ELSE 50000 END) as total_revenue,
-                    SUM(CASE WHEN actual_cost <= 500000 THEN actual_cost ELSE 25000 END) as total_costs,
-                    SUM(CASE WHEN profit_margin <= 500000 THEN profit_margin ELSE 25000 END) as total_profit,
-                    AVG(efficiency_percentage) as avg_efficiency
-                FROM project_financials pf
-                JOIN projects p ON pf.project_id = p.id
+            const projects = await db.query(`
+                SELECT p.id, p.name FROM projects p
                 WHERE p.status != 'cancelled'
-                AND pf.sale_price IS NOT NULL
             `);
 
-            // Project breakdown by ROI ranges
-            const roiBreakdown = await db.query(`
-                SELECT 
-                    CASE 
-                        WHEN roi_percentage >= 50 THEN 'excellent'
-                        WHEN roi_percentage >= 20 THEN 'good'
-                        WHEN roi_percentage >= 0 THEN 'break_even'
-                        ELSE 'loss'
-                    END as roi_category,
-                    COUNT(*) as project_count,
-                    AVG(roi_percentage) as avg_roi
-                FROM project_financials pf
-                JOIN projects p ON pf.project_id = p.id
-                WHERE p.status != 'cancelled'
-                GROUP BY roi_category
-            `);
+            const perProject = await Promise.all(
+                projects.map(async (p: any) => {
+                    try {
+                        return await financeService.calculateProjectFinancials(p.id);
+                    } catch (error) {
+                        logger.warn(`Skipping project ${p.id} in ROI dashboard: ${(error as Error).message}`);
+                        return null;
+                    }
+                })
+            );
+            const valid = perProject.filter((f): f is NonNullable<typeof f> => f !== null && f.sale_price > 0);
 
-            // Top performing projects
-            const topProjects = await db.query(`
-                SELECT 
-                    p.id,
-                    p.name,
-                    pf.roi_percentage,
-                    pf.profit_margin,
-                    pf.sale_price,
-                    pf.actual_cost
-                FROM project_financials pf
-                JOIN projects p ON pf.project_id = p.id
-                WHERE p.status != 'cancelled'
-                ORDER BY pf.roi_percentage DESC
-                LIMIT 5
-            `);
+            const overallMetrics = {
+                total_projects: valid.length,
+                avg_roi: valid.length
+                    ? Math.round((valid.reduce((s, f) => s + f.real_roi, 0) / valid.length) * 100) / 100
+                    : 0,
+                total_revenue: valid.reduce((s, f) => s + f.sale_price, 0),
+                total_costs: valid.reduce((s, f) => s + f.real_cost, 0),
+                total_profit: valid.reduce((s, f) => s + f.real_profit, 0)
+            };
+
+            const categoryOf = (roi: number) =>
+                roi >= 50 ? 'excellent' : roi >= 20 ? 'good' : roi >= 0 ? 'break_even' : 'loss';
+
+            const roiBreakdownMap = new Map<string, { project_count: number; roi_sum: number }>();
+            for (const f of valid) {
+                const cat = categoryOf(f.real_roi);
+                const entry = roiBreakdownMap.get(cat) || { project_count: 0, roi_sum: 0 };
+                entry.project_count += 1;
+                entry.roi_sum += f.real_roi;
+                roiBreakdownMap.set(cat, entry);
+            }
+            const roiBreakdown = Array.from(roiBreakdownMap.entries()).map(([roi_category, v]) => ({
+                roi_category,
+                project_count: v.project_count,
+                avg_roi: Math.round((v.roi_sum / v.project_count) * 100) / 100
+            }));
+
+            const topProjects = [...valid]
+                .sort((a, b) => b.real_roi - a.real_roi)
+                .slice(0, 5)
+                .map(f => ({
+                    id: f.project_id,
+                    name: f.project_name,
+                    roi_percentage: f.real_roi,
+                    profit_margin: f.real_profit,
+                    sale_price: f.sale_price,
+                    actual_cost: f.real_cost
+                }));
 
             // Active alerts
             const activeAlerts = await db.query(`
-                SELECT 
+                SELECT
                     ra.*,
                     p.name as project_name
                 FROM roi_alerts ra
