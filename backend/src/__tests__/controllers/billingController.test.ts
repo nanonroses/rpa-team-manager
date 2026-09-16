@@ -149,8 +149,31 @@ describe('BillingController', () => {
 
             await controller.recordPayment(req, res);
 
+            expect(db.beginTransaction).toHaveBeenCalled();
+            expect(db.commit).toHaveBeenCalled();
             expect(db.run).toHaveBeenCalledWith(expect.stringContaining("SET status = 'paid'"), expect.any(Array));
             expect(res.status).toHaveBeenCalledWith(201);
+        });
+
+        it('rechaza con 400 si la moneda del pago no coincide con la de la factura', async () => {
+            (db.get as jest.Mock).mockImplementation((sql: string) => {
+                if (sql.includes('FROM invoices WHERE id')) return Promise.resolve({ id: 5, amount: 1000, currency: 'CLP', status: 'issued', project_id: 1 });
+                return Promise.resolve(undefined);
+            });
+
+            const req: any = {
+                params: { id: '5' },
+                body: { amount: 1000, currency: 'USD', payment_date: '2026-09-16' },
+                user: { id: 1, role: 'team_lead' }
+            };
+            const res = mockRes();
+
+            await controller.recordPayment(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith({ error: 'Payment currency must match invoice currency' });
+            expect(db.beginTransaction).not.toHaveBeenCalled();
+            expect(db.run).not.toHaveBeenCalled();
         });
     });
 });

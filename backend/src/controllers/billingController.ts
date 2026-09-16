@@ -222,32 +222,44 @@ export class BillingController {
                 res.status(400).json({ error: `Cannot record a payment against an invoice in status '${invoice.status}'` });
                 return;
             }
-
-            const result = await db.run(
-                `INSERT INTO payments (invoice_id, amount, currency, payment_date, method, reference, notes, created_by)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                [id, amount, currency, payment_date, method ?? null, reference ?? null, notes ?? null, req.user?.id]
-            );
-
-            const totals = await db.query(
-                `SELECT COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE invoice_id = ? AND currency = ?`,
-                [id, invoice.currency]
-            );
-            const totalPaid = totals[0]?.total_paid ?? 0;
-
-            if (totalPaid >= invoice.amount) {
-                await db.run(`UPDATE invoices SET status = 'paid' WHERE id = ?`, [id]);
-                await db.run(
-                    `UPDATE payment_milestones SET status = 'paid'
-                     WHERE id IN (SELECT payment_milestone_id FROM invoice_lines WHERE invoice_id = ?)`,
-                    [id]
-                );
-            } else {
-                await db.run(`UPDATE invoices SET status = 'partially_paid' WHERE id = ?`, [id]);
+            if (currency !== invoice.currency) {
+                res.status(400).json({ error: 'Payment currency must match invoice currency' });
+                return;
             }
 
-            const created = await db.get(`SELECT * FROM payments WHERE id = ?`, [result.id]);
-            res.status(201).json(created);
+            await db.beginTransaction();
+            try {
+                const result = await db.run(
+                    `INSERT INTO payments (invoice_id, amount, currency, payment_date, method, reference, notes, created_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                    [id, amount, currency, payment_date, method ?? null, reference ?? null, notes ?? null, req.user?.id]
+                );
+
+                const totals = await db.query(
+                    `SELECT COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE invoice_id = ? AND currency = ?`,
+                    [id, invoice.currency]
+                );
+                const totalPaid = totals[0]?.total_paid ?? 0;
+
+                if (totalPaid >= invoice.amount) {
+                    await db.run(`UPDATE invoices SET status = 'paid' WHERE id = ?`, [id]);
+                    await db.run(
+                        `UPDATE payment_milestones SET status = 'paid'
+                         WHERE id IN (SELECT payment_milestone_id FROM invoice_lines WHERE invoice_id = ?)`,
+                        [id]
+                    );
+                } else {
+                    await db.run(`UPDATE invoices SET status = 'partially_paid' WHERE id = ?`, [id]);
+                }
+
+                await db.commit();
+
+                const created = await db.get(`SELECT * FROM payments WHERE id = ?`, [result.id]);
+                res.status(201).json(created);
+            } catch (txError) {
+                await db.rollback();
+                throw txError;
+            }
         } catch (error) {
             logger.error('Record payment error:', error);
             res.status(500).json({ error: 'Failed to record payment' });
