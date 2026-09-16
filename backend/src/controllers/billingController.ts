@@ -3,6 +3,8 @@ import { AuthenticatedRequest } from '../middleware/auth';
 import { db } from '../database/database';
 import { logger } from '../utils/logger';
 import { billingService } from '../services/billingService';
+import { financeService } from '../services/financeService';
+import { generatePaymentStatement } from '../services/pdfService';
 
 export class BillingController {
 
@@ -275,6 +277,59 @@ export class BillingController {
         } catch (error) {
             logger.error('Evaluate billing triggers error:', error);
             res.status(500).json({ error: 'Failed to evaluate billing triggers' });
+        }
+    };
+
+    getPaymentStatement = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.projectId);
+
+            const project = await db.get(
+                `SELECT p.*, c.name as client_name FROM projects p LEFT JOIN clients c ON c.id = p.client_id WHERE p.id = ?`,
+                [projectId]
+            );
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+
+            const financials = await financeService.calculateProjectFinancials(projectId);
+
+            const milestones = await db.query(
+                `SELECT name, amount, currency, status, planned_date FROM payment_milestones
+                 WHERE project_id = ? ORDER BY planned_date ASC`,
+                [projectId]
+            );
+
+            const hoursSummary = await db.query(
+                `SELECT u.full_name as user_name, COALESCE(SUM(te.hours), 0) as total_hours
+                 FROM time_entries te
+                 JOIN users u ON u.id = te.user_id
+                 WHERE te.project_id = ?
+                 GROUP BY te.user_id`,
+                [projectId]
+            );
+
+            const buffer = await generatePaymentStatement({
+                project_name: project.name,
+                client_name: project.client_name || 'N/A',
+                generated_at: new Date().toISOString().slice(0, 10),
+                financials: {
+                    sale_price: financials.sale_price,
+                    real_cost: financials.real_cost,
+                    real_roi: financials.real_roi,
+                    real_profit: financials.real_profit
+                },
+                milestones,
+                hours_summary: hoursSummary
+            });
+
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename="estado-pago-${projectId}.pdf"`);
+            res.send(buffer);
+        } catch (error) {
+            logger.error('Get payment statement error:', error);
+            res.status(500).json({ error: 'Failed to generate payment statement' });
         }
     };
 }

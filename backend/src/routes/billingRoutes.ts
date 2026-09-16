@@ -44,4 +44,9 @@ router.post('/invoices', billingWriteRoles, validate({ body: createInvoiceSchema
 // ========================================
 router.post('/invoices/:id/payments', billingPaymentRoles, validate({ body: createPaymentSchema }), billingController.recordPayment);
 
+// ========================================
+// ESTADO DE PAGO (PDF)
+// ========================================
+router.get('/projects/:projectId/payment-statement', billingReadRoles, billingController.getPaymentStatement);
+
 export default router;

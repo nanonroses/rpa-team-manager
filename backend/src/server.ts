@@ -248,7 +248,8 @@ class RPATeamManagerServer {
                         'DELETE /api/billing/payment-milestones/:id': 'Delete a pending payment milestone',
                         'GET /api/billing/invoices': 'Get invoices with lines and payments',
                         'POST /api/billing/invoices': 'Create an invoice from billable payment milestones',
-                        'POST /api/billing/invoices/:id/payments': 'Record a payment against an invoice (team_lead only)'
+                        'POST /api/billing/invoices/:id/payments': 'Record a payment against an invoice (team_lead only)',
+                        'GET /api/billing/projects/:projectId/payment-statement': 'Download the project payment statement PDF'
                     },
                     ai: {
                         'GET /api/ai/health': 'Get ML service health status',
