@@ -1,18 +1,16 @@
 import { Router } from 'express';
 import { AuthController } from '../controllers/authController';
 import { authenticate, rateLimit } from '../middleware/auth';
+import { validate } from '../middleware/validation';
+import { loginSchema } from '../validation/schemas';
 
 const router = Router();
 const authController = new AuthController();
 
 // Public routes
-router.post('/login', rateLimit(5, 15 * 60 * 1000), authController.login);
+router.post('/login', rateLimit(5, 15 * 60 * 1000), validate({ body: loginSchema }), authController.login);
 router.post('/reset-password', rateLimit(3, 60 * 60 * 1000), authController.resetPassword);
 router.get('/health', authController.health);
-
-// Temporary setup route (remove in production)
-router.post('/setup-test-users', authController.setupTestUsers);
-router.get('/debug-user', authController.debugUser);
 
 // Protected routes (require authentication)
 router.post('/logout', authenticate, authController.logout);

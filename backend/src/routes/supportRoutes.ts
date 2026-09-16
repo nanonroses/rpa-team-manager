@@ -1,5 +1,7 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth';
+import { authenticate, authorize } from '../middleware/auth';
+import { validate } from '../middleware/validation';
+import { createSupportCompanySchema, updateSupportCompanySchema } from '../validation/schemas';
 import { SupportController } from '../controllers/supportController';
 
 const router = Router();
@@ -7,6 +9,11 @@ const supportController = new SupportController();
 
 // All routes require authentication
 router.use(authenticate);
+
+// Business/contract configuration: PM-level roles
+const supportConfigRoles = authorize(['team_lead', 'rpa_operations']);
+// Irreversible/financial-impact actions: highest bar
+const supportAdminRoles = authorize(['team_lead']);
 
 // ========================================
 // SUPPORT COMPANIES ROUTES
@@ -19,13 +26,13 @@ router.get('/companies', supportController.getSupportCompanies);
 router.get('/companies/:id', supportController.getSupportCompany);
 
 // POST /api/support/companies - Create new support company
-router.post('/companies', supportController.createSupportCompany);
+router.post('/companies', supportConfigRoles, validate({ body: createSupportCompanySchema }), supportController.createSupportCompany);
 
 // PUT /api/support/companies/:id - Update support company
-router.put('/companies/:id', supportController.updateSupportCompany);
+router.put('/companies/:id', supportConfigRoles, validate({ body: updateSupportCompanySchema }), supportController.updateSupportCompany);
 
 // DELETE /api/support/companies/:id - Delete support company
-router.delete('/companies/:id', supportController.deleteSupportCompany);
+router.delete('/companies/:id', supportAdminRoles, supportController.deleteSupportCompany);
 
 // GET /api/support/companies/:id/billing - Get billing data for specific company
 router.get('/companies/:id/billing', supportController.getCompanyBilling);
@@ -58,7 +65,7 @@ router.get('/dashboard', supportController.getSupportDashboard);
 router.get('/rpa-processes', supportController.getRPAProcesses);
 
 // POST /api/support/rpa-processes - Create new RPA process
-router.post('/rpa-processes', supportController.createRPAProcess);
+router.post('/rpa-processes', supportConfigRoles, supportController.createRPAProcess);
 
 // ========================================
 // CONTACTS ROUTES
@@ -78,9 +85,9 @@ router.post('/companies/:id/contacts', supportController.createCompanyContact);
 // ========================================
 
 // POST /api/support/import/preview - Preview Excel file for import
-router.post('/import/preview', supportController.getUploadMiddleware(), supportController.previewExcelImport);
+router.post('/import/preview', supportConfigRoles, supportController.getUploadMiddleware(), supportController.previewExcelImport);
 
 // POST /api/support/import/execute - Execute Excel import
-router.post('/import/execute', supportController.getUploadMiddleware(), supportController.executeExcelImport);
+router.post('/import/execute', supportConfigRoles, supportController.getUploadMiddleware(), supportController.executeExcelImport);
 
 export default router;

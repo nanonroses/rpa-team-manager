@@ -133,6 +133,7 @@ const SupportPage: React.FC = () => {
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(dayjs()); // Mes actual por defecto
 
   // Data for dropdowns
@@ -216,34 +217,12 @@ const SupportPage: React.FC = () => {
       const monthParam = selectedMonth.format('YYYY-MM');
       const data = await apiService.getSupportDashboard(monthParam);
       setDashboardData(data);
+      setLoadError(null);
     } catch (error) {
       console.error('Error loading dashboard data:', error);
-      // Fallback to mock data if API fails
-      setDashboardData({
-        summary: {
-          totalCompanies: 8,
-          totalActiveTickets: 12,
-          thisMonthTickets: 35,
-          thisMonthResolved: 28
-        },
-        topCompanies: [
-          {
-            company_name: 'Empresa ABC',
-            contracted_hours_monthly: 30,
-            consumed_hours: 28,
-            remaining_hours: 2,
-            status: 'near_limit'
-          },
-          {
-            company_name: 'Corporación XYZ',
-            contracted_hours_monthly: 50,
-            consumed_hours: 35,
-            remaining_hours: 15,
-            status: 'normal'
-          }
-        ],
-        recentTickets: []
-      });
+      setDashboardData(null);
+      setLoadError('No se pudo cargar el dashboard de soporte. Los datos mostrados podrían no estar actualizados.');
+      message.error('No se pudo cargar el dashboard de soporte.');
     } finally {
       setLoading(false);
     }
@@ -255,26 +234,12 @@ const SupportPage: React.FC = () => {
       const monthParam = selectedMonth.format('YYYY-MM');
       const response = await apiService.getSupportCompanies({ month: monthParam });
       setCompanies(response.data || []);
+      setLoadError(null);
     } catch (error) {
       console.error('Error loading companies:', error);
-      // Fallback to mock data if API fails
-      setCompanies([
-        {
-          id: 1,
-          company_name: 'Empresa ABC',
-          contact_person: 'Juan Pérez',
-          email: 'juan@empresaabc.com',
-          phone: '+56912345678',
-          contracted_hours_monthly: 30,
-          hourly_rate: 65000,
-          hourly_rate_currency: 'CLP',
-          status: 'active',
-          current_month_consumed_hours: 28,
-          current_month_remaining_hours: 2,
-          total_tickets: 45,
-          open_tickets: 3
-        }
-      ]);
+      setCompanies([]);
+      setLoadError('No se pudieron cargar las empresas de soporte.');
+      message.error('No se pudieron cargar las empresas de soporte.');
     } finally {
       setLoading(false);
     }
@@ -285,30 +250,12 @@ const SupportPage: React.FC = () => {
     try {
       const response = await apiService.getSupportTickets();
       setTickets(response.data || []);
+      setLoadError(null);
     } catch (error) {
       console.error('Error loading tickets:', error);
-      // Fallback to mock data if API fails
-      setTickets([
-        {
-          id_ticket: 'SUP-2025-001',
-          company_name: 'Empresa ABC',
-          client_name: 'María González',
-          ticket_type: 'Bug',
-          attention_method: 'Remote',
-          rpa_process: 'Facturación Automática',
-          requester: 'María González',
-          resolver_name: 'Carlos López',
-          description: 'El proceso de facturación se detiene en el paso 3',
-          solution: '',
-          status: 'in_progress',
-          priority: 'high',
-          created_at: '2025-01-20T10:30:00Z',
-          resolved_at: '',
-          hours_spent: 2.5,
-          hours_calculated: 2.5,
-          customer_satisfaction: 0
-        }
-      ]);
+      setTickets([]);
+      setLoadError('No se pudieron cargar los tickets de soporte.');
+      message.error('No se pudieron cargar los tickets de soporte.');
     } finally {
       setLoading(false);
     }
@@ -1027,6 +974,16 @@ const SupportPage: React.FC = () => {
           Administra empresas clientes, tickets de soporte y facturación por horas de soporte técnico
         </Text>
       </div>
+
+      {loadError && (
+        <Alert
+          type="error"
+          showIcon
+          message="Error al cargar datos de Soporte"
+          description={loadError}
+          style={{ marginBottom: '16px' }}
+        />
+      )}
 
       <Tabs
         activeKey={activeTab}

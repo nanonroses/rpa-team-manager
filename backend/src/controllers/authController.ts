@@ -187,33 +187,6 @@ export class AuthController {
         }
     };
 
-    // POST /api/auth/setup-test-users (temporary method)
-    setupTestUsers = async (req: Request, res: Response): Promise<void> => {
-        try {
-            const result = await this.authService.setupTestUsers();
-            res.json(result);
-        } catch (error) {
-            logger.error('Setup test users error:', error);
-            res.status(500).json({ error: 'Failed to setup test users' });
-        }
-    };
-
-    // GET /api/auth/debug-user (temporary debugging method)
-    debugUser = async (req: Request, res: Response): Promise<void> => {
-        try {
-            const { email } = req.query;
-            if (!email) {
-                res.status(400).json({ error: 'Email query parameter required' });
-                return;
-            }
-            const result = await this.authService.debugUserLogin(email as string);
-            res.json(result);
-        } catch (error) {
-            logger.error('Debug user error:', error);
-            res.status(500).json({ error: 'Debug failed' });
-        }
-    };
-
     // POST /api/auth/admin/users - Create new user (team_lead only)
     createUser = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {

@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { ProjectController } from '../controllers/projectController';
-import { authenticate, authorize, requirePermission } from '../middleware/auth';
+import { authenticate, authorize } from '../middleware/auth';
+import { validate } from '../middleware/validation';
+import { createProjectSchema, updateProjectSchema } from '../validation/schemas';
 import multer from 'multer';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -58,13 +60,14 @@ router.get('/', projectController.getProjects);
 router.get('/:id', projectController.getProject);
 
 // POST /api/projects - Create new project (team_lead and rpa_operations only)
-router.post('/', 
-    authorize(['team_lead', 'rpa_operations']), 
+router.post('/',
+    authorize(['team_lead', 'rpa_operations']),
+    validate({ body: createProjectSchema }),
     projectController.createProject
 );
 
 // PUT /api/projects/:id - Update project
-router.put('/:id', projectController.updateProject);
+router.put('/:id', validate({ body: updateProjectSchema }), projectController.updateProject);
 
 // DELETE /api/projects/:id - Delete project (team_lead only)
 router.delete('/:id', 

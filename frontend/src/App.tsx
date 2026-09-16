@@ -131,8 +131,12 @@ function App() {
                 </ProtectedRoute>
               } />
 
-              {/* LLM Configuration */}
-              <Route path="settings/llm" element={<LLMConfigPage />} />
+              {/* LLM Configuration (Team Lead only) */}
+              <Route path="settings/llm" element={
+                <ProtectedRoute requiredRoles={['team_lead']}>
+                  <LLMConfigPage />
+                </ProtectedRoute>
+              } />
             </Route>
             
             {/* Unauthorized page */}

@@ -1,7 +1,7 @@
 const http = require('http');
 
 // Configuration
-const BASE_URL = 'http://localhost:3001';
+const BASE_URL = 'http://localhost:5001';
 const TEST_CREDENTIALS = {
   email: 'admin@rpa.com',
   password: 'admin123'

@@ -1,9 +1,11 @@
 import { z } from 'zod';
 
 // User validation schemas
+// Note: password length/complexity is enforced at creation/change time (createUserSchema),
+// not at login - existing accounts must not be locked out by a stricter login policy.
 export const loginSchema = z.object({
     email: z.string().email('Invalid email format').max(100),
-    password: z.string().min(8, 'Password must be at least 8 characters').max(128)
+    password: z.string().min(1, 'Password is required').max(128)
 });
 
 export const createUserSchema = z.object({
@@ -21,12 +23,16 @@ export const createProjectSchema = z.object({
     status: z.enum(['planning', 'active', 'on_hold', 'completed', 'cancelled']).optional(),
     priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
     budget: z.number().positive('Budget must be positive').max(999999999.99).optional(),
-    start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional(),
-    end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional(),
-    assigned_to: z.number().int().positive().optional()
+    start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional().nullable(),
+    end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional().nullable(),
+    assigned_to: z.number().int().positive().optional().nullable()
 });
 
-export const updateProjectSchema = createProjectSchema.partial();
+export const updateProjectSchema = createProjectSchema.extend({
+    actual_start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional(),
+    actual_end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional(),
+    progress_percentage: z.number().int().min(0).max(100).optional()
+}).partial();
 
 // Support validation schemas
 export const createSupportCompanySchema = z.object({
@@ -38,7 +44,11 @@ export const createSupportCompanySchema = z.object({
     hourly_rate: z.number().positive('Hourly rate must be positive').max(9999.99),
     hourly_rate_extra: z.number().min(0).max(9999.99).optional(),
     hourly_rate_currency: z.enum(['USD', 'UF', 'CLP']),
-    status: z.enum(['active', 'inactive', 'suspended']).optional()
+    status: z.enum(['active', 'inactive', 'suspended']).optional(),
+    address: z.string().max(500).optional(),
+    notes: z.string().max(2000).optional(),
+    contract_start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional(),
+    contract_end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional()
 });
 
 export const updateSupportCompanySchema = createSupportCompanySchema.partial();
@@ -50,9 +60,18 @@ export const createMilestoneSchema = z.object({
     description: z.string().max(500).optional(),
     milestone_type: z.enum(['delivery', 'review', 'approval', 'testing', 'deployment']).optional(),
     planned_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+    end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional(),
+    actual_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional().nullable(),
     priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
     responsible_user_id: z.number().int().positive().optional(),
-    impact_on_timeline: z.number().int().min(-365).max(365).optional()
+    impact_on_timeline: z.number().int().min(-365).max(365).optional(),
+    responsibility: z.string().max(50).optional(),
+    blocking_reason: z.string().max(1000).optional(),
+    delay_justification: z.string().max(1000).optional(),
+    external_contact: z.string().max(200).optional(),
+    estimated_delay_days: z.number().int().optional(),
+    financial_impact: z.number().optional(),
+    status: z.string().max(50).optional()
 });
 
 // Task validation schemas
@@ -66,7 +85,7 @@ export const createTaskSchema = z.object({
     assignee_id: z.number().int().positive().optional(),
     story_points: z.number().int().min(0).max(100).optional(),
     estimated_hours: z.number().positive().max(9999.99).optional(),
-    due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/, 'Invalid datetime format').optional()
+    due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}/, 'Date must be in YYYY-MM-DD format').optional().nullable()
 });
 
 // ID parameter validation
@@ -99,14 +118,14 @@ export const fileUploadSchema = z.object({
 });
 
 // Time entry validation
+// Note: user_id is derived server-side from the authenticated session, never from the client body.
 export const createTimeEntrySchema = z.object({
+    project_id: z.number().int().positive('Valid project ID required'),
     task_id: z.number().int().positive('Valid task ID required').optional(),
-    project_id: z.number().int().positive('Valid project ID required').optional(),
-    user_id: z.number().int().positive('Valid user ID required'),
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
     hours: z.number().positive('Hours must be positive').max(24, 'Hours cannot exceed 24 per day'),
     description: z.string().max(500).optional(),
-    billable: z.boolean().optional()
-}).refine(data => data.task_id || data.project_id, {
-    message: 'Either task_id or project_id must be provided'
+    start_time: z.string().max(20).optional(),
+    end_time: z.string().max(20).optional(),
+    is_billable: z.boolean().optional()
 });

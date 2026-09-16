@@ -7,7 +7,16 @@ build/
 *.log
 *.sqlite
 *.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
 .env
 .env.*.local
 coverage/
 tmp/
+
+# Stray debug/fix scripts and backups accumulated during ad-hoc troubleshooting
+# (see backend/scripts/legacy/ for the archived history of these)
+*.backup
+nul
+backend/backups/
+

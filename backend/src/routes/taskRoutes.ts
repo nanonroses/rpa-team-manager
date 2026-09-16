@@ -1,6 +1,8 @@
 import express from 'express';
 import { TaskController } from '../controllers/taskController';
 import { authenticate } from '../middleware/auth';
+import { validate } from '../middleware/validation';
+import { createTaskSchema } from '../validation/schemas';
 
 const router = express.Router();
 const taskController = new TaskController();
@@ -12,7 +14,7 @@ router.post('/tasks/boards', authenticate, taskController.createBoard);
 
 // Tasks CRUD
 router.get('/tasks', authenticate, taskController.getTasks);
-router.post('/tasks', authenticate, taskController.createTask);
+router.post('/tasks', authenticate, validate({ body: createTaskSchema }), taskController.createTask);
 
 // Specific routes MUST come before parameterized routes
 router.post('/tasks/batch', authenticate, taskController.batchCreateTasks);

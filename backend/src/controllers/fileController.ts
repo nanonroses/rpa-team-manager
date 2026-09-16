@@ -5,6 +5,7 @@ import { logger } from '../utils/logger';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
+import { createReadStream } from 'fs';
 import crypto from 'crypto';
 import mime from 'mime-types';
 
@@ -462,7 +463,7 @@ export class FileController {
       res.setHeader('Content-Length', file.file_size);
 
       // Stream file
-      const fileStream = require('fs').createReadStream(file.file_path);
+      const fileStream = createReadStream(file.file_path);
       fileStream.pipe(res);
 
     } catch (error) {

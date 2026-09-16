@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 
 // Import pdf-parse from Node.js specific entry point
-const pdfParse = require('pdf-parse/node');
+import pdfParse from 'pdf-parse/node';
 
 export interface ParsedDocument {
     text: string;
