@@ -1383,5 +1383,98 @@ export const migrations: Migration[] = [
 
       `CREATE INDEX IF NOT EXISTS idx_project_baselines_project ON project_baselines(project_id)`
     ]
+  },
+
+  {
+    version: 29,
+    description: 'Fase 2: crear payment_milestones, invoices, invoice_lines y payments (cobros e hitos de pago)',
+    up: [
+      `CREATE TABLE IF NOT EXISTS payment_milestones (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        project_milestone_id INTEGER,
+        name VARCHAR(200) NOT NULL,
+        description TEXT,
+        amount DECIMAL(14,2) NOT NULL CHECK (amount > 0),
+        currency VARCHAR(3) NOT NULL DEFAULT 'CLP' CHECK (currency IN ('CLP', 'USD', 'UF')),
+        trigger_type VARCHAR(20) NOT NULL CHECK (trigger_type IN ('date', 'progress_pct', 'deliverable_approved')),
+        trigger_value DECIMAL(5,2),
+        planned_date DATE,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'billable', 'invoiced', 'paid', 'overdue')),
+        billable_at DATETIME,
+        sort_order INTEGER DEFAULT 0,
+        created_by INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (project_milestone_id) REFERENCES project_milestones(id) ON DELETE SET NULL,
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_payment_milestones_project ON payment_milestones(project_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_payment_milestones_status ON payment_milestones(status)`,
+
+      `CREATE TRIGGER IF NOT EXISTS update_payment_milestones_timestamp
+        AFTER UPDATE ON payment_milestones
+        BEGIN
+          UPDATE payment_milestones SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END`,
+
+      `CREATE TABLE IF NOT EXISTS invoices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        invoice_number VARCHAR(50) NOT NULL UNIQUE,
+        issue_date DATE NOT NULL,
+        due_date DATE NOT NULL,
+        currency VARCHAR(3) NOT NULL DEFAULT 'CLP' CHECK (currency IN ('CLP', 'USD', 'UF')),
+        amount DECIMAL(14,2) NOT NULL DEFAULT 0,
+        status VARCHAR(20) NOT NULL DEFAULT 'issued' CHECK (status IN ('draft', 'issued', 'partially_paid', 'paid', 'overdue', 'cancelled')),
+        notes TEXT,
+        created_by INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_invoices_project ON invoices(project_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_invoices_status ON invoices(status)`,
+
+      `CREATE TRIGGER IF NOT EXISTS update_invoices_timestamp
+        AFTER UPDATE ON invoices
+        BEGIN
+          UPDATE invoices SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END`,
+
+      `CREATE TABLE IF NOT EXISTS invoice_lines (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoice_id INTEGER NOT NULL,
+        payment_milestone_id INTEGER,
+        description VARCHAR(300) NOT NULL,
+        amount DECIMAL(14,2) NOT NULL CHECK (amount > 0),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+        FOREIGN KEY (payment_milestone_id) REFERENCES payment_milestones(id) ON DELETE SET NULL
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_invoice_lines_invoice ON invoice_lines(invoice_id)`,
+
+      `CREATE TABLE IF NOT EXISTS payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoice_id INTEGER NOT NULL,
+        amount DECIMAL(14,2) NOT NULL CHECK (amount > 0),
+        currency VARCHAR(3) NOT NULL DEFAULT 'CLP' CHECK (currency IN ('CLP', 'USD', 'UF')),
+        payment_date DATE NOT NULL,
+        method VARCHAR(50),
+        reference VARCHAR(100),
+        notes TEXT,
+        created_by INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id)`
+    ]
   }
 ];
