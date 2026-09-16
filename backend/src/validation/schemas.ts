@@ -129,3 +129,54 @@ export const createTimeEntrySchema = z.object({
     end_time: z.string().max(20).optional(),
     is_billable: z.boolean().optional()
 });
+
+// Billing / Payment Milestones validation schemas (Fase 2)
+export const createPaymentMilestoneSchema = z.object({
+    project_id: z.number().int().positive('Valid project ID required'),
+    project_milestone_id: z.number().int().positive().optional().nullable(),
+    name: z.string().min(1, 'Milestone name is required').max(200),
+    description: z.string().max(1000).optional(),
+    amount: z.number().positive('Amount must be positive'),
+    currency: z.enum(['CLP', 'USD', 'UF']),
+    trigger_type: z.enum(['date', 'progress_pct', 'deliverable_approved']),
+    trigger_value: z.number().min(0).max(100).optional().nullable(),
+    planned_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional().nullable(),
+    sort_order: z.number().int().optional()
+}).refine(
+    (data) => data.trigger_type !== 'progress_pct' || (data.trigger_value !== null && data.trigger_value !== undefined),
+    { message: 'trigger_value is required when trigger_type is progress_pct', path: ['trigger_value'] }
+).refine(
+    (data) => (data.trigger_type !== 'progress_pct' && data.trigger_type !== 'deliverable_approved') || !!data.project_milestone_id,
+    { message: 'project_milestone_id is required for progress_pct and deliverable_approved triggers', path: ['project_milestone_id'] }
+).refine(
+    (data) => data.trigger_type !== 'date' || !!data.planned_date,
+    { message: 'planned_date is required when trigger_type is date', path: ['planned_date'] }
+);
+
+export const updatePaymentMilestoneSchema = z.object({
+    name: z.string().min(1).max(200).optional(),
+    description: z.string().max(1000).optional(),
+    amount: z.number().positive().optional(),
+    currency: z.enum(['CLP', 'USD', 'UF']).optional(),
+    planned_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional().nullable(),
+    trigger_value: z.number().min(0).max(100).optional().nullable(),
+    sort_order: z.number().int().optional()
+});
+
+export const createInvoiceSchema = z.object({
+    project_id: z.number().int().positive('Valid project ID required'),
+    invoice_number: z.string().min(1, 'Invoice number is required').max(50),
+    issue_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+    due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+    payment_milestone_ids: z.array(z.number().int().positive()).min(1, 'At least one payment milestone is required'),
+    notes: z.string().max(2000).optional()
+});
+
+export const createPaymentSchema = z.object({
+    amount: z.number().positive('Amount must be positive'),
+    currency: z.enum(['CLP', 'USD', 'UF']),
+    payment_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+    method: z.string().max(50).optional(),
+    reference: z.string().max(100).optional(),
+    notes: z.string().max(1000).optional()
+});

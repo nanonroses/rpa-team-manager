@@ -24,6 +24,7 @@ import pmoRoutes from './routes/pmoRoutes';
 import aiRoutes from './routes/aiRoutes';
 import lifecycleRoutes from './routes/lifecycleRoutes';
 import llmConfigRoutes from './routes/llmConfigRoutes';
+import billingRoutes from './routes/billingRoutes';
 // import adminRoutes from './routes/adminRoutes';
 
 // Import database and logger
@@ -147,6 +148,7 @@ class RPATeamManagerServer {
         this.app.use('/api/ai', aiRoutes);
         this.app.use('/api/lifecycle', lifecycleRoutes);
         this.app.use('/api/llm-config', llmConfigRoutes);
+        this.app.use('/api/billing', billingRoutes);
         // this.app.use('/api/admin', commonEndpointsLimiter, adminRoutes);
 
         // API documentation route
@@ -236,6 +238,17 @@ class RPATeamManagerServer {
                         'POST /api/support/tickets/:id/comments': 'Add comment/update to support ticket',
                         'GET /api/support/dashboard': 'Get support dashboard and summary statistics',
                         'GET /api/support/billing-report': 'Get monthly billing report for all companies'
+                    },
+                    billing: {
+                        'GET /api/billing/dashboard': 'Get cobranza dashboard (ready to invoice, invoiced, paid, overdue, cashflow projection)',
+                        'POST /api/billing/evaluate': 'Manually re-evaluate payment milestone triggers and overdue status',
+                        'GET /api/billing/payment-milestones': 'Get payment milestones with optional project_id filter',
+                        'POST /api/billing/payment-milestones': 'Create a payment milestone',
+                        'PUT /api/billing/payment-milestones/:id': 'Update a pending payment milestone',
+                        'DELETE /api/billing/payment-milestones/:id': 'Delete a pending payment milestone',
+                        'GET /api/billing/invoices': 'Get invoices with lines and payments',
+                        'POST /api/billing/invoices': 'Create an invoice from billable payment milestones',
+                        'POST /api/billing/invoices/:id/payments': 'Record a payment against an invoice (team_lead only)'
                     },
                     ai: {
                         'GET /api/ai/health': 'Get ML service health status',
