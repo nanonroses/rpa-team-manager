@@ -229,7 +229,9 @@ export class FinancialController {
             const perProject = await Promise.all(
                 projects.map(async (p: any) => {
                     try {
-                        return await financeService.calculateProjectFinancials(p.id);
+                        const financials = await financeService.calculateProjectFinancials(p.id);
+                        await financeService.syncROIAlerts(p.id);
+                        return financials;
                     } catch (error) {
                         logger.warn(`Skipping project ${p.id} in ROI dashboard: ${(error as Error).message}`);
                         return null;

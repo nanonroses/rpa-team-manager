@@ -98,7 +98,7 @@ export class BillingService {
         const projectParams = projectId ? [projectId] : [];
 
         const overdueRows = await db.query(
-            `SELECT DISTINCT pm.id, i.id as invoice_id, i.due_date
+            `SELECT DISTINCT pm.id, pm.project_id, i.id as invoice_id, i.due_date
              FROM payment_milestones pm
              JOIN invoice_lines il ON il.payment_milestone_id = pm.id
              JOIN invoices i ON i.id = il.invoice_id
@@ -109,11 +109,13 @@ export class BillingService {
 
         let transitioned = 0;
         for (const row of overdueRows) {
+            const daysOverdue = Math.floor((Date.now() - new Date(row.due_date).getTime()) / 86400000);
             await db.run(`UPDATE payment_milestones SET status = 'overdue' WHERE id = ?`, [row.id]);
             await db.run(
                 `UPDATE invoices SET status = 'overdue' WHERE id = ? AND status NOT IN ('paid', 'cancelled')`,
                 [row.invoice_id]
             );
+            await this.syncOverdueAlert(row.id, projectId ?? row.project_id, daysOverdue);
             transitioned++;
         }
 
@@ -122,6 +124,31 @@ export class BillingService {
         }
 
         return { transitioned };
+    }
+
+    /** Persiste en roi_alerts una alerta de cobro vencido para un hito de pago específico. */
+    async syncOverdueAlert(paymentMilestoneId: number, projectId: number, daysOverdue: number): Promise<void> {
+        const existing = await db.get(
+            `SELECT id FROM roi_alerts WHERE project_id = ? AND alert_type = 'overdue_payment' AND is_resolved = 0
+             AND message LIKE ?`,
+            [projectId, `%hito #${paymentMilestoneId}%`]
+        );
+
+        const message = `Cobro vencido para el hito #${paymentMilestoneId} (${daysOverdue} días de atraso)`;
+        const level = daysOverdue > 30 ? 'critical' : 'warning';
+
+        if (existing) {
+            await db.run(
+                `UPDATE roi_alerts SET current_value = ?, message = ?, alert_level = ? WHERE id = ?`,
+                [daysOverdue, message, level, existing.id]
+            );
+        } else {
+            await db.run(
+                `INSERT INTO roi_alerts (project_id, alert_type, alert_level, message, threshold_value, current_value)
+                 VALUES (?, ?, ?, ?, 0, ?)`,
+                [projectId, 'overdue_payment', level, message, daysOverdue]
+            );
+        }
     }
 
     private async toRow(raw: any): Promise<PaymentMilestoneRow> {

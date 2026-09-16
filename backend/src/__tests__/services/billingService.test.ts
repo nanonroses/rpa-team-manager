@@ -139,4 +139,18 @@ describe('BillingService', () => {
             expect(dashboard.summary.total_paid_clp).toBe(100 * 38000);
         });
     });
+
+    describe('syncOverdueAlert', () => {
+        it('crea una alerta overdue_payment para un hito vencido', async () => {
+            (db.get as jest.Mock).mockResolvedValue(undefined);
+            (db.run as jest.Mock).mockResolvedValue({ id: 1, changes: 1 });
+
+            await billingService.syncOverdueAlert(10, 1, 15);
+
+            expect(db.run).toHaveBeenCalledWith(
+                expect.stringContaining('INSERT INTO roi_alerts'),
+                expect.arrayContaining([1, 'overdue_payment'])
+            );
+        });
+    });
 });

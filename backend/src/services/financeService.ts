@@ -212,6 +212,70 @@ export class FinanceService {
             lost_profit: Math.round(lostProfit)
         };
     }
+
+    /**
+     * Persiste en roi_alerts los estados de sobrecosto y margen bajo del proyecto.
+     * Idempotente: si la condición ya no aplica, resuelve la alerta activa en vez de dejarla huérfana.
+     * Se llama de forma perezosa (no hay scheduler): desde el dashboard de cobranza y desde
+     * getProjectROI/getROIDashboard en financialController.
+     */
+    async syncROIAlerts(projectId: number): Promise<void> {
+        const financials = await this.calculateProjectFinancials(projectId);
+
+        await this.upsertAlert(projectId, 'cost_overrun',
+            financials.sale_price > 0 && financials.real_cost > financials.sale_price * 0.8,
+            financials.sale_price * 0.8,
+            financials.real_cost,
+            `Costo real (${financials.real_cost.toLocaleString('es-CL')}) supera el 80% del precio de venta`,
+            financials.real_cost > financials.sale_price ? 'critical' : 'warning'
+        );
+
+        await this.upsertAlert(projectId, 'low_margin',
+            financials.real_roi < 20,
+            20,
+            financials.real_roi,
+            `ROI real de ${financials.real_roi.toFixed(1)}% por debajo del objetivo de 20%`,
+            financials.real_roi < 0 ? 'critical' : 'warning'
+        );
+    }
+
+    /** Crea, actualiza o resuelve una alerta de roi_alerts según si la condición sigue activa. */
+    private async upsertAlert(
+        projectId: number,
+        alertType: string,
+        conditionActive: boolean,
+        thresholdValue: number,
+        currentValue: number,
+        message: string,
+        level: 'info' | 'warning' | 'critical'
+    ): Promise<void> {
+        // alertType es siempre una constante interna ('cost_overrun' | 'low_margin'), nunca input de usuario;
+        // se embebe literal (igual que billingService.syncOverdueAlert) en vez de parametrizarlo.
+        const existing = await db.get(
+            `SELECT id FROM roi_alerts WHERE project_id = ? AND alert_type = '${alertType}' AND is_resolved = 0`,
+            [projectId]
+        );
+
+        if (conditionActive) {
+            if (existing) {
+                await db.run(
+                    `UPDATE roi_alerts SET current_value = ?, threshold_value = ?, message = ?, alert_level = ? WHERE id = ?`,
+                    [currentValue, thresholdValue, message, level, existing.id]
+                );
+            } else {
+                await db.run(
+                    `INSERT INTO roi_alerts (project_id, alert_type, alert_level, message, threshold_value, current_value)
+                     VALUES (?, ?, ?, ?, ?, ?)`,
+                    [projectId, alertType, level, message, thresholdValue, currentValue]
+                );
+            }
+        } else if (existing) {
+            await db.run(
+                `UPDATE roi_alerts SET is_resolved = 1, resolved_at = datetime('now') WHERE id = ?`,
+                [existing.id]
+            );
+        }
+    }
 }
 
 export const financeService = new FinanceService();
