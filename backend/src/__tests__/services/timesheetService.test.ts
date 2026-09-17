@@ -118,6 +118,23 @@ describe('TimesheetService', () => {
 
             expect(db.rollback).toHaveBeenCalled();
         });
+
+        it('rechaza y hace rollback si el UPDATE no afecta ninguna fila (entrada bloqueada, de otra semana o de otro usuario)', async () => {
+            (db.get as jest.Mock).mockResolvedValue(undefined);
+            (db.query as jest.Mock).mockResolvedValue([]);
+            (db.run as jest.Mock).mockImplementation((sql: string) => {
+                if (sql.includes('UPDATE time_entries')) return Promise.resolve({ changes: 0 });
+                return Promise.resolve({ id: 99, changes: 1 });
+            });
+
+            await expect(
+                timesheetService.saveWeekEntries(1, '2026-09-14', [
+                    { id: 42, project_id: 1, date: '2026-09-14', hours: 4 }
+                ])
+            ).rejects.toThrow('could not be updated');
+
+            expect(db.rollback).toHaveBeenCalled();
+        });
     });
 
     describe('submitWeek', () => {

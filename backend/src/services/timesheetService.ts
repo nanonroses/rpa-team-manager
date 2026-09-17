@@ -192,16 +192,19 @@ export class TimesheetService {
 
             for (const entry of entries) {
                 if (entry.id) {
-                    await db.run(
+                    const updateResult = await db.run(
                         `UPDATE time_entries
                          SET project_id = ?, task_id = ?, description = ?, hours = ?, date = ?,
                              is_billable = ?, timesheet_period_id = ?, updated_at = CURRENT_TIMESTAMP
-                         WHERE id = ? AND user_id = ?`,
+                         WHERE id = ? AND user_id = ? AND is_locked = 0 AND date >= ? AND date <= ?`,
                         [
                             entry.project_id, entry.task_id ?? null, entry.description ?? null, entry.hours, entry.date,
-                            entry.is_billable === false ? 0 : 1, periodId, entry.id, userId
+                            entry.is_billable === false ? 0 : 1, periodId, entry.id, userId, monday, sunday
                         ]
                     );
+                    if (updateResult.changes !== 1) {
+                        throw new Error(`Time entry ${entry.id} could not be updated (not found, not owned by this user, locked, or outside this week)`);
+                    }
                 } else {
                     await db.run(
                         `INSERT INTO time_entries (
