@@ -3,8 +3,7 @@ import mammoth from 'mammoth';
 import * as fs from 'fs';
 import * as path from 'path';
 
-// Import pdf-parse from Node.js specific entry point
-import pdfParse from 'pdf-parse/node';
+import { PDFParse } from 'pdf-parse';
 
 export interface ParsedDocument {
     text: string;
@@ -30,23 +29,33 @@ export class DocumentParserService {
             logger.info(`Parsing PDF file: ${filePath}`);
 
             const dataBuffer = fs.readFileSync(filePath);
-            const data = await pdfParse(dataBuffer);
+            const parser = new PDFParse({ data: new Uint8Array(dataBuffer) });
 
-            logger.info(`PDF parsed successfully. Pages: ${data.numpages}, Text length: ${data.text.length}`);
+            try {
+                // getText() y getInfo() deben ejecutarse en secuencia: la primera llamada
+                // transfiere (detached) el ArrayBuffer del PDF al worker; en paralelo, la
+                // segunda llamada fallaría con DataCloneError al intentar transferirlo de nuevo.
+                const textResult = await parser.getText();
+                const infoResult = await parser.getInfo();
 
-            return {
-                text: data.text,
-                pageCount: data.numpages,
-                metadata: {
-                    title: data.info?.Title,
-                    author: data.info?.Author,
-                    subject: data.info?.Subject,
-                    keywords: data.info?.Keywords,
-                    creator: data.info?.Creator,
-                    producer: data.info?.Producer,
-                    creationDate: data.info?.CreationDate
-                }
-            };
+                logger.info(`PDF parsed successfully. Pages: ${textResult.total}, Text length: ${textResult.text.length}`);
+
+                return {
+                    text: textResult.text,
+                    pageCount: textResult.total,
+                    metadata: {
+                        title: infoResult.info?.Title,
+                        author: infoResult.info?.Author,
+                        subject: infoResult.info?.Subject,
+                        keywords: infoResult.info?.Keywords,
+                        creator: infoResult.info?.Creator,
+                        producer: infoResult.info?.Producer,
+                        creationDate: infoResult.info?.CreationDate
+                    }
+                };
+            } finally {
+                await parser.destroy();
+            }
         } catch (error) {
             logger.error('Error parsing PDF:', error);
             throw new Error(`Failed to parse PDF: ${error instanceof Error ? error.message : 'Unknown error'}`);
