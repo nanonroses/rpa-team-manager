@@ -323,8 +323,13 @@ class RPATeamManagerServer {
                 logger.info('Database already has data, skipping seeding');
             }
 
-            // Fase 3: dejar en el log quién tiene horas pendientes (no hay scheduler en este proyecto)
-            await timesheetService.logStartupPendingWorkSummary();
+            // Fase 3: dejar en el log quién tiene horas pendientes (no hay scheduler en este proyecto).
+            // Nunca debe impedir que el servidor arranque si falla.
+            try {
+                await timesheetService.logStartupPendingWorkSummary();
+            } catch (error) {
+                logger.warn('Failed to log startup pending timesheet summary:', error);
+            }
 
             // Start server
             this.app.listen(this.port, () => {
