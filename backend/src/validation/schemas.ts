@@ -180,3 +180,27 @@ export const createPaymentSchema = z.object({
     reference: z.string().max(100).optional(),
     notes: z.string().max(1000).optional()
 });
+
+// Timesheet validation schemas (Fase 3)
+export const saveWeekEntrySchema = z.object({
+    id: z.number().int().positive().optional(),
+    project_id: z.number().int().positive('Valid project ID required'),
+    task_id: z.number().int().positive().optional().nullable(),
+    description: z.string().max(500).optional().nullable(),
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+    hours: z.number().min(0.01, 'Hours must be greater than 0').max(24, 'Hours must be 24 or less'),
+    is_billable: z.boolean().optional()
+});
+
+export const saveWeekSchema = z.object({
+    week_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format'),
+    entries: z.array(saveWeekEntrySchema)
+});
+
+export const submitWeekSchema = z.object({
+    week_start: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format')
+});
+
+export const rejectWeekSchema = z.object({
+    reason: z.string().min(1, 'A rejection reason is required').max(500)
+});

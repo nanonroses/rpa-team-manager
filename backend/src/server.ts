@@ -25,6 +25,7 @@ import aiRoutes from './routes/aiRoutes';
 import lifecycleRoutes from './routes/lifecycleRoutes';
 import llmConfigRoutes from './routes/llmConfigRoutes';
 import billingRoutes from './routes/billingRoutes';
+import timesheetRoutes from './routes/timesheetRoutes';
 // import adminRoutes from './routes/adminRoutes';
 
 // Import database and logger
@@ -150,6 +151,7 @@ class RPATeamManagerServer {
         this.app.use('/api/lifecycle', lifecycleRoutes);
         this.app.use('/api/llm-config', llmConfigRoutes);
         this.app.use('/api/billing', billingRoutes);
+        this.app.use('/api/timesheet', timesheetRoutes);
         // this.app.use('/api/admin', commonEndpointsLimiter, adminRoutes);
 
         // API documentation route
@@ -251,6 +253,16 @@ class RPATeamManagerServer {
                         'POST /api/billing/invoices': 'Create an invoice from billable payment milestones',
                         'POST /api/billing/invoices/:id/payments': 'Record a payment against an invoice (team_lead only)',
                         'GET /api/billing/projects/:projectId/payment-statement': 'Download the project payment statement PDF'
+                    },
+                    timesheet: {
+                        'GET /api/timesheet/week': 'Get current user weekly timesheet grid',
+                        'PUT /api/timesheet/week': 'Save current user weekly timesheet entries',
+                        'POST /api/timesheet/week/submit': 'Submit current user week for approval',
+                        'GET /api/timesheet/reminders': 'Get current user pending timesheet reminders',
+                        'GET /api/timesheet/pending-approvals': 'Get weeks pending approval (team_lead only)',
+                        'POST /api/timesheet/periods/:id/approve': 'Approve a submitted week (team_lead only)',
+                        'POST /api/timesheet/periods/:id/reject': 'Reject a submitted week (team_lead only)',
+                        'GET /api/timesheet/effectiveness': 'Get estimated vs real effectiveness metrics'
                     },
                     ai: {
                         'GET /api/ai/health': 'Get ML service health status',

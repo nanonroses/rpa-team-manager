@@ -147,6 +147,11 @@ export class TimeController {
         return;
       }
 
+      if (existingEntry.is_locked) {
+        res.status(400).json({ error: 'This time entry was approved and is locked; it cannot be modified' });
+        return;
+      }
+
       // Validation
       if (hours !== undefined && (hours <= 0 || hours > 24)) {
         res.status(400).json({ error: 'Hours must be between 0 and 24' });
@@ -206,6 +211,11 @@ export class TimeController {
 
       if (!existingEntry) {
         res.status(404).json({ error: 'Time entry not found' });
+        return;
+      }
+
+      if (existingEntry.is_locked) {
+        res.status(400).json({ error: 'This time entry was approved and is locked; it cannot be modified' });
         return;
       }
 
