@@ -120,23 +120,28 @@ const WeekGrid: React.FC<{ projects: Project[] }> = ({ projects }) => {
     });
   };
 
-  const handleSave = async () => {
+  const handleSave = async (): Promise<boolean> => {
     try {
       setSaving(true);
       const allEntries = Object.values(draftByDay).flat().filter(e => e.hours > 0);
       const updated = await apiService.saveTimesheetWeek(weekStart, allEntries);
       setWeek(updated);
       message.success('Semana guardada');
+      return true;
     } catch (error: any) {
       message.error(error.response?.data?.error || 'Error al guardar la semana');
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
   const handleSubmit = async () => {
+    const saved = await handleSave();
+    if (!saved) {
+      return;
+    }
     try {
-      await handleSave();
       await apiService.submitTimesheetWeek(weekStart);
       message.success('Semana enviada a aprobación');
       await loadWeek();
