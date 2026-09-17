@@ -362,6 +362,64 @@ class ApiService {
     return response.data;
   }
 
+  // Billing endpoints (Fase 2 - Cobros e hitos de pago)
+  async getBillingDashboard(projectId?: number): Promise<any> {
+    const url = projectId ? `/billing/dashboard?project_id=${projectId}` : '/billing/dashboard';
+    const response = await this.api.get(url);
+    return response.data;
+  }
+
+  async getPaymentMilestones(projectId?: number): Promise<any[]> {
+    const url = projectId ? `/billing/payment-milestones?project_id=${projectId}` : '/billing/payment-milestones';
+    const response = await this.api.get(url);
+    return response.data;
+  }
+
+  async createPaymentMilestone(data: any): Promise<any> {
+    const response = await this.api.post('/billing/payment-milestones', data);
+    return response.data;
+  }
+
+  async updatePaymentMilestone(id: number, data: any): Promise<any> {
+    const response = await this.api.put(`/billing/payment-milestones/${id}`, data);
+    return response.data;
+  }
+
+  async deletePaymentMilestone(id: number): Promise<void> {
+    await this.api.delete(`/billing/payment-milestones/${id}`);
+  }
+
+  async getInvoices(projectId?: number): Promise<any[]> {
+    const url = projectId ? `/billing/invoices?project_id=${projectId}` : '/billing/invoices';
+    const response = await this.api.get(url);
+    return response.data;
+  }
+
+  async createInvoice(data: any): Promise<any> {
+    const response = await this.api.post('/billing/invoices', data);
+    return response.data;
+  }
+
+  async recordPayment(invoiceId: number, data: any): Promise<any> {
+    const response = await this.api.post(`/billing/invoices/${invoiceId}/payments`, data);
+    return response.data;
+  }
+
+  getPaymentStatementUrl(projectId: number): string {
+    return `${this.getBaseURL()}/api/billing/projects/${projectId}/payment-statement`;
+  }
+
+  async downloadPaymentStatement(projectId: number): Promise<Blob> {
+    const response = await fetch(this.getPaymentStatementUrl(projectId), {
+      method: 'GET',
+      headers: { 'Authorization': `Bearer ${this.getToken()}` },
+    });
+    if (!response.ok) {
+      throw new Error('No se pudo generar el estado de pago');
+    }
+    return response.blob();
+  }
+
   // Task Management APIs
   async getTaskBoards(projectId?: number): Promise<any> {
     const url = projectId ? `/tasks/boards?project_id=${projectId}` : '/tasks/boards';

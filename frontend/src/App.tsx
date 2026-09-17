@@ -20,6 +20,7 @@ import IdeasPage from '@/pages/ideas/IdeasPage';
 import FilesPage from '@/pages/files/FilesPage';
 import SupportPage from '@/pages/support/SupportPage';
 import PMODashboard from '@/pages/pmo/PMODashboard';
+import BillingPage from '@/pages/billing/BillingPage';
 import ProfilePage from '@/pages/profile/ProfilePage';
 import TeamManagementPage from '@/pages/admin/TeamManagementPage';
 
@@ -113,7 +114,14 @@ function App() {
                   <PMODashboard ganttMode={true} />
                 </ProtectedRoute>
               } />
-              
+
+              {/* Billing / Cobranza */}
+              <Route path="billing" element={
+                <ProtectedRoute requiredRoles={['team_lead', 'rpa_operations']}>
+                  <BillingPage />
+                </ProtectedRoute>
+              } />
+
               {/* Admin (Team Lead only) */}
               <Route path="admin" element={
                 <ProtectedRoute requiredRoles={['team_lead']}>

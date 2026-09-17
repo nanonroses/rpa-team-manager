@@ -112,6 +112,12 @@ export const AppLayout: React.FC = () => {
         icon: <FundOutlined />,
         label: 'PMO'
       });
+
+      baseItems.push({
+        key: '/billing',
+        icon: <DollarOutlined />,
+        label: 'Cobranza'
+      });
     }
 
     // Add configuration menu for team lead
@@ -161,6 +167,8 @@ export const AppLayout: React.FC = () => {
         return 'Files';
       case '/support':
         return 'Soporte';
+      case '/billing':
+        return 'Cobranza';
       case '/admin':
         return 'Administration';
       default:
