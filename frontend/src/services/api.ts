@@ -1,6 +1,7 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { LoginCredentials, LoginResponse, User } from '@/types/auth';
 import { Project } from '@/types/project';
+import { ProjectHealth, ProjectBaseline } from '../types/projectHealth';
 
 interface RequestCache {
   [key: string]: {
@@ -359,6 +360,16 @@ class ApiService {
 
   async getProjectROI(projectId: number): Promise<any> {
     const response = await this.api.get(`/financial/project-roi/${projectId}`);
+    return response.data;
+  }
+
+  async getProjectHealth(projectId: number): Promise<ProjectHealth> {
+    const response = await this.api.get(`/projects/${projectId}/health`);
+    return response.data;
+  }
+
+  async freezeProjectBaseline(projectId: number): Promise<ProjectBaseline> {
+    const response = await this.api.post(`/projects/${projectId}/baseline`);
     return response.data;
   }
 
