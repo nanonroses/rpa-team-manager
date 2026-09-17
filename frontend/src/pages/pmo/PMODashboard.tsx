@@ -2703,10 +2703,16 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                             : dayjs(item.due_date || startDate.add(7, 'day'));
                           
                           const daysSinceToday = startDate.diff(dayjs(), 'day');
-                          const durationDays = item.type === 'milestone' 
+                          const durationDays = item.type === 'milestone'
                             ? (item.actual_date ? Math.max(1, endDate.diff(startDate, 'day')) : 0)
                             : Math.max(1, endDate.diff(startDate, 'day'));
-                          
+
+                          const baselinePlannedDate = item.type === 'milestone' && item.baseline_planned_date
+                            ? dayjs(item.baseline_planned_date)
+                            : null;
+                          const baselineDaysSinceToday = baselinePlannedDate ? baselinePlannedDate.diff(dayjs(), 'day') : null;
+                          const baselineLeftPosition = baselineDaysSinceToday !== null ? Math.max(0, baselineDaysSinceToday * 30) : null;
+
                           const leftPosition = Math.max(0, daysSinceToday * 30);
                           const width = item.type === 'milestone' 
                             ? (item.actual_date ? Math.max(30, durationDays * 30) : 20)
@@ -2817,7 +2823,23 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                   {width > 60 ? (item.title?.substring(0, 8) + '...') : ''}
                                 </div>
                               )}
-                              
+
+                              {baselineLeftPosition !== null && (
+                                <div
+                                  title={`Baseline: ${baselinePlannedDate!.format('DD/MM/YYYY')}`}
+                                  style={{
+                                    position: 'absolute',
+                                    left: `${baselineLeftPosition}px`,
+                                    top: 4,
+                                    width: '3px',
+                                    height: '37px',
+                                    background: '#8c8c8c',
+                                    borderRadius: '1px',
+                                    zIndex: 1
+                                  }}
+                                />
+                              )}
+
                               {/* Línea de hoy solo en el primer elemento */}
                               {index === 0 && (
                                 <div
