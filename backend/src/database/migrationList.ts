@@ -1476,5 +1476,48 @@ export const migrations: Migration[] = [
 
       `CREATE INDEX IF NOT EXISTS idx_payments_invoice ON payments(invoice_id)`
     ]
+  },
+
+  {
+    version: 30,
+    description: 'Fase 3: timesheet_periods + columnas de aprobación/bloqueo en time_entries (tiempo confiable y efectividad)',
+    up: [
+      `CREATE TABLE IF NOT EXISTS timesheet_periods (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        period_start DATE NOT NULL,
+        period_end DATE NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'submitted', 'approved', 'rejected')),
+        submitted_at DATETIME,
+        approved_by INTEGER,
+        approved_at DATETIME,
+        rejection_reason TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        FOREIGN KEY (approved_by) REFERENCES users(id),
+        UNIQUE(user_id, period_start)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_timesheet_periods_user ON timesheet_periods(user_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_timesheet_periods_status ON timesheet_periods(status)`,
+
+      `CREATE TRIGGER IF NOT EXISTS update_timesheet_periods_timestamp
+        AFTER UPDATE ON timesheet_periods
+        BEGIN
+          UPDATE timesheet_periods SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END`,
+
+      `ALTER TABLE time_entries ADD COLUMN approval_status VARCHAR(20) NOT NULL DEFAULT 'draft' CHECK (approval_status IN ('draft', 'submitted', 'approved', 'rejected'))`,
+      `ALTER TABLE time_entries ADD COLUMN timesheet_period_id INTEGER REFERENCES timesheet_periods(id)`,
+      `ALTER TABLE time_entries ADD COLUMN approved_by INTEGER REFERENCES users(id)`,
+      `ALTER TABLE time_entries ADD COLUMN approved_at DATETIME`,
+      `ALTER TABLE time_entries ADD COLUMN cost_rate_snapshot DECIMAL(10,2)`,
+      `ALTER TABLE time_entries ADD COLUMN bill_rate_snapshot DECIMAL(10,2)`,
+      `ALTER TABLE time_entries ADD COLUMN is_locked BOOLEAN NOT NULL DEFAULT 0`,
+
+      `CREATE INDEX IF NOT EXISTS idx_time_entries_approval_status ON time_entries(approval_status)`,
+      `CREATE INDEX IF NOT EXISTS idx_time_entries_period ON time_entries(timesheet_period_id)`
+    ]
   }
 ];
