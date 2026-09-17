@@ -119,4 +119,86 @@ describe('TimesheetService', () => {
             expect(db.rollback).toHaveBeenCalled();
         });
     });
+
+    describe('submitWeek', () => {
+        it('marca el periodo y sus entradas como submitted', async () => {
+            (db.get as jest.Mock).mockResolvedValue({ id: 10, status: 'open' });
+            (db.run as jest.Mock).mockResolvedValue({ changes: 1 });
+
+            const result = await timesheetService.submitWeek(1, '2026-09-14');
+
+            expect(db.run).toHaveBeenCalledWith(
+                expect.stringContaining("UPDATE timesheet_periods SET status = 'submitted'"),
+                expect.arrayContaining([10])
+            );
+            expect(db.run).toHaveBeenCalledWith(
+                expect.stringContaining("UPDATE time_entries SET approval_status = 'submitted'"),
+                expect.arrayContaining([10])
+            );
+            expect(result.status).toBe('submitted');
+        });
+
+        it('rechaza si no hay periodo (semana vacía) para esa fecha', async () => {
+            (db.get as jest.Mock).mockResolvedValue(undefined);
+            await expect(timesheetService.submitWeek(1, '2026-09-14')).rejects.toThrow('No timesheet period');
+        });
+
+        it('rechaza si el periodo ya fue aprobado', async () => {
+            (db.get as jest.Mock).mockResolvedValue({ id: 10, status: 'approved' });
+            await expect(timesheetService.submitWeek(1, '2026-09-14')).rejects.toThrow('already approved');
+        });
+    });
+
+    describe('approveWeek', () => {
+        it('bloquea las entradas y les congela cost_rate_snapshot y bill_rate_snapshot en CLP', async () => {
+            (db.get as jest.Mock).mockImplementation((sql: string) => {
+                if (sql.includes('FROM timesheet_periods WHERE id')) {
+                    return Promise.resolve({ id: 10, user_id: 1, status: 'submitted', period_start: '2026-09-14', period_end: '2026-09-20' });
+                }
+                return Promise.resolve(undefined);
+            });
+            (db.query as jest.Mock).mockResolvedValue([
+                { id: 1, project_id: 1, hours: 4, is_billable: 1 }
+            ]);
+            jest.spyOn(timesheetService as any, 'getUserCostRateCLP').mockResolvedValue(15000);
+            jest.spyOn(timesheetService as any, 'getProjectBillRateCLP').mockResolvedValue(20000);
+            (db.run as jest.Mock).mockResolvedValue({ changes: 1 });
+
+            const result = await timesheetService.approveWeek(2, 10);
+
+            expect(db.run).toHaveBeenCalledWith(
+                expect.stringContaining('cost_rate_snapshot = ?, bill_rate_snapshot = ?'),
+                expect.arrayContaining([15000, 20000, 1])
+            );
+            expect(db.run).toHaveBeenCalledWith(
+                expect.stringContaining("UPDATE timesheet_periods SET status = 'approved'"),
+                expect.arrayContaining([2, 10])
+            );
+            expect(result.status).toBe('approved');
+        });
+
+        it('rechaza si el periodo no está submitted', async () => {
+            (db.get as jest.Mock).mockResolvedValue({ id: 10, status: 'open' });
+            await expect(timesheetService.approveWeek(2, 10)).rejects.toThrow('not submitted');
+        });
+    });
+
+    describe('rejectWeek', () => {
+        it('marca el periodo y sus entradas como rejected con el motivo', async () => {
+            (db.get as jest.Mock).mockResolvedValue({ id: 10, status: 'submitted' });
+            (db.run as jest.Mock).mockResolvedValue({ changes: 1 });
+
+            const result = await timesheetService.rejectWeek(2, 10, 'Faltan horas del jueves');
+
+            expect(db.run).toHaveBeenCalledWith(
+                expect.stringContaining("UPDATE timesheet_periods SET status = 'rejected'"),
+                expect.arrayContaining(['Faltan horas del jueves', 2, 10])
+            );
+            expect(db.run).toHaveBeenCalledWith(
+                expect.stringContaining("UPDATE time_entries SET approval_status = 'rejected'"),
+                [10]
+            );
+            expect(result.status).toBe('rejected');
+        });
+    });
 });

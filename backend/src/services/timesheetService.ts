@@ -1,6 +1,7 @@
 import { startOfWeek, addDays, format, parseISO } from 'date-fns';
 import { db } from '../database/database';
 import { logger } from '../utils/logger';
+import { financeService, Currency } from './financeService';
 
 export interface TimeEntryRow {
     id: number;
@@ -198,6 +199,117 @@ export class TimesheetService {
         }
 
         return this.getWeek(userId, monday);
+    }
+
+    async submitWeek(userId: number, weekStartDate: string): Promise<TimesheetPeriodRow> {
+        const monday = this.getWeekStart(weekStartDate);
+        const period = await this.getPeriod(userId, monday);
+
+        if (!period) {
+            throw new Error('No timesheet period found for that week (nothing was saved yet)');
+        }
+        if (period.status === 'approved') {
+            throw new Error('This week was already approved and cannot be re-submitted');
+        }
+
+        await db.run(
+            `UPDATE timesheet_periods SET status = 'submitted', submitted_at = datetime('now'), rejection_reason = NULL WHERE id = ?`,
+            [period.id]
+        );
+        await db.run(
+            `UPDATE time_entries SET approval_status = 'submitted' WHERE timesheet_period_id = ?`,
+            [period.id]
+        );
+
+        logger.info(`Timesheet: usuario ${userId} envió la semana del ${monday} para aprobación`);
+        return { ...period, status: 'submitted' };
+    }
+
+    async getPendingApprovals(): Promise<Array<TimesheetPeriodRow & { user_name: string; total_hours: number }>> {
+        return db.query(
+            `SELECT tp.*, u.full_name as user_name,
+                    COALESCE((SELECT SUM(hours) FROM time_entries WHERE timesheet_period_id = tp.id), 0) as total_hours
+             FROM timesheet_periods tp
+             JOIN users u ON u.id = tp.user_id
+             WHERE tp.status = 'submitted'
+             ORDER BY tp.submitted_at ASC`
+        );
+    }
+
+    private async getUserCostRateCLP(userId: number): Promise<number> {
+        const rate = await db.get(
+            `SELECT hourly_rate, hourly_rate_currency FROM user_cost_rates
+             WHERE user_id = ? AND is_active = 1 ORDER BY effective_from DESC LIMIT 1`,
+            [userId]
+        );
+        if (!rate) return 0;
+        return financeService.toCLP(rate.hourly_rate, rate.hourly_rate_currency as Currency);
+    }
+
+    private async getProjectBillRateCLP(projectId: number): Promise<number> {
+        const financials = await db.get(
+            `SELECT hourly_rate, hourly_rate_currency FROM project_financials WHERE project_id = ?`,
+            [projectId]
+        );
+        if (!financials?.hourly_rate) return 0;
+        return financeService.toCLP(financials.hourly_rate, (financials.hourly_rate_currency as Currency) || 'UF');
+    }
+
+    /**
+     * Aprueba una semana: congela cost_rate_snapshot/bill_rate_snapshot (siempre en CLP, al valor
+     * vigente hoy) por cada entrada y las bloquea (is_locked=1). Desde este momento financeService
+     * usa estas horas como real_hours/real_cost del proyecto (ver Task 4) - por eso el snapshot
+     * se congela aquí y no se recalcula nunca más, ni si cambia la tarifa del usuario a futuro.
+     */
+    async approveWeek(approverId: number, periodId: number): Promise<TimesheetPeriodRow> {
+        const period = await db.get(`SELECT * FROM timesheet_periods WHERE id = ?`, [periodId]);
+        if (!period) {
+            throw new Error(`Timesheet period ${periodId} not found`);
+        }
+        if (period.status !== 'submitted') {
+            throw new Error(`Timesheet period ${periodId} is not submitted (status=${period.status})`);
+        }
+
+        const userCostRateCLP = await this.getUserCostRateCLP(period.user_id);
+        const entries = await db.query(
+            `SELECT id, project_id, hours, is_billable FROM time_entries WHERE timesheet_period_id = ?`,
+            [periodId]
+        );
+
+        for (const entry of entries) {
+            const billRateCLP = entry.is_billable ? await this.getProjectBillRateCLP(entry.project_id) : 0;
+            await db.run(
+                `UPDATE time_entries
+                 SET approval_status = 'approved', is_locked = 1, approved_by = ?, approved_at = datetime('now'),
+                     cost_rate_snapshot = ?, bill_rate_snapshot = ?
+                 WHERE id = ?`,
+                [approverId, userCostRateCLP, billRateCLP, entry.id]
+            );
+        }
+
+        await db.run(
+            `UPDATE timesheet_periods SET status = 'approved', approved_by = ?, approved_at = datetime('now') WHERE id = ?`,
+            [approverId, periodId]
+        );
+
+        logger.info(`Timesheet: periodo ${periodId} (usuario ${period.user_id}) aprobado por ${approverId} - ${entries.length} entrada(s) bloqueada(s)`);
+        return { ...period, status: 'approved', approved_by: approverId };
+    }
+
+    async rejectWeek(approverId: number, periodId: number, reason: string): Promise<TimesheetPeriodRow> {
+        const period = await db.get(`SELECT * FROM timesheet_periods WHERE id = ?`, [periodId]);
+        if (!period) {
+            throw new Error(`Timesheet period ${periodId} not found`);
+        }
+
+        await db.run(
+            `UPDATE timesheet_periods SET status = 'rejected', rejection_reason = ?, approved_by = ? WHERE id = ?`,
+            [reason, approverId, periodId]
+        );
+        await db.run(`UPDATE time_entries SET approval_status = 'rejected' WHERE timesheet_period_id = ?`, [periodId]);
+
+        logger.info(`Timesheet: periodo ${periodId} (usuario ${period.user_id}) rechazado por ${approverId}: ${reason}`);
+        return { ...period, status: 'rejected', rejection_reason: reason };
     }
 }
 
