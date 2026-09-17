@@ -69,6 +69,9 @@ describe('FinanceService', () => {
                 if (sql.includes('FROM project_milestones')) {
                     return Promise.resolve({ total_delay_hours: 0 });
                 }
+                if (sql.includes('FROM time_entries') && sql.includes("approval_status = 'approved'")) {
+                    return Promise.resolve({ hours: 0, cost: 0 });
+                }
                 return Promise.resolve(undefined);
             });
 
@@ -116,6 +119,9 @@ describe('FinanceService', () => {
                 if (sql.includes('FROM project_milestones')) {
                     return Promise.resolve({ total_delay_hours: 10 }); // 10h de atraso del cliente
                 }
+                if (sql.includes('FROM time_entries') && sql.includes("approval_status = 'approved'")) {
+                    return Promise.resolve({ hours: 0, cost: 0 });
+                }
                 return Promise.resolve(undefined);
             });
 
@@ -127,6 +133,45 @@ describe('FinanceService', () => {
             expect(result.real_cost).toBe(110 * 15000);
             expect(result.real_cost).toBeGreaterThan(result.planned_cost);
             expect(result.real_roi).toBeLessThan(result.planned_roi);
+        });
+
+        it('usa las horas y el costo realmente aprobados en vez de la proyección, cuando existen', async () => {
+            (db.get as jest.Mock).mockImplementation((sql: string) => {
+                if (sql.includes('FROM projects WHERE id')) {
+                    return Promise.resolve({ id: 1, name: 'Proyecto Test', assigned_to: null });
+                }
+                if (sql.includes('FROM project_financials')) {
+                    return Promise.resolve({ budgeted_hours: 100, hourly_rate: 1, hourly_rate_currency: 'UF' });
+                }
+                if (sql.includes('FROM exchange_rates')) {
+                    return Promise.resolve({ rate_to_clp: 38000 });
+                }
+                if (sql.includes('FROM user_cost_rates')) {
+                    return Promise.resolve({ hourly_rate: 15000, hourly_rate_currency: 'CLP' });
+                }
+                if (sql.includes('FROM project_milestones')) {
+                    return Promise.resolve({ total_delay_hours: 5 }); // 5h de atraso del cliente, se suman igual
+                }
+                if (sql.includes('FROM time_entries') && sql.includes("approval_status = 'approved'")) {
+                    // El equipo ya registró y aprobó 80h reales, a un costo distinto de la tarifa actual
+                    return Promise.resolve({ hours: 80, cost: 80 * 16000 });
+                }
+                return Promise.resolve(undefined);
+            });
+            (db.query as jest.Mock).mockImplementation((sql: string) => {
+                if (sql.includes('FROM project_assignments')) {
+                    return Promise.resolve([
+                        { user_id: 1, allocation_percentage: 100, full_name: 'Dev Uno', role: 'rpa_developer' }
+                    ]);
+                }
+                return Promise.resolve([]);
+            });
+
+            const result = await financeService.calculateProjectFinancials(1);
+
+            expect(result.real_hours).toBe(80 + 5); // horas aprobadas + atraso del cliente
+            expect(result.real_cost).toBe(80 * 16000 + 5 * 15000); // costo snapshot aprobado + atraso a tarifa vigente
+            expect(result.planned_hours).toBe(100); // lo planificado no cambia
         });
 
         it('lanza un error legible si el proyecto no existe', async () => {

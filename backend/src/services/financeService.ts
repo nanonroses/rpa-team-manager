@@ -149,6 +149,20 @@ export class FinanceService {
     }
 
     /**
+     * Horas y costo realmente aprobados (bloqueados) para un proyecto, según Fase 3.
+     * costCLP usa cost_rate_snapshot (congelado al aprobar) - nunca la tarifa vigente hoy,
+     * para que el costo histórico no cambie si la tarifa de alguien cambia después.
+     */
+    private async getApprovedTimeSummary(projectId: number): Promise<{ hours: number; costCLP: number }> {
+        const row = await db.get(
+            `SELECT COALESCE(SUM(hours), 0) as hours, COALESCE(SUM(hours * cost_rate_snapshot), 0) as cost
+             FROM time_entries WHERE project_id = ? AND approval_status = 'approved'`,
+            [projectId]
+        );
+        return { hours: row?.hours || 0, costCLP: row?.cost || 0 };
+    }
+
+    /**
      * Calcula costo, venta, margen y ROI (planificado y real) de un proyecto.
      * Siempre en vivo: nunca lee roi_percentage/profit_margin/actual_cost de project_financials.
      */
@@ -176,10 +190,21 @@ export class FinanceService {
             await this.getBlendedHourlyCostCLP(projectId);
 
         const clientDelayHours = await this.getClientDelayHours(projectId);
-        const realHours = plannedHours + clientDelayHours;
+
+        // Fase 3: las horas/costo reales vienen de time_entries aprobados (el dato real), no de una
+        // proyección. Mientras un proyecto no tenga ninguna hora aprobada todavía (arranque de esta
+        // fase, o proyectos que aún no cargan timesheet), se usa la proyección anterior como fallback
+        // para no mostrar de golpe un costo real de 0.
+        const approvedTime = await this.getApprovedTimeSummary(projectId);
+        const hasApprovedTime = approvedTime.hours > 0;
 
         const plannedCost = plannedHours * engineerHourlyCost;
-        const realCost = realHours * engineerHourlyCost;
+        const realHours = hasApprovedTime
+            ? approvedTime.hours + clientDelayHours
+            : plannedHours + clientDelayHours;
+        const realCost = hasApprovedTime
+            ? approvedTime.costCLP + (clientDelayHours * engineerHourlyCost)
+            : realHours * engineerHourlyCost;
 
         const plannedProfit = salePrice - plannedCost;
         const realProfit = salePrice - realCost;
