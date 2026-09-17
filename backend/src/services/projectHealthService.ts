@@ -1,6 +1,6 @@
 import { db } from '../database/database';
 import { financeService } from './financeService';
-import { differenceInCalendarDays, addDays } from 'date-fns';
+import { differenceInCalendarDays, addDays, format } from 'date-fns';
 
 export interface ProjectBaseline {
     id: number;
@@ -104,7 +104,7 @@ export class ProjectHealthService {
             };
         }
 
-        const today = new Date().toISOString().slice(0, 10);
+        const today = format(new Date(), 'yyyy-MM-dd');
         const dueCount = baselineMilestones.filter((m: any) => m.baseline_planned_date <= today).length;
         const pvPercentage = (dueCount / baselineMilestones.length) * 100;
 
@@ -135,10 +135,10 @@ export class ProjectHealthService {
                 new Date(baseline.end_date),
                 new Date(baseline.start_date)
             );
-            const effectiveSpi = spi > 0 ? spi : 0.01;
+            const effectiveSpi = Math.max(spi, 0.01);
             const projectedDurationDays = Math.round(baselineDurationDays / effectiveSpi);
             const projectedEnd = addDays(new Date(baseline.start_date), projectedDurationDays);
-            projectedEndDate = projectedEnd.toISOString().slice(0, 10);
+            projectedEndDate = format(projectedEnd, 'yyyy-MM-dd');
             scheduleVarianceDays = differenceInCalendarDays(projectedEnd, new Date(baseline.end_date));
         }
 
