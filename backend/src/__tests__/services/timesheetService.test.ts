@@ -206,4 +206,40 @@ describe('TimesheetService', () => {
             await expect(timesheetService.rejectWeek(2, 10, 'Motivo')).rejects.toThrow('cannot be rejected');
         });
     });
+
+    describe('getEffectivenessMetrics', () => {
+        it('calcula estimado vs real por persona (con utilización y % facturable) y por tarea', async () => {
+            (db.get as jest.Mock).mockImplementation((sql: string) => {
+                if (sql.includes('FROM global_settings')) return Promise.resolve({ setting_value: '176' });
+                return Promise.resolve(undefined);
+            });
+            (db.query as jest.Mock).mockImplementation((sql: string) => {
+                if (sql.includes('GROUP BY te.user_id')) {
+                    return Promise.resolve([
+                        { user_id: 1, user_name: 'Dev Uno', real_hours: 80, billable_hours: 60 }
+                    ]);
+                }
+                if (sql.includes('SUM(t.estimated_hours)') && sql.includes('assignee_id')) {
+                    return Promise.resolve([{ user_id: 1, estimated_hours: 100 }]);
+                }
+                if (sql.includes('LEFT JOIN time_entries') && sql.includes('GROUP BY t.id')) {
+                    return Promise.resolve([
+                        { task_id: 5, task_title: 'Fix bug', project_name: 'PROMET', estimated_hours: 10, real_hours: 14 }
+                    ]);
+                }
+                return Promise.resolve([]);
+            });
+
+            const metrics = await timesheetService.getEffectivenessMetrics('2026-09-01', '2026-09-30');
+
+            expect(metrics.by_person[0]).toMatchObject({
+                user_id: 1, user_name: 'Dev Uno', estimated_hours: 100, real_hours: 80, billable_pct: 75
+            });
+            expect(metrics.by_person[0].utilization_pct).toBeCloseTo((80 / 176) * 100, 1);
+            expect(metrics.by_task[0]).toMatchObject({
+                task_id: 5, task_title: 'Fix bug', project_name: 'PROMET',
+                estimated_hours: 10, real_hours: 14, variance_hours: 4
+            });
+        });
+    });
 });

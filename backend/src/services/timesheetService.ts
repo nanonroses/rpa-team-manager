@@ -51,6 +51,31 @@ export interface SaveWeekEntryInput {
     is_billable?: boolean;
 }
 
+export interface EffectivenessByPerson {
+    user_id: number;
+    user_name: string;
+    estimated_hours: number;
+    real_hours: number;
+    utilization_pct: number;
+    billable_pct: number;
+}
+
+export interface EffectivenessByTask {
+    task_id: number;
+    task_title: string;
+    project_name: string;
+    estimated_hours: number;
+    real_hours: number;
+    variance_hours: number;
+}
+
+export interface EffectivenessMetrics {
+    from: string;
+    to: string;
+    by_person: EffectivenessByPerson[];
+    by_task: EffectivenessByTask[];
+}
+
 function toRow(raw: any): TimeEntryRow {
     return {
         id: raw.id,
@@ -323,6 +348,67 @@ export class TimesheetService {
 
         logger.info(`Timesheet: periodo ${periodId} (usuario ${period.user_id}) rechazado por ${approverId}: ${reason}`);
         return { ...period, status: 'rejected', rejection_reason: reason };
+    }
+
+    /**
+     * Estimado vs. real por persona y por tarea, en un rango de fechas. Solo cuenta horas
+     * aprobadas (bloqueadas) - es el dato confiable que da nombre a esta fase.
+     */
+    async getEffectivenessMetrics(from: string, to: string): Promise<EffectivenessMetrics> {
+        const monthlyHours = await financeService.getMonthlyHours();
+        const daysInRange = (new Date(to).getTime() - new Date(from).getTime()) / 86400000 + 1;
+        const expectedHours = monthlyHours * (daysInRange / 30);
+
+        const realByPerson = await db.query(
+            `SELECT te.user_id, u.full_name as user_name,
+                    COALESCE(SUM(te.hours), 0) as real_hours,
+                    COALESCE(SUM(CASE WHEN te.is_billable = 1 THEN te.hours ELSE 0 END), 0) as billable_hours
+             FROM time_entries te
+             JOIN users u ON u.id = te.user_id
+             WHERE te.approval_status = 'approved' AND te.date >= ? AND te.date <= ?
+             GROUP BY te.user_id, u.full_name`,
+            [from, to]
+        );
+
+        const estimatedByPerson = await db.query(
+            `SELECT t.assignee_id as user_id, COALESCE(SUM(t.estimated_hours), 0) as estimated_hours
+             FROM tasks t WHERE t.assignee_id IS NOT NULL GROUP BY t.assignee_id`
+        );
+        const estimatedMap = new Map<number, number>(estimatedByPerson.map((r: any) => [r.user_id, r.estimated_hours]));
+
+        const by_person: EffectivenessByPerson[] = realByPerson.map((r: any) => ({
+            user_id: r.user_id,
+            user_name: r.user_name,
+            estimated_hours: estimatedMap.get(r.user_id) || 0,
+            real_hours: r.real_hours,
+            utilization_pct: Math.round((r.real_hours / expectedHours) * 1000) / 10,
+            billable_pct: r.real_hours > 0 ? Math.round((r.billable_hours / r.real_hours) * 1000) / 10 : 0
+        }));
+
+        const byTaskRows = await db.query(
+            `SELECT t.id as task_id, t.title as task_title, p.name as project_name,
+                    COALESCE(t.estimated_hours, 0) as estimated_hours,
+                    COALESCE(SUM(te.hours), 0) as real_hours
+             FROM tasks t
+             JOIN task_boards b ON b.id = t.board_id
+             JOIN projects p ON p.id = b.project_id
+             LEFT JOIN time_entries te ON te.task_id = t.id
+                AND te.approval_status = 'approved' AND te.date >= ? AND te.date <= ?
+             WHERE t.estimated_hours IS NOT NULL
+             GROUP BY t.id, t.title, p.name, t.estimated_hours`,
+            [from, to]
+        );
+
+        const by_task: EffectivenessByTask[] = byTaskRows.map((r: any) => ({
+            task_id: r.task_id,
+            task_title: r.task_title,
+            project_name: r.project_name,
+            estimated_hours: r.estimated_hours,
+            real_hours: r.real_hours,
+            variance_hours: Math.round((r.real_hours - r.estimated_hours) * 100) / 100
+        }));
+
+        return { from, to, by_person, by_task };
     }
 }
 
