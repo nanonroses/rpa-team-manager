@@ -420,6 +420,47 @@ class ApiService {
     return response.blob();
   }
 
+  // Timesheet endpoints (Fase 3 - Tiempo confiable y efectividad)
+  async getTimesheetWeek(weekStart: string): Promise<any> {
+    const response = await this.api.get(`/timesheet/week?week_start=${weekStart}`);
+    return response.data;
+  }
+
+  async saveTimesheetWeek(weekStart: string, entries: any[]): Promise<any> {
+    const response = await this.api.put('/timesheet/week', { week_start: weekStart, entries });
+    return response.data;
+  }
+
+  async submitTimesheetWeek(weekStart: string): Promise<any> {
+    const response = await this.api.post('/timesheet/week/submit', { week_start: weekStart });
+    return response.data;
+  }
+
+  async getTimesheetReminders(): Promise<any> {
+    const response = await this.api.get('/timesheet/reminders');
+    return response.data;
+  }
+
+  async getPendingTimesheetApprovals(): Promise<any[]> {
+    const response = await this.api.get('/timesheet/pending-approvals');
+    return response.data;
+  }
+
+  async approveTimesheetWeek(periodId: number): Promise<any> {
+    const response = await this.api.post(`/timesheet/periods/${periodId}/approve`);
+    return response.data;
+  }
+
+  async rejectTimesheetWeek(periodId: number, reason: string): Promise<any> {
+    const response = await this.api.post(`/timesheet/periods/${periodId}/reject`, { reason });
+    return response.data;
+  }
+
+  async getEffectivenessMetrics(from: string, to: string): Promise<any> {
+    const response = await this.api.get(`/timesheet/effectiveness?from=${from}&to=${to}`);
+    return response.data;
+  }
+
   // Task Management APIs
   async getTaskBoards(projectId?: number): Promise<any> {
     const url = projectId ? `/tasks/boards?project_id=${projectId}` : '/tasks/boards';
