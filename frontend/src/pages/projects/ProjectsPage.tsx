@@ -26,6 +26,7 @@ import {
 } from '@ant-design/icons';
 import { ProjectCard } from '@/components/projects/ProjectCard';
 import { ProjectROICard } from '@/components/projects/ProjectROICard';
+import { ProjectHealthCard } from '@/components/projects/ProjectHealthCard';
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal';
 import { QuoteUploadModal } from '@/components/projects/QuoteUploadModal';
 import { useProjectStore } from '@/store/projectStore';
@@ -310,6 +311,7 @@ export const ProjectsPage: React.FC = () => {
                     assignedUserId={project.assigned_to}
                   />
                 )}
+                <ProjectHealthCard projectId={project.id} />
               </Space>
             </Col>
           ))}

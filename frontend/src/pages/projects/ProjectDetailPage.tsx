@@ -42,6 +42,7 @@ import {
   RocketOutlined
 } from '@ant-design/icons';
 import { ProjectROICard } from '@/components/projects/ProjectROICard';
+import { ProjectHealthCard } from '@/components/projects/ProjectHealthCard';
 import { ProjectPMOView } from '@/components/projects/ProjectPMOView';
 import { ProjectMLAnalytics } from '@/components/projects/ProjectMLAnalytics';
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal';
@@ -474,6 +475,7 @@ export const ProjectDetailPage: React.FC = () => {
                         assignedUserId={project.assigned_to}
                       />
                     )}
+                    <ProjectHealthCard projectId={project.id} />
 
                     {/* PMO Quick Actions */}
                     <Card title="PMO & Analytics" style={{ marginTop: '24px' }}>
