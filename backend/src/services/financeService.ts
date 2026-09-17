@@ -155,7 +155,7 @@ export class FinanceService {
      */
     private async getApprovedTimeSummary(projectId: number): Promise<{ hours: number; costCLP: number }> {
         const row = await db.get(
-            `SELECT COALESCE(SUM(hours), 0) as hours, COALESCE(SUM(hours * cost_rate_snapshot), 0) as cost
+            `SELECT COALESCE(SUM(hours), 0) as hours, COALESCE(SUM(hours * COALESCE(cost_rate_snapshot, 0)), 0) as cost
              FROM time_entries WHERE project_id = ? AND approval_status = 'approved'`,
             [projectId]
         );
