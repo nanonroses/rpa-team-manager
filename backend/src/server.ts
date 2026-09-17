@@ -30,6 +30,7 @@ import billingRoutes from './routes/billingRoutes';
 // Import database and logger
 import { db } from './database/database';
 import { logger } from './utils/logger';
+import { timesheetService } from './services/timesheetService';
 
 // Load environment variables
 dotenv.config();
@@ -321,6 +322,9 @@ class RPATeamManagerServer {
             } else {
                 logger.info('Database already has data, skipping seeding');
             }
+
+            // Fase 3: dejar en el log quién tiene horas pendientes (no hay scheduler en este proyecto)
+            await timesheetService.logStartupPendingWorkSummary();
 
             // Start server
             this.app.listen(this.port, () => {

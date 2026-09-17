@@ -410,6 +410,53 @@ export class TimesheetService {
 
         return { from, to, by_person, by_task };
     }
+
+    /** Días hábiles (lunes a viernes) de las últimas dos semanas sin ninguna entrada de tiempo. */
+    async getPendingReminders(userId: number, referenceDate?: string): Promise<{ missing_dates: string[]; open_period: TimesheetPeriodRow | null }> {
+        const today = referenceDate ? parseISO(referenceDate) : new Date();
+        const from = format(addDays(today, -13), 'yyyy-MM-dd');
+        const to = format(today, 'yyyy-MM-dd');
+
+        const rows = await db.query(
+            `SELECT DISTINCT date FROM time_entries WHERE user_id = ? AND date >= ? AND date <= ?`,
+            [userId, from, to]
+        );
+        const datesWithEntries = new Set(rows.map((r: any) => r.date));
+
+        const missing_dates: string[] = [];
+        for (let i = 0; i < 14; i++) {
+            const date = addDays(parseISO(from), i);
+            const dayOfWeek = date.getDay(); // 0 domingo, 6 sábado
+            if (dayOfWeek === 0 || dayOfWeek === 6) continue;
+            const dateStr = format(date, 'yyyy-MM-dd');
+            if (!datesWithEntries.has(dateStr)) {
+                missing_dates.push(dateStr);
+            }
+        }
+
+        const openPeriod = await db.get(
+            `SELECT * FROM timesheet_periods WHERE user_id = ? AND status IN ('open', 'rejected') ORDER BY period_start DESC LIMIT 1`,
+            [userId]
+        );
+
+        return { missing_dates, open_period: openPeriod || null };
+    }
+
+    /**
+     * Sin scheduler en este proyecto: se llama una vez al arrancar el servidor (server.ts) para
+     * dejar en el log quién tiene trabajo pendiente, igual que describe la Fase 3 del plan maestro.
+     * No envía notificaciones (eso es Fase 5, cuando se active socket.io/notifications).
+     */
+    async logStartupPendingWorkSummary(): Promise<void> {
+        const users = await db.query(`SELECT id, full_name FROM users WHERE is_active = 1`);
+
+        for (const user of users) {
+            const { missing_dates } = await this.getPendingReminders(user.id);
+            if (missing_dates.length > 0) {
+                logger.info(`Timesheet: ${user.full_name} tiene ${missing_dates.length} día(s) hábil(es) sin horas registradas en las últimas 2 semanas`);
+            }
+        }
+    }
 }
 
 export const timesheetService = new TimesheetService();

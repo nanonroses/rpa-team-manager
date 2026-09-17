@@ -242,4 +242,30 @@ describe('TimesheetService', () => {
             });
         });
     });
+
+    describe('getPendingReminders', () => {
+        it('devuelve los días hábiles de las últimas 2 semanas sin ninguna entrada', async () => {
+            (db.query as jest.Mock).mockResolvedValue([{ date: '2026-09-15' }]); // solo el martes tiene registro
+            (db.get as jest.Mock).mockResolvedValue(undefined); // sin periodo abierto
+
+            const result = await timesheetService.getPendingReminders(1, '2026-09-17'); // jueves
+
+            // Hábiles entre 2026-09-03 (jueves, 14 días antes) y 2026-09-17 inclusive, sin fines de semana,
+            // excluyendo 2026-09-15 que sí tiene entrada.
+            expect(result.missing_dates).not.toContain('2026-09-15');
+            expect(result.missing_dates).toContain('2026-09-16');
+            expect(result.missing_dates.length).toBeGreaterThan(0);
+            expect(result.missing_dates.every((d: string) => {
+                const day = new Date(`${d}T00:00:00Z`).getUTCDay();
+                return day !== 0 && day !== 6;
+            })).toBe(true);
+        });
+    });
+
+    describe('logStartupPendingWorkSummary', () => {
+        it('no lanza si no hay usuarios activos', async () => {
+            (db.query as jest.Mock).mockResolvedValue([]);
+            await expect(timesheetService.logStartupPendingWorkSummary()).resolves.toBeUndefined();
+        });
+    });
 });
