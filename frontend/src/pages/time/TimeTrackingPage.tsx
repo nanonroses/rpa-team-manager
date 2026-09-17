@@ -1,69 +1,50 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Card, 
-  Button, 
-  Table, 
-  Typography, 
-  Space, 
-  Select, 
-  Input, 
-  DatePicker, 
-  Tag, 
-  message, 
-  Row, 
-  Col, 
+import React, { useState, useEffect, useCallback } from 'react';
+import {
+  Card,
+  Button,
+  Table,
+  Typography,
+  Space,
+  Select,
+  Input,
+  Tag,
+  message,
+  Row,
+  Col,
   Statistic,
-  Modal,
-  Form,
+  Tabs,
   InputNumber,
-  Tooltip,
-  Alert
+  Popconfirm,
+  Alert,
+  Checkbox
 } from 'antd';
-import { 
-  PlayCircleOutlined, 
-  PauseCircleOutlined, 
+import {
+  PlayCircleOutlined,
+  PauseCircleOutlined,
   ClockCircleOutlined,
   PlusOutlined,
-  EditOutlined,
   DeleteOutlined,
-  ProjectOutlined,
-  DashboardOutlined
+  LeftOutlined,
+  RightOutlined,
+  SendOutlined
 } from '@ant-design/icons';
 import { apiService } from '@/services/api';
+import {
+  SaveWeekEntryInput,
+  TimesheetWeek,
+  TimesheetPeriod,
+  EffectivenessMetrics,
+  PendingReminders
+} from '@/types/timesheet';
+import { useAuthStore } from '@/store/authStore';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
-const { TextArea } = Input;
 
 interface Project {
   id: number;
   name: string;
-}
-
-interface Task {
-  id: number;
-  title: string;
-  project_id: number;
-}
-
-interface TimeEntry {
-  id: number;
-  user_id: number;
-  project_id: number;
-  task_id?: number;
-  description?: string;
-  hours: number;
-  date: string;
-  start_time?: string;
-  end_time?: string;
-  is_billable: boolean;
-  hourly_rate: number;
-  project_name?: string;
-  task_title?: string;
-  user_name?: string;
-  created_at: string;
-  updated_at: string;
 }
 
 interface ActiveTimer {
@@ -77,77 +58,235 @@ interface ActiveTimer {
   task_title?: string;
 }
 
-interface DashboardData {
-  today: {
-    entries_count: number;
-    total_hours: number;
-    total_value: number;
-  };
-  week: {
-    entries_count: number;
-    total_hours: number;
-    total_value: number;
-  };
-  top_projects: Array<{
-    project_id: number;
-    project_name: string;
-    entries_count: number;
-    total_hours: number;
-    total_value: number;
-  }>;
+function mondayOf(date: dayjs.Dayjs): string {
+  const weekday = date.day(); // 0 = domingo ... 6 = sábado
+  const diffFromMonday = weekday === 0 ? 6 : weekday - 1;
+  return date.subtract(diffFromMonday, 'day').format('YYYY-MM-DD');
 }
 
-export const TimeTrackingPage: React.FC = () => {
-  // State management
-  const [timeEntries, setTimeEntries] = useState<TimeEntry[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [activeTimer, setActiveTimer] = useState<ActiveTimer | null>(null);
-  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+const WeekGrid: React.FC<{ projects: Project[] }> = ({ projects }) => {
+  const [weekStart, setWeekStart] = useState(mondayOf(dayjs()));
+  const [week, setWeek] = useState<TimesheetWeek | null>(null);
   const [loading, setLoading] = useState(false);
-  const [timerLoading, setTimerLoading] = useState(false);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingEntry, setEditingEntry] = useState<TimeEntry | null>(null);
-  const [selectedDate, setSelectedDate] = useState(dayjs());
-  const [form] = Form.useForm();
+  const [saving, setSaving] = useState(false);
+  const [draftByDay, setDraftByDay] = useState<Record<string, SaveWeekEntryInput[]>>({});
 
-  // Timer state
-  const [elapsedTime, setElapsedTime] = useState(0);
-  const [timerInterval, setTimerInterval] = useState<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    loadData();
-    const interval = setInterval(loadActiveTimer, 5000); // Check timer every 5 seconds
-    return () => clearInterval(interval);
-  }, []);
-
-  useEffect(() => {
-    if (activeTimer) {
-      startTimerInterval();
-    } else {
-      stopTimerInterval();
-    }
-    return () => stopTimerInterval();
-  }, [activeTimer]);
-
-  useEffect(() => {
-    loadTimeEntries();
-  }, [selectedDate]);
-
-  const loadData = async () => {
+  const loadWeek = useCallback(async () => {
     try {
       setLoading(true);
-      await Promise.all([
-        loadProjects(),
-        loadActiveTimer(),
-        loadTimeEntries(),
-        loadDashboard()
-      ]);
+      const data: TimesheetWeek = await apiService.getTimesheetWeek(weekStart);
+      setWeek(data);
+      const draft: Record<string, SaveWeekEntryInput[]> = {};
+      data.days.forEach(day => {
+        draft[day.date] = day.entries.map(e => ({
+          id: e.id, project_id: e.project_id, task_id: e.task_id, description: e.description,
+          date: e.date, hours: e.hours, is_billable: e.is_billable
+        }));
+      });
+      setDraftByDay(draft);
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('Error loading timesheet week:', error);
+      message.error('Error al cargar la semana');
     } finally {
       setLoading(false);
     }
+  }, [weekStart]);
+
+  useEffect(() => { loadWeek(); }, [loadWeek]);
+
+  const isLocked = week?.period?.status === 'submitted' || week?.period?.status === 'approved';
+
+  const addRow = (date: string) => {
+    if (isLocked || !projects[0]) return;
+    setDraftByDay(prev => ({
+      ...prev,
+      [date]: [...(prev[date] || []), { project_id: projects[0].id, date, hours: 1, is_billable: true }]
+    }));
   };
+
+  const updateRow = (date: string, index: number, patch: Partial<SaveWeekEntryInput>) => {
+    setDraftByDay(prev => {
+      const rows = [...(prev[date] || [])];
+      rows[index] = { ...rows[index], ...patch };
+      return { ...prev, [date]: rows };
+    });
+  };
+
+  const removeRow = (date: string, index: number) => {
+    setDraftByDay(prev => {
+      const rows = [...(prev[date] || [])];
+      rows.splice(index, 1);
+      return { ...prev, [date]: rows };
+    });
+  };
+
+  const handleSave = async () => {
+    try {
+      setSaving(true);
+      const allEntries = Object.values(draftByDay).flat().filter(e => e.hours > 0);
+      const updated = await apiService.saveTimesheetWeek(weekStart, allEntries);
+      setWeek(updated);
+      message.success('Semana guardada');
+    } catch (error: any) {
+      message.error(error.response?.data?.error || 'Error al guardar la semana');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSubmit = async () => {
+    try {
+      await handleSave();
+      await apiService.submitTimesheetWeek(weekStart);
+      message.success('Semana enviada a aprobación');
+      await loadWeek();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || 'Error al enviar la semana');
+    }
+  };
+
+  const weekTotal = Object.values(draftByDay).flat().reduce((sum, e) => sum + (e.hours || 0), 0);
+
+  return (
+    <div>
+      <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
+        <Space>
+          <Button icon={<LeftOutlined />} onClick={() => setWeekStart(mondayOf(dayjs(weekStart).subtract(7, 'day')))} />
+          <Text strong>Semana del {dayjs(weekStart).format('DD/MM/YYYY')}</Text>
+          <Button icon={<RightOutlined />} onClick={() => setWeekStart(mondayOf(dayjs(weekStart).add(7, 'day')))} />
+        </Space>
+        <Space>
+          <Statistic title="Total semana" value={weekTotal} suffix="hrs" precision={2} />
+          {week?.period && (
+            <Tag color={
+              week.period.status === 'approved' ? 'green' :
+              week.period.status === 'submitted' ? 'blue' :
+              week.period.status === 'rejected' ? 'red' : 'default'
+            }>
+              {week.period.status.toUpperCase()}
+            </Tag>
+          )}
+        </Space>
+      </Row>
+
+      {week?.period?.status === 'rejected' && (
+        <Alert
+          type="warning"
+          showIcon
+          message="Semana rechazada"
+          description={week.period.rejection_reason}
+          style={{ marginBottom: 16 }}
+        />
+      )}
+
+      <Row gutter={[16, 16]}>
+        {(week?.days || []).map(day => (
+          <Col xs={24} md={12} lg={8} key={day.date}>
+            <Card
+              size="small"
+              title={dayjs(day.date).format('dddd DD/MM')}
+              extra={<Text type="secondary">{(draftByDay[day.date] || []).reduce((s, e) => s + (e.hours || 0), 0)}h</Text>}
+            >
+              {(draftByDay[day.date] || []).map((entry, idx) => (
+                <Row gutter={4} key={idx} style={{ marginBottom: 8 }} align="middle">
+                  <Col span={9}>
+                    <Select
+                      size="small"
+                      style={{ width: '100%' }}
+                      value={entry.project_id}
+                      disabled={isLocked}
+                      onChange={(v) => updateRow(day.date, idx, { project_id: v })}
+                    >
+                      {projects.map(p => <Option key={p.id} value={p.id}>{p.name}</Option>)}
+                    </Select>
+                  </Col>
+                  <Col span={7}>
+                    <Input
+                      size="small"
+                      placeholder="Descripción"
+                      disabled={isLocked}
+                      value={entry.description || ''}
+                      onChange={(e) => updateRow(day.date, idx, { description: e.target.value })}
+                    />
+                  </Col>
+                  <Col span={5}>
+                    <InputNumber
+                      size="small"
+                      min={0.25}
+                      max={24}
+                      step={0.25}
+                      style={{ width: '100%' }}
+                      disabled={isLocked}
+                      value={entry.hours}
+                      onChange={(v) => updateRow(day.date, idx, { hours: v || 0 })}
+                    />
+                  </Col>
+                  <Col span={2}>
+                    <Checkbox
+                      checked={entry.is_billable !== false}
+                      disabled={isLocked}
+                      onChange={(e) => updateRow(day.date, idx, { is_billable: e.target.checked })}
+                    />
+                  </Col>
+                  <Col span={1}>
+                    <Button
+                      size="small"
+                      type="text"
+                      danger
+                      icon={<DeleteOutlined />}
+                      disabled={isLocked}
+                      onClick={() => removeRow(day.date, idx)}
+                    />
+                  </Col>
+                </Row>
+              ))}
+              <Button
+                size="small"
+                type="dashed"
+                icon={<PlusOutlined />}
+                block
+                disabled={isLocked}
+                onClick={() => addRow(day.date)}
+              >
+                Agregar
+              </Button>
+            </Card>
+          </Col>
+        ))}
+      </Row>
+
+      <Row justify="end" style={{ marginTop: 16 }}>
+        <Space>
+          <Button onClick={handleSave} loading={saving || loading} disabled={isLocked}>
+            Guardar semana
+          </Button>
+          <Popconfirm
+            title="¿Enviar la semana a aprobación?"
+            description="No podrás editarla mientras esté pendiente de revisión."
+            onConfirm={handleSubmit}
+            disabled={isLocked}
+          >
+            <Button type="primary" icon={<SendOutlined />} disabled={isLocked}>
+              Enviar a aprobación
+            </Button>
+          </Popconfirm>
+        </Space>
+      </Row>
+    </div>
+  );
+};
+
+export const TimeTrackingPage: React.FC = () => {
+  const { user } = useAuthStore();
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [activeTimer, setActiveTimer] = useState<ActiveTimer | null>(null);
+  const [timerLoading, setTimerLoading] = useState(false);
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [selectedTimerProject, setSelectedTimerProject] = useState<number | undefined>(undefined);
+  const [reminderDates, setReminderDates] = useState<string[]>([]);
+
+  const canApprove = user?.role === 'team_lead';
+  const canSeeEffectiveness = user?.role === 'team_lead' || user?.role === 'rpa_operations';
 
   const loadProjects = async () => {
     try {
@@ -168,66 +307,46 @@ export const TimeTrackingPage: React.FC = () => {
     }
   };
 
-  const loadTimeEntries = async () => {
+  const loadReminders = async () => {
     try {
-      const dateString = selectedDate.format('YYYY-MM-DD');
-      const response = await apiService.get(`/time-entries?date=${dateString}`);
-      setTimeEntries(response || []);
+      const data: PendingReminders = await apiService.getTimesheetReminders();
+      setReminderDates(data.missing_dates || []);
     } catch (error) {
-      console.error('Error loading time entries:', error);
-      message.error('Error al cargar entradas de tiempo');
+      console.error('Error loading reminders:', error);
     }
   };
 
-  const loadDashboard = async () => {
-    try {
-      const response = await apiService.get('/time-entries/dashboard');
-      setDashboardData(response);
-    } catch (error) {
-      console.error('Error loading dashboard:', error);
-    }
-  };
+  useEffect(() => {
+    loadProjects();
+    loadActiveTimer();
+    loadReminders();
+    const interval = setInterval(loadActiveTimer, 5000);
+    return () => clearInterval(interval);
+  }, []);
 
-  const startTimerInterval = () => {
-    if (!activeTimer) return;
-    
-    stopTimerInterval();
-    
-    const calculateElapsed = () => {
-      const startTime = dayjs(`${activeTimer.date} ${activeTimer.start_time}`);
-      const now = dayjs();
-      const elapsed = now.diff(startTime, 'second');
-      setElapsedTime(elapsed);
-    };
-
-    calculateElapsed();
-    const interval = setInterval(calculateElapsed, 1000);
-    setTimerInterval(interval);
-  };
-
-  const stopTimerInterval = () => {
-    if (timerInterval) {
-      clearInterval(timerInterval);
-      setTimerInterval(null);
+  useEffect(() => {
+    if (activeTimer) {
+      const calc = () => setElapsedTime(dayjs().diff(dayjs(`${activeTimer.date} ${activeTimer.start_time}`), 'second'));
+      calc();
+      const id = setInterval(calc, 1000);
+      return () => clearInterval(id);
     }
     setElapsedTime(0);
-  };
+  }, [activeTimer]);
 
   const formatElapsedTime = (seconds: number) => {
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
   };
 
-  const handleStartTimer = async (values: { project_id: number; task_id?: number; description?: string }) => {
+  const handleStartTimer = async (projectId: number) => {
     try {
       setTimerLoading(true);
-      const response = await apiService.post('/time-entries/start-timer', values);
+      const response = await apiService.post('/time-entries/start-timer', { project_id: projectId });
       setActiveTimer(response);
-      message.success('Timer iniciado exitosamente');
     } catch (error: any) {
-      console.error('Error starting timer:', error);
       message.error(error.response?.data?.error || 'Error al iniciar timer');
     } finally {
       setTimerLoading(false);
@@ -239,431 +358,205 @@ export const TimeTrackingPage: React.FC = () => {
       setTimerLoading(true);
       await apiService.post('/time-entries/stop-timer');
       setActiveTimer(null);
-      await Promise.all([loadTimeEntries(), loadDashboard()]);
-      message.success('Timer detenido exitosamente');
+      message.success('Timer detenido');
     } catch (error: any) {
-      console.error('Error stopping timer:', error);
       message.error(error.response?.data?.error || 'Error al detener timer');
     } finally {
       setTimerLoading(false);
     }
   };
 
-  const handleCreateEntry = async (values: any) => {
-    try {
-      await apiService.post('/time-entries', {
-        ...values,
-        date: selectedDate.format('YYYY-MM-DD')
-      });
-      message.success('Entrada creada exitosamente');
-      setIsModalOpen(false);
-      form.resetFields();
-      await Promise.all([loadTimeEntries(), loadDashboard()]);
-    } catch (error: any) {
-      console.error('Error creating entry:', error);
-      message.error(error.response?.data?.error || 'Error al crear entrada');
-    }
-  };
-
-  const handleUpdateEntry = async (values: any) => {
-    if (!editingEntry) return;
-    
-    try {
-      await apiService.put(`/time-entries/${editingEntry.id}`, values);
-      message.success('Entrada actualizada exitosamente');
-      setIsModalOpen(false);
-      setEditingEntry(null);
-      form.resetFields();
-      await Promise.all([loadTimeEntries(), loadDashboard()]);
-    } catch (error: any) {
-      console.error('Error updating entry:', error);
-      message.error(error.response?.data?.error || 'Error al actualizar entrada');
-    }
-  };
-
-  const handleDeleteEntry = async (entryId: number) => {
-    try {
-      await apiService.delete(`/time-entries/${entryId}`);
-      message.success('Entrada eliminada exitosamente');
-      await Promise.all([loadTimeEntries(), loadDashboard()]);
-    } catch (error: any) {
-      console.error('Error deleting entry:', error);
-      message.error(error.response?.data?.error || 'Error al eliminar entrada');
-    }
-  };
-
-  const openEditModal = (entry: TimeEntry) => {
-    setEditingEntry(entry);
-    form.setFieldsValue({
-      project_id: entry.project_id,
-      task_id: entry.task_id,
-      description: entry.description,
-      hours: entry.hours,
-      is_billable: entry.is_billable
-    });
-    setIsModalOpen(true);
-  };
-
-  const openCreateModal = () => {
-    setEditingEntry(null);
-    form.resetFields();
-    setIsModalOpen(true);
-  };
-
-  // Timer form for starting new timer
-  const TimerForm = () => {
-    const [timerForm] = Form.useForm();
-
-    return (
-      <Card 
-        title={
-          <Space>
-            <ClockCircleOutlined />
-            Timer de Trabajo
-          </Space>
-        }
-        style={{ marginBottom: '24px' }}
-      >
-        {activeTimer ? (
-          <div>
-            <Row gutter={16} align="middle">
-              <Col>
-                <Statistic
-                  title="Tiempo Transcurrido"
-                  value={formatElapsedTime(elapsedTime)}
-                  valueStyle={{ fontSize: '32px', fontFamily: 'monospace' }}
-                />
-              </Col>
-              <Col>
-                <div>
-                  <Text strong>Proyecto: </Text>
-                  <Text>{activeTimer.project_name}</Text>
-                </div>
-                {activeTimer.task_title && (
-                  <div>
-                    <Text strong>Tarea: </Text>
-                    <Text>{activeTimer.task_title}</Text>
-                  </div>
-                )}
-                {activeTimer.description && (
-                  <div>
-                    <Text strong>Descripción: </Text>
-                    <Text>{activeTimer.description}</Text>
-                  </div>
-                )}
-              </Col>
-              <Col>
-                <Button
-                  type="primary"
-                  danger
-                  size="large"
-                  icon={<PauseCircleOutlined />}
-                  loading={timerLoading}
-                  onClick={handleStopTimer}
-                >
-                  Detener Timer
-                </Button>
-              </Col>
-            </Row>
-          </div>
-        ) : (
-          <Form
-            form={timerForm}
-            layout="inline"
-            onFinish={handleStartTimer}
-            style={{ width: '100%' }}
-          >
-            <Form.Item
-              name="project_id"
-              rules={[{ required: true, message: 'Seleccione un proyecto' }]}
-              style={{ minWidth: '200px' }}
-            >
-              <Select placeholder="Seleccionar proyecto">
-                {projects.map(project => (
-                  <Option key={project.id} value={project.id}>
-                    {project.name}
-                  </Option>
-                ))}
-              </Select>
-            </Form.Item>
-
-            <Form.Item name="description" style={{ minWidth: '300px' }}>
-              <Input placeholder="Descripción de la tarea (opcional)" />
-            </Form.Item>
-
-            <Form.Item>
-              <Button
-                type="primary"
-                htmlType="submit"
-                icon={<PlayCircleOutlined />}
-                loading={timerLoading}
-                size="large"
-              >
-                Iniciar Timer
-              </Button>
-            </Form.Item>
-          </Form>
-        )}
-      </Card>
-    );
-  };
-
-  // Dashboard statistics
-  const DashboardStats = () => (
-    <Row gutter={16} style={{ marginBottom: '24px' }}>
-      <Col xs={24} sm={8}>
-        <Card>
-          <Statistic
-            title="Hoy"
-            value={dashboardData?.today.total_hours || 0}
-            precision={2}
-            suffix="hrs"
-            prefix={<ClockCircleOutlined />}
-          />
-          <Text type="secondary">
-            ${(dashboardData?.today.total_value || 0).toLocaleString()}
-          </Text>
-        </Card>
-      </Col>
-      <Col xs={24} sm={8}>
-        <Card>
-          <Statistic
-            title="Esta Semana"
-            value={dashboardData?.week.total_hours || 0}
-            precision={2}
-            suffix="hrs"
-            prefix={<DashboardOutlined />}
-          />
-          <Text type="secondary">
-            ${(dashboardData?.week.total_value || 0).toLocaleString()}
-          </Text>
-        </Card>
-      </Col>
-      <Col xs={24} sm={8}>
-        <Card>
-          <Statistic
-            title="Entradas Hoy"
-            value={dashboardData?.today.entries_count || 0}
-            prefix={<ProjectOutlined />}
-          />
-        </Card>
-      </Col>
-    </Row>
-  );
-
-  // Time entries table columns
-  const columns = [
+  const tabItems = [
     {
-      title: 'Proyecto',
-      dataIndex: 'project_name',
-      key: 'project_name',
-      render: (name: string) => <Text strong>{name}</Text>
-    },
-    {
-      title: 'Descripción',
-      dataIndex: 'description',
-      key: 'description',
-      render: (desc: string) => desc || '-'
-    },
-    {
-      title: 'Horas',
-      dataIndex: 'hours',
-      key: 'hours',
-      render: (hours: number) => `${hours}h`,
-      sorter: (a: TimeEntry, b: TimeEntry) => a.hours - b.hours
-    },
-    {
-      title: 'Tiempo',
-      key: 'time_range',
-      render: (entry: TimeEntry) => {
-        if (entry.start_time && entry.end_time) {
-          return `${entry.start_time} - ${entry.end_time}`;
-        }
-        return '-';
-      }
-    },
-    {
-      title: 'Facturable',
-      dataIndex: 'is_billable',
-      key: 'is_billable',
-      render: (billable: boolean) => (
-        <Tag color={billable ? 'green' : 'orange'}>
-          {billable ? 'Sí' : 'No'}
-        </Tag>
-      )
-    },
-    {
-      title: 'Valor',
-      key: 'value',
-      render: (entry: TimeEntry) => {
-        const value = entry.hours * entry.hourly_rate;
-        return `$${value.toLocaleString()}`;
-      }
-    },
-    {
-      title: 'Acciones',
-      key: 'actions',
-      render: (entry: TimeEntry) => (
-        <Space>
-          <Tooltip title="Editar">
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              onClick={() => openEditModal(entry)}
-            />
-          </Tooltip>
-          <Tooltip title="Eliminar">
-            <Button
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => {
-                Modal.confirm({
-                  title: '¿Eliminar entrada?',
-                  content: 'Esta acción no se puede deshacer.',
-                  okText: 'Eliminar',
-                  okType: 'danger',
-                  cancelText: 'Cancelar',
-                  onOk: () => handleDeleteEntry(entry.id)
-                });
-              }}
-            />
-          </Tooltip>
-        </Space>
-      )
+      key: 'week',
+      label: 'Mi semana',
+      children: <WeekGrid projects={projects} />
     }
   ];
+
+  if (canApprove) {
+    tabItems.push({ key: 'approvals', label: 'Aprobaciones', children: <ApprovalsTab /> });
+  }
+  if (canSeeEffectiveness) {
+    tabItems.push({ key: 'effectiveness', label: 'Efectividad', children: <EffectivenessTab /> });
+  }
 
   return (
     <div style={{ padding: '24px' }}>
       <div style={{ marginBottom: '24px' }}>
-        <Title level={2}>⏱️ Time Tracking</Title>
-        <Text type="secondary">
-          Registra y gestiona tu tiempo de trabajo en proyectos
-        </Text>
+        <Title level={2}>⏱️ Tiempo</Title>
+        <Text type="secondary">Carga tu semana, revisa aprobaciones y efectividad del equipo</Text>
       </div>
 
-      <TimerForm />
-      <DashboardStats />
+      {reminderDates.length > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message={`Tienes ${reminderDates.length} día(s) hábil(es) sin horas registradas en las últimas 2 semanas`}
+          description={reminderDates.join(', ')}
+        />
+      )}
 
-      {/* Time entries table */}
       <Card
         title={
           <Space>
             <ClockCircleOutlined />
-            Entradas de Tiempo
+            Timer de trabajo
           </Space>
         }
-        extra={
+        style={{ marginBottom: 24 }}
+      >
+        {activeTimer ? (
+          <Row gutter={16} align="middle">
+            <Col>
+              <Statistic title="Tiempo transcurrido" value={formatElapsedTime(elapsedTime)} valueStyle={{ fontFamily: 'monospace' }} />
+            </Col>
+            <Col flex="auto">
+              <Text strong>{activeTimer.project_name}</Text>
+            </Col>
+            <Col>
+              <Button type="primary" danger icon={<PauseCircleOutlined />} loading={timerLoading} onClick={handleStopTimer}>
+                Detener timer
+              </Button>
+            </Col>
+          </Row>
+        ) : (
           <Space>
-            <DatePicker
-              value={selectedDate}
-              onChange={(date) => setSelectedDate(date || dayjs())}
-              format="DD/MM/YYYY"
-            />
+            <Select
+              placeholder="Proyecto"
+              style={{ width: 240 }}
+              value={selectedTimerProject}
+              onChange={(v) => setSelectedTimerProject(v)}
+            >
+              {projects.map(p => <Option key={p.id} value={p.id}>{p.name}</Option>)}
+            </Select>
             <Button
               type="primary"
-              icon={<PlusOutlined />}
-              onClick={openCreateModal}
+              icon={<PlayCircleOutlined />}
+              loading={timerLoading}
+              disabled={!selectedTimerProject}
+              onClick={() => selectedTimerProject && handleStartTimer(selectedTimerProject)}
             >
-              Nueva Entrada
+              Iniciar timer
             </Button>
           </Space>
-        }
-      >
-        {timeEntries.length === 0 ? (
-          <Alert
-            message="No hay entradas de tiempo"
-            description={`No se encontraron entradas para ${selectedDate.format('DD/MM/YYYY')}`}
-            type="info"
-            showIcon
-            style={{ margin: '20px 0' }}
-          />
-        ) : (
-          <Table
-            columns={columns}
-            dataSource={timeEntries}
-            rowKey="id"
-            loading={loading}
-            pagination={false}
-          />
         )}
       </Card>
 
-      {/* Create/Edit Modal */}
-      <Modal
-        title={editingEntry ? 'Editar Entrada' : 'Nueva Entrada de Tiempo'}
-        open={isModalOpen}
-        onCancel={() => {
-          setIsModalOpen(false);
-          setEditingEntry(null);
-          form.resetFields();
-        }}
-        footer={null}
-        width={600}
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={editingEntry ? handleUpdateEntry : handleCreateEntry}
-        >
-          <Form.Item
-            name="project_id"
-            label="Proyecto"
-            rules={[{ required: true, message: 'Seleccione un proyecto' }]}
-          >
-            <Select placeholder="Seleccionar proyecto">
-              {projects.map(project => (
-                <Option key={project.id} value={project.id}>
-                  {project.name}
-                </Option>
-              ))}
-            </Select>
-          </Form.Item>
+      <Tabs items={tabItems} />
+    </div>
+  );
+};
 
-          <Form.Item
-            name="description"
-            label="Descripción"
-          >
-            <TextArea rows={3} placeholder="Describe el trabajo realizado..." />
-          </Form.Item>
+const ApprovalsTab: React.FC = () => {
+  const [periods, setPeriods] = useState<TimesheetPeriod[]>([]);
+  const [loading, setLoading] = useState(false);
 
-          <Form.Item
-            name="hours"
-            label="Horas"
-            rules={[
-              { required: true, message: 'Ingrese las horas trabajadas' },
-              { type: 'number', min: 0.1, max: 24, message: 'Entre 0.1 y 24 horas' }
-            ]}
-          >
-            <InputNumber
-              min={0.1}
-              max={24}
-              step={0.25}
-              precision={2}
-              style={{ width: '100%' }}
-              placeholder="Ej: 2.5"
-            />
-          </Form.Item>
+  const load = async () => {
+    try {
+      setLoading(true);
+      const data: TimesheetPeriod[] = await apiService.getPendingTimesheetApprovals();
+      setPeriods(data);
+    } catch (error) {
+      message.error('Error al cargar aprobaciones pendientes');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-          <Form.Item>
+  useEffect(() => { load(); }, []);
+
+  const handleApprove = async (id: number) => {
+    try {
+      await apiService.approveTimesheetWeek(id);
+      message.success('Semana aprobada');
+      load();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || 'Error al aprobar');
+    }
+  };
+
+  const handleReject = async (id: number) => {
+    const reason = window.prompt('Motivo del rechazo:');
+    if (!reason) return;
+    try {
+      await apiService.rejectTimesheetWeek(id, reason);
+      message.success('Semana rechazada');
+      load();
+    } catch (error: any) {
+      message.error(error.response?.data?.error || 'Error al rechazar');
+    }
+  };
+
+  return (
+    <Table
+      loading={loading}
+      dataSource={periods}
+      rowKey="id"
+      columns={[
+        { title: 'Persona', dataIndex: 'user_name' },
+        { title: 'Semana', render: (_: any, r: TimesheetPeriod) => `${dayjs(r.period_start).format('DD/MM')} - ${dayjs(r.period_end).format('DD/MM')}` },
+        { title: 'Horas', dataIndex: 'total_hours' },
+        {
+          title: 'Acciones',
+          render: (_: any, r: TimesheetPeriod) => (
             <Space>
-              <Button type="primary" htmlType="submit">
-                {editingEntry ? 'Actualizar' : 'Crear'} Entrada
-              </Button>
-              <Button 
-                onClick={() => {
-                  setIsModalOpen(false);
-                  setEditingEntry(null);
-                  form.resetFields();
-                }}
-              >
-                Cancelar
-              </Button>
+              <Button size="small" type="primary" onClick={() => handleApprove(r.id)}>Aprobar</Button>
+              <Button size="small" danger onClick={() => handleReject(r.id)}>Rechazar</Button>
             </Space>
-          </Form.Item>
-        </Form>
-      </Modal>
+          )
+        }
+      ]}
+    />
+  );
+};
+
+const EffectivenessTab: React.FC = () => {
+  const [metrics, setMetrics] = useState<EffectivenessMetrics | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const from = dayjs().startOf('month').format('YYYY-MM-DD');
+    const to = dayjs().endOf('month').format('YYYY-MM-DD');
+    setLoading(true);
+    apiService.getEffectivenessMetrics(from, to)
+      .then(setMetrics)
+      .catch(() => message.error('Error al cargar métricas de efectividad'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  return (
+    <div>
+      <Title level={4}>Por persona (mes actual)</Title>
+      <Table
+        loading={loading}
+        dataSource={metrics?.by_person || []}
+        rowKey="user_id"
+        columns={[
+          { title: 'Persona', dataIndex: 'user_name' },
+          { title: 'Estimado (h)', dataIndex: 'estimated_hours' },
+          { title: 'Real (h)', dataIndex: 'real_hours' },
+          { title: 'Utilización %', dataIndex: 'utilization_pct', render: (v: number) => `${v}%` },
+          { title: 'Facturable %', dataIndex: 'billable_pct', render: (v: number) => `${v}%` }
+        ]}
+      />
+      <Title level={4} style={{ marginTop: 24 }}>Por tarea (mes actual)</Title>
+      <Table
+        loading={loading}
+        dataSource={metrics?.by_task || []}
+        rowKey="task_id"
+        columns={[
+          { title: 'Tarea', dataIndex: 'task_title' },
+          { title: 'Proyecto', dataIndex: 'project_name' },
+          { title: 'Estimado (h)', dataIndex: 'estimated_hours' },
+          { title: 'Real (h)', dataIndex: 'real_hours' },
+          {
+            title: 'Desvío (h)', dataIndex: 'variance_hours',
+            render: (v: number) => <Tag color={v > 0 ? 'red' : 'green'}>{v > 0 ? '+' : ''}{v}</Tag>
+          }
+        ]}
+      />
     </div>
   );
 };
