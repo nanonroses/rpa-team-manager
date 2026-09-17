@@ -260,6 +260,7 @@ export class TimesheetService {
      * vigente hoy) por cada entrada y las bloquea (is_locked=1). Desde este momento financeService
      * usa estas horas como real_hours/real_cost del proyecto (ver Task 4) - por eso el snapshot
      * se congela aquí y no se recalcula nunca más, ni si cambia la tarifa del usuario a futuro.
+     * Toda la operación es transaccional (all-or-nothing).
      */
     async approveWeek(approverId: number, periodId: number): Promise<TimesheetPeriodRow> {
         const period = await db.get(`SELECT * FROM timesheet_periods WHERE id = ?`, [periodId]);
@@ -276,21 +277,30 @@ export class TimesheetService {
             [periodId]
         );
 
-        for (const entry of entries) {
-            const billRateCLP = entry.is_billable ? await this.getProjectBillRateCLP(entry.project_id) : 0;
-            await db.run(
-                `UPDATE time_entries
-                 SET approval_status = 'approved', is_locked = 1, approved_by = ?, approved_at = datetime('now'),
-                     cost_rate_snapshot = ?, bill_rate_snapshot = ?
-                 WHERE id = ?`,
-                [approverId, userCostRateCLP, billRateCLP, entry.id]
-            );
-        }
+        await db.beginTransaction();
+        try {
+            for (const entry of entries) {
+                const billRateCLP = entry.is_billable ? await this.getProjectBillRateCLP(entry.project_id) : 0;
+                await db.run(
+                    `UPDATE time_entries
+                     SET approval_status = 'approved', is_locked = 1, approved_by = ?, approved_at = datetime('now'),
+                         cost_rate_snapshot = ?, bill_rate_snapshot = ?
+                     WHERE id = ?`,
+                    [approverId, userCostRateCLP, billRateCLP, entry.id]
+                );
+            }
 
-        await db.run(
-            `UPDATE timesheet_periods SET status = 'approved', approved_by = ?, approved_at = datetime('now') WHERE id = ?`,
-            [approverId, periodId]
-        );
+            await db.run(
+                `UPDATE timesheet_periods SET status = 'approved', approved_by = ?, approved_at = datetime('now') WHERE id = ?`,
+                [approverId, periodId]
+            );
+
+            await db.commit();
+        } catch (error) {
+            await db.rollback();
+            logger.error('approveWeek failed, rolled back:', error);
+            throw error;
+        }
 
         logger.info(`Timesheet: periodo ${periodId} (usuario ${period.user_id}) aprobado por ${approverId} - ${entries.length} entrada(s) bloqueada(s)`);
         return { ...period, status: 'approved', approved_by: approverId };
@@ -300,6 +310,9 @@ export class TimesheetService {
         const period = await db.get(`SELECT * FROM timesheet_periods WHERE id = ?`, [periodId]);
         if (!period) {
             throw new Error(`Timesheet period ${periodId} not found`);
+        }
+        if (period.status !== 'submitted') {
+            throw new Error(`Timesheet period ${periodId} cannot be rejected (status=${period.status})`);
         }
 
         await db.run(

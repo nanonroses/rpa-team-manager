@@ -200,5 +200,10 @@ describe('TimesheetService', () => {
             );
             expect(result.status).toBe('rejected');
         });
+
+        it('rechaza si el periodo ya está aprobado', async () => {
+            (db.get as jest.Mock).mockResolvedValue({ id: 10, status: 'approved' });
+            await expect(timesheetService.rejectWeek(2, 10, 'Motivo')).rejects.toThrow('cannot be rejected');
+        });
     });
 });
