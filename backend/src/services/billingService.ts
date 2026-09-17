@@ -13,6 +13,7 @@ export interface PaymentMilestoneRow {
     status: string;
     planned_date: string | null;
     trigger_type: string;
+    rate_missing: boolean;
 }
 
 export interface BillingDashboard {
@@ -153,6 +154,10 @@ export class BillingService {
 
     private async toRow(raw: any): Promise<PaymentMilestoneRow> {
         const amountCLP = await financeService.toCLP(raw.amount, raw.currency as Currency);
+        // Cuando no hay tipo de cambio configurado, financeService.getExchangeRate devuelve 0
+        // (con solo un logger.warn) y el monto convertido queda en 0 aunque el monto original
+        // sea positivo. Detectamos ese caso para no reportar el hito como si valiera $0.
+        const rateMissing = raw.currency !== 'CLP' && amountCLP === 0 && raw.amount > 0;
         return {
             id: raw.id,
             project_id: raw.project_id,
@@ -163,7 +168,8 @@ export class BillingService {
             amount_clp: Math.round(amountCLP),
             status: raw.status,
             planned_date: raw.planned_date,
-            trigger_type: raw.trigger_type
+            trigger_type: raw.trigger_type,
+            rate_missing: rateMissing
         };
     }
 

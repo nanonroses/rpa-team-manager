@@ -245,11 +245,30 @@ export class BillingController {
 
                 if (totalPaid >= invoice.amount) {
                     await db.run(`UPDATE invoices SET status = 'paid' WHERE id = ?`, [id]);
+
+                    const milestoneRows = await db.query(
+                        `SELECT payment_milestone_id FROM invoice_lines WHERE invoice_id = ? AND payment_milestone_id IS NOT NULL`,
+                        [id]
+                    );
+                    const milestoneIds: number[] = milestoneRows.map((r: any) => r.payment_milestone_id);
+
                     await db.run(
                         `UPDATE payment_milestones SET status = 'paid'
                          WHERE id IN (SELECT payment_milestone_id FROM invoice_lines WHERE invoice_id = ?)`,
                         [id]
                     );
+
+                    // Un hito recién pagado ya no puede seguir "vencido": resolvemos la alerta
+                    // overdue_payment asociada (roi_alerts no tiene columna dedicada para el id
+                    // del hito, se identifica por el mismo patrón LIKE que syncOverdueAlert).
+                    for (const milestoneId of milestoneIds) {
+                        await db.run(
+                            `UPDATE roi_alerts SET is_resolved = 1, resolved_at = datetime('now')
+                             WHERE alert_type = 'overdue_payment' AND is_resolved = 0
+                               AND message LIKE ?`,
+                            [`%hito #${milestoneId}%`]
+                        );
+                    }
                 } else {
                     await db.run(`UPDATE invoices SET status = 'partially_paid' WHERE id = ?`, [id]);
                 }
@@ -314,11 +333,9 @@ export class BillingController {
                 project_name: project.name,
                 client_name: project.client_name || 'N/A',
                 generated_at: new Date().toISOString().slice(0, 10),
+                // Solo enviamos sale_price: costo real/margen/ROI son internos y no deben salir en este PDF (ver pdfService).
                 financials: {
-                    sale_price: financials.sale_price,
-                    real_cost: financials.real_cost,
-                    real_roi: financials.real_roi,
-                    real_profit: financials.real_profit
+                    sale_price: financials.sale_price
                 },
                 milestones,
                 hours_summary: hoursSummary

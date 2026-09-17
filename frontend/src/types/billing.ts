@@ -65,6 +65,7 @@ export interface BillingDashboardRow {
   status: PaymentMilestoneStatus;
   planned_date: string | null;
   trigger_type: TriggerType;
+  rate_missing?: boolean;
 }
 
 export interface BillingDashboard {

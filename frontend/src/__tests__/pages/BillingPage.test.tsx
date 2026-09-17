@@ -25,12 +25,19 @@ describe('BillingPage', () => {
   });
 
   it('renderiza el título Cobranza y los totales del dashboard', async () => {
-    render(<BillingPage />);
+    const { container } = render(<BillingPage />);
 
     expect(await screen.findByText('Cobranza')).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByText('Por facturar')).toBeInTheDocument();
       expect(screen.getByText('Cobrado')).toBeInTheDocument();
+    });
+
+    // Verifica que los valores reales de getBillingDashboard (no solo las etiquetas estáticas)
+    // efectivamente se renderizaron, formateados por el componente Statistic de antd.
+    await waitFor(() => {
+      expect(container.textContent).toContain('500,000'); // total_billable_clp
+      expect(container.textContent).toContain('200,000'); // total_paid_clp
     });
   });
 

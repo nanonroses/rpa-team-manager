@@ -287,7 +287,7 @@ export class FinancialController {
                 FROM roi_alerts ra
                 JOIN projects p ON ra.project_id = p.id
                 WHERE ra.is_resolved = 0
-                ORDER BY ra.alert_level DESC, ra.created_at DESC
+                ORDER BY CASE ra.alert_level WHEN 'critical' THEN 0 WHEN 'warning' THEN 1 ELSE 2 END, ra.created_at DESC
                 LIMIT 10
             `);
 
@@ -317,8 +317,9 @@ export class FinancialController {
             });
         }
 
-        // Low ROI warning
-        if (realROI >= 0 && realROI < 15) {
+        // Low ROI warning (mismo umbral de 20% que financeService.syncROIAlerts' low_margin,
+        // para que este endpoint y el dashboard persistido nunca se contradigan)
+        if (realROI >= 0 && realROI < 20) {
             alerts.push({
                 type: 'low_roi',
                 level: 'warning',

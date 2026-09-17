@@ -17,11 +17,11 @@ export interface PaymentStatementData {
     project_name: string;
     client_name: string;
     generated_at: string;
+    // Solo el precio de venta es información legítima para el cliente en este documento de cobranza.
+    // Costo real, margen y ROI son datos internos que no deben salir en un PDF que puede llegar al cliente
+    // (la plataforma no tiene portal de cliente; este es el único artefacto que podría "salir del edificio").
     financials: {
         sale_price: number;
-        real_cost: number;
-        real_roi: number;
-        real_profit: number;
     };
     milestones: PaymentStatementMilestone[];
     hours_summary: PaymentStatementHours[];
@@ -60,9 +60,6 @@ export function generatePaymentStatement(data: PaymentStatementData): Promise<Bu
         doc.fontSize(13).text('Resumen financiero', { underline: true });
         doc.fontSize(11);
         doc.text(`Precio de venta: ${formatCLP(data.financials.sale_price)}`);
-        doc.text(`Costo real: ${formatCLP(data.financials.real_cost)}`);
-        doc.text(`Margen real: ${formatCLP(data.financials.real_profit)}`);
-        doc.text(`ROI real: ${data.financials.real_roi.toFixed(1)}%`);
         doc.moveDown();
 
         doc.fontSize(13).text('Hitos de pago', { underline: true });
