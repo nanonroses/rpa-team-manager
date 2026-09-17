@@ -135,6 +135,73 @@ describe('TimesheetService', () => {
 
             expect(db.rollback).toHaveBeenCalled();
         });
+
+        it('rechaza y hace rollback si una entrada trae una fecha fuera de la semana que se está guardando', async () => {
+            (db.get as jest.Mock).mockResolvedValue(undefined);
+            (db.query as jest.Mock).mockResolvedValue([]);
+            (db.run as jest.Mock).mockResolvedValue({ id: 99, changes: 1 });
+
+            await expect(
+                timesheetService.saveWeekEntries(1, '2026-09-14', [
+                    { project_id: 1, date: '2026-09-21', hours: 4 } // lunes de la semana siguiente
+                ])
+            ).rejects.toThrow('is outside the week being saved');
+
+            expect(db.run).not.toHaveBeenCalled();
+            expect(db.rollback).toHaveBeenCalled();
+            expect(db.commit).not.toHaveBeenCalled();
+        });
+
+        it('rechaza y hace rollback si el DELETE no afecta ninguna fila (entrada bloqueada)', async () => {
+            (db.get as jest.Mock).mockResolvedValue(undefined);
+            (db.query as jest.Mock).mockImplementation((sql: string) => {
+                if (sql.includes('SELECT id FROM time_entries')) return Promise.resolve([{ id: 5 }]);
+                return Promise.resolve([]);
+            });
+            (db.run as jest.Mock).mockImplementation((sql: string) => {
+                if (sql.includes('DELETE FROM time_entries')) return Promise.resolve({ changes: 0 });
+                return Promise.resolve({ id: 99, changes: 1 });
+            });
+
+            await expect(
+                timesheetService.saveWeekEntries(1, '2026-09-14', [])
+            ).rejects.toThrow('could not be deleted');
+
+            expect(db.run).toHaveBeenCalledWith(
+                expect.stringContaining('is_locked = 0'),
+                [5]
+            );
+            expect(db.rollback).toHaveBeenCalled();
+        });
+
+        it('excluye los timers en curso del barrido de borrado', async () => {
+            (db.get as jest.Mock).mockResolvedValue(undefined);
+            (db.query as jest.Mock).mockResolvedValue([]);
+            (db.run as jest.Mock).mockResolvedValue({ id: 99, changes: 1 });
+
+            await timesheetService.saveWeekEntries(1, '2026-09-14', []);
+
+            expect(db.query).toHaveBeenCalledWith(
+                expect.stringContaining('NOT (start_time IS NOT NULL AND end_time IS NULL)'),
+                [1, '2026-09-14', '2026-09-20']
+            );
+        });
+    });
+
+    describe('isDateLocked', () => {
+        it('devuelve true si la fecha cae en un periodo enviado o aprobado', async () => {
+            (db.get as jest.Mock).mockResolvedValue({ id: 10 });
+            await expect(timesheetService.isDateLocked(1, '2026-09-16')).resolves.toBe(true);
+            expect(db.get).toHaveBeenCalledWith(
+                expect.stringContaining("status IN ('submitted', 'approved')"),
+                [1, '2026-09-16', '2026-09-16']
+            );
+        });
+
+        it('devuelve false si no hay ningún periodo cerrado para esa fecha', async () => {
+            (db.get as jest.Mock).mockResolvedValue(undefined);
+            await expect(timesheetService.isDateLocked(1, '2026-09-16')).resolves.toBe(false);
+        });
     });
 
     describe('submitWeek', () => {
@@ -153,6 +220,23 @@ describe('TimesheetService', () => {
                 expect.arrayContaining([10])
             );
             expect(result.status).toBe('submitted');
+        });
+
+        it('adopta las entradas huérfanas de la semana antes de marcarlas como submitted', async () => {
+            (db.get as jest.Mock).mockResolvedValue({ id: 10, status: 'open' });
+            (db.run as jest.Mock).mockResolvedValue({ changes: 1 });
+
+            await timesheetService.submitWeek(1, '2026-09-14');
+
+            expect(db.run).toHaveBeenCalledWith(
+                expect.stringContaining('timesheet_period_id IS NULL'),
+                [10, 1, '2026-09-14', '2026-09-20']
+            );
+            const runCalls = (db.run as jest.Mock).mock.calls.map((c: any[]) => c[0] as string);
+            const adoptIndex = runCalls.findIndex(sql => sql.includes('timesheet_period_id IS NULL'));
+            const markIndex = runCalls.findIndex(sql => sql.includes("UPDATE time_entries SET approval_status = 'submitted'"));
+            expect(adoptIndex).toBeGreaterThanOrEqual(0);
+            expect(adoptIndex).toBeLessThan(markIndex);
         });
 
         it('rechaza si no hay periodo (semana vacía) para esa fecha', async () => {
@@ -197,6 +281,18 @@ describe('TimesheetService', () => {
         it('rechaza si el periodo no está submitted', async () => {
             (db.get as jest.Mock).mockResolvedValue({ id: 10, status: 'open' });
             await expect(timesheetService.approveWeek(2, 10)).rejects.toThrow('not submitted');
+        });
+
+        it('se niega a aprobar (antes de abrir transacción) si el usuario no tiene tarifa de costo activa', async () => {
+            (db.get as jest.Mock).mockResolvedValue({
+                id: 10, user_id: 1, status: 'submitted', period_start: '2026-09-14', period_end: '2026-09-20'
+            });
+            jest.spyOn(timesheetService as any, 'getUserCostRateCLP').mockResolvedValue(0);
+
+            await expect(timesheetService.approveWeek(2, 10)).rejects.toThrow('no active cost rate');
+
+            expect(db.beginTransaction).not.toHaveBeenCalled();
+            expect(db.run).not.toHaveBeenCalled();
         });
     });
 

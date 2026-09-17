@@ -116,6 +116,16 @@ export class TimesheetService {
         return row || null;
     }
 
+    /** True si `date` cae dentro de un timesheet_period de este usuario ya enviado o aprobado. */
+    async isDateLocked(userId: number, date: string): Promise<boolean> {
+        const period = await db.get(
+            `SELECT id FROM timesheet_periods
+             WHERE user_id = ? AND period_start <= ? AND period_end >= ? AND status IN ('submitted', 'approved')`,
+            [userId, date, date]
+        );
+        return !!period;
+    }
+
     async getWeek(userId: number, weekStartDate: string): Promise<TimesheetWeek> {
         const monday = this.getWeekStart(weekStartDate);
         const sunday = this.getWeekEnd(monday);
@@ -166,6 +176,12 @@ export class TimesheetService {
 
         await db.beginTransaction();
         try {
+            for (const entry of entries) {
+                if (entry.date < monday || entry.date > sunday) {
+                    throw new Error(`Entry date ${entry.date} is outside the week being saved (${monday}..${sunday})`);
+                }
+            }
+
             let periodId = existingPeriod?.id;
             if (!periodId) {
                 const created = await db.run(
@@ -177,8 +193,11 @@ export class TimesheetService {
                 await db.run(`UPDATE timesheet_periods SET status = 'open', rejection_reason = NULL WHERE id = ?`, [periodId]);
             }
 
+            // Un timer en curso (start_time sin end_time) no es representable en la grilla, así que
+            // nunca puede venir en el payload: excluirlo aquí evita que el barrido lo borre.
             const existingIdsRows = await db.query(
-                `SELECT id FROM time_entries WHERE user_id = ? AND date >= ? AND date <= ?`,
+                `SELECT id FROM time_entries WHERE user_id = ? AND date >= ? AND date <= ?
+                 AND NOT (start_time IS NOT NULL AND end_time IS NULL)`,
                 [userId, monday, sunday]
             );
             const existingIds = new Set(existingIdsRows.map((r: any) => r.id));
@@ -186,7 +205,10 @@ export class TimesheetService {
 
             for (const id of existingIds) {
                 if (!keptIds.has(id)) {
-                    await db.run(`DELETE FROM time_entries WHERE id = ?`, [id]);
+                    const deleted = await db.run(`DELETE FROM time_entries WHERE id = ? AND is_locked = 0`, [id]);
+                    if (deleted.changes !== 1) {
+                        throw new Error(`Time entry ${id} could not be deleted (locked or already gone)`);
+                    }
                 }
             }
 
@@ -231,6 +253,7 @@ export class TimesheetService {
 
     async submitWeek(userId: number, weekStartDate: string): Promise<TimesheetPeriodRow> {
         const monday = this.getWeekStart(weekStartDate);
+        const sunday = this.getWeekEnd(monday);
         const period = await this.getPeriod(userId, monday);
 
         if (!period) {
@@ -239,6 +262,14 @@ export class TimesheetService {
         if (period.status === 'approved') {
             throw new Error('This week was already approved and cannot be re-submitted');
         }
+
+        // Las entradas creadas fuera de la grilla (timer, POST /api/time-entries) no tienen periodo:
+        // se adoptan por fecha+usuario antes de marcar, para que aprobar la semana las congele a todas.
+        await db.run(
+            `UPDATE time_entries SET timesheet_period_id = ?
+             WHERE user_id = ? AND date >= ? AND date <= ? AND timesheet_period_id IS NULL AND is_locked = 0`,
+            [period.id, userId, monday, sunday]
+        );
 
         await db.run(
             `UPDATE timesheet_periods SET status = 'submitted', submitted_at = datetime('now'), rejection_reason = NULL WHERE id = ?`,
@@ -300,6 +331,12 @@ export class TimesheetService {
         }
 
         const userCostRateCLP = await this.getUserCostRateCLP(period.user_id);
+        // Congelar un 0 es irreversible (el snapshot no se recalcula nunca) y colapsaría el costo
+        // real del proyecto para siempre: preferimos bloquear la aprobación.
+        if (userCostRateCLP <= 0) {
+            throw new Error(`User ${period.user_id} has no active cost rate configured; configure it before approving this week`);
+        }
+
         const entries = await db.query(
             `SELECT id, project_id, hours, is_billable FROM time_entries WHERE timesheet_period_id = ?`,
             [periodId]

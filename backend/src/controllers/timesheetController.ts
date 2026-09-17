@@ -35,6 +35,7 @@ export class TimesheetController {
             res.json(period);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to submit timesheet week';
+            logger.error('Submit timesheet week error:', error);
             res.status(400).json({ error: message });
         }
     };
@@ -55,6 +56,7 @@ export class TimesheetController {
             res.json(period);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to approve timesheet week';
+            logger.error('Approve timesheet week error:', error);
             res.status(400).json({ error: message });
         }
     };
@@ -65,6 +67,7 @@ export class TimesheetController {
             res.json(period);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to reject timesheet week';
+            logger.error('Reject timesheet week error:', error);
             res.status(400).json({ error: message });
         }
     };

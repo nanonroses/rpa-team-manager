@@ -45,4 +45,19 @@ describe('TimeController - bloqueo de horas aprobadas (Fase 3)', () => {
             expect(db.run).not.toHaveBeenCalled();
         });
     });
+
+    describe('stopTimer', () => {
+        it('rechaza con 400 si el timer activo quedó bloqueado (is_locked) y no escribe', async () => {
+            (db.get as jest.Mock).mockResolvedValue({
+                id: 1, user_id: 7, is_locked: 1, date: '2026-09-17', start_time: '09:00:00'
+            });
+            const req: any = { user: { id: 7 } };
+            const res = mockRes();
+
+            await controller.stopTimer(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(db.run).not.toHaveBeenCalled();
+        });
+    });
 });

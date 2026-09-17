@@ -17,6 +17,8 @@ export interface ProjectFinancials {
     project_name: string;
     planned_hours: number;
     real_hours: number;
+    real_hours_source: 'approved' | 'projected';
+    approved_hours: number;
     client_delay_hours: number;
     hourly_rate_uf: number;
     uf_value_clp: number;
@@ -194,7 +196,9 @@ export class FinanceService {
         // Fase 3: las horas/costo reales vienen de time_entries aprobados (el dato real), no de una
         // proyección. Mientras un proyecto no tenga ninguna hora aprobada todavía (arranque de esta
         // fase, o proyectos que aún no cargan timesheet), se usa la proyección anterior como fallback
-        // para no mostrar de golpe un costo real de 0.
+        // para no mostrar de golpe un costo real de 0. real_hours_source/approved_hours quedan expuestos
+        // en el resultado para que quien consuma esto (p. ej. syncROIAlerts) sepa si el dato es completo
+        // o parcial, en vez de adivinarlo.
         const approvedTime = await this.getApprovedTimeSummary(projectId);
         const hasApprovedTime = approvedTime.hours > 0;
 
@@ -220,6 +224,8 @@ export class FinanceService {
             project_name: project.name,
             planned_hours: plannedHours,
             real_hours: realHours,
+            real_hours_source: hasApprovedTime ? 'approved' : 'projected',
+            approved_hours: approvedTime.hours,
             client_delay_hours: clientDelayHours,
             hourly_rate_uf: hourlyRateUF,
             uf_value_clp: ufValueCLP,
@@ -243,9 +249,17 @@ export class FinanceService {
      * Idempotente: si la condición ya no aplica, resuelve la alerta activa en vez de dejarla huérfana.
      * Se llama de forma perezosa (no hay scheduler): desde el dashboard de cobranza y desde
      * getProjectROI/getROIDashboard en financialController.
+     * Mientras las horas aprobadas cubran solo parte de lo planificado, las alertas de costo no se
+     * evalúan: resolverlas o recrearlas con un costo real incompleto sería peor que no tocarlas.
      */
     async syncROIAlerts(projectId: number): Promise<void> {
         const financials = await this.calculateProjectFinancials(projectId);
+
+        const partialApprovedData = financials.real_hours_source === 'approved' && financials.approved_hours < financials.planned_hours;
+        if (partialApprovedData) {
+            logger.info(`Proyecto ${projectId}: horas aprobadas parciales (${financials.approved_hours}/${financials.planned_hours}h) - se omite evaluación de alertas de costo hasta acumular más horas reales`);
+            return;
+        }
 
         await this.upsertAlert(projectId, 'cost_overrun',
             financials.sale_price > 0 && financials.real_cost > financials.sale_price * 0.8,

@@ -2,6 +2,11 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { db } from '../database/database';
 import { logger } from '../utils/logger';
+import { timesheetService } from '../services/timesheetService';
+
+function isEntryLocked(entry: { is_locked?: number | boolean }): boolean {
+  return !!entry.is_locked;
+}
 
 export class TimeController {
 
@@ -78,6 +83,11 @@ export class TimeController {
         return;
       }
 
+      if (await timesheetService.isDateLocked(userId!, date)) {
+        res.status(400).json({ error: 'This date belongs to a timesheet week that is already submitted or approved' });
+        return;
+      }
+
       // Get user's current hourly rate
       const userCost = await db.get(`
         SELECT hourly_rate 
@@ -147,7 +157,7 @@ export class TimeController {
         return;
       }
 
-      if (existingEntry.is_locked) {
+      if (isEntryLocked(existingEntry)) {
         res.status(400).json({ error: 'This time entry was approved and is locked; it cannot be modified' });
         return;
       }
@@ -214,7 +224,7 @@ export class TimeController {
         return;
       }
 
-      if (existingEntry.is_locked) {
+      if (isEntryLocked(existingEntry)) {
         res.status(400).json({ error: 'This time entry was approved and is locked; it cannot be modified' });
         return;
       }
@@ -292,6 +302,11 @@ export class TimeController {
       const currentTime = now.toTimeString().slice(0, 8); // HH:MM:SS
       const currentDate = now.toISOString().slice(0, 10); // YYYY-MM-DD
 
+      if (await timesheetService.isDateLocked(userId!, currentDate)) {
+        res.status(400).json({ error: 'Today belongs to a timesheet week that is already submitted or approved' });
+        return;
+      }
+
       // Create new timer entry (use 0.01 hours temporarily to satisfy CHECK constraint)
       const result = await db.run(`
         INSERT INTO time_entries (
@@ -338,6 +353,11 @@ export class TimeController {
         return;
       }
 
+      if (isEntryLocked(activeTimer)) {
+        res.status(400).json({ error: 'This time entry was approved and is locked; it cannot be modified' });
+        return;
+      }
+
       const now = new Date();
       const currentTime = now.toTimeString().slice(0, 8); // HH:MM:SS
 
@@ -350,11 +370,16 @@ export class TimeController {
       const finalHours = Math.max(0.01, Math.round(hoursWorked * 100) / 100);
 
       // Update timer with end time and calculated hours
-      await db.run(`
-        UPDATE time_entries 
+      const stopResult = await db.run(`
+        UPDATE time_entries
         SET end_time = ?, hours = ?, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
+        WHERE id = ? AND is_locked = 0
       `, [currentTime, finalHours, activeTimer.id]);
+
+      if (stopResult.changes !== 1) {
+        res.status(400).json({ error: 'This time entry was approved and is locked; it cannot be modified' });
+        return;
+      }
 
       // Get updated timer
       const stoppedTimer = await db.get(`

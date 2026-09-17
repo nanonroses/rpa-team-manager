@@ -72,4 +72,20 @@ describe('FinanceService.syncROIAlerts', () => {
             expect.arrayContaining([99])
         );
     });
+
+    it('no evalúa alertas de costo mientras las horas aprobadas cubran solo parte de lo planificado', async () => {
+        jest.spyOn(financeService, 'calculateProjectFinancials').mockResolvedValue({
+            project_id: 1, project_name: 'AGROSUPER', planned_hours: 100, real_hours: 4,
+            real_hours_source: 'approved', approved_hours: 4,
+            client_delay_hours: 0, hourly_rate_uf: 1, uf_value_clp: 38000, engineer_hourly_cost: 15000,
+            assigned_users: 1, user_cost_breakdown: [], sale_price: 1000000, planned_cost: 1500000,
+            real_cost: 60000, planned_profit: -500000, real_profit: 940000, planned_roi: -33, real_roi: 1566,
+            delay_impact: -1440000, lost_profit: -1440000
+        } as any);
+
+        await financeService.syncROIAlerts(1);
+
+        expect(db.get).not.toHaveBeenCalled();
+        expect(db.run).not.toHaveBeenCalled();
+    });
 });

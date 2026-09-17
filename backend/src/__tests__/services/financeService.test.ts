@@ -172,6 +172,17 @@ describe('FinanceService', () => {
             expect(result.real_hours).toBe(80 + 5); // horas aprobadas + atraso del cliente
             expect(result.real_cost).toBe(80 * 16000 + 5 * 15000); // costo snapshot aprobado + atraso a tarifa vigente
             expect(result.planned_hours).toBe(100); // lo planificado no cambia
+            expect(result.real_hours_source).toBe('approved');
+            expect(result.approved_hours).toBe(80);
+        });
+
+        it('expone que el costo real viene de la proyección mientras no haya ninguna hora aprobada', async () => {
+            mockScenario();
+
+            const result = await financeService.calculateProjectFinancials(1);
+
+            expect(result.real_hours_source).toBe('projected');
+            expect(result.approved_hours).toBe(0);
         });
 
         it('lanza un error legible si el proyecto no existe', async () => {

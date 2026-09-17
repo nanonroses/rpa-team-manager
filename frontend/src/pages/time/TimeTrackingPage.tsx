@@ -64,33 +64,40 @@ function mondayOf(date: dayjs.Dayjs): string {
   return date.subtract(diffFromMonday, 'day').format('YYYY-MM-DD');
 }
 
-const WeekGrid: React.FC<{ projects: Project[] }> = ({ projects }) => {
+const WeekGrid: React.FC<{ projects: Project[]; refreshSignal: number }> = ({ projects, refreshSignal }) => {
   const [weekStart, setWeekStart] = useState(mondayOf(dayjs()));
   const [week, setWeek] = useState<TimesheetWeek | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [draftByDay, setDraftByDay] = useState<Record<string, SaveWeekEntryInput[]>>({});
 
+  const seedDraftFromWeek = (data: TimesheetWeek) => {
+    const draft: Record<string, SaveWeekEntryInput[]> = {};
+    data.days.forEach(day => {
+      draft[day.date] = day.entries.map(e => ({
+        id: e.id, project_id: e.project_id, task_id: e.task_id, description: e.description,
+        date: e.date, hours: e.hours, is_billable: e.is_billable
+      }));
+    });
+    setDraftByDay(draft);
+  };
+
   const loadWeek = useCallback(async () => {
     try {
       setLoading(true);
       const data: TimesheetWeek = await apiService.getTimesheetWeek(weekStart);
       setWeek(data);
-      const draft: Record<string, SaveWeekEntryInput[]> = {};
-      data.days.forEach(day => {
-        draft[day.date] = day.entries.map(e => ({
-          id: e.id, project_id: e.project_id, task_id: e.task_id, description: e.description,
-          date: e.date, hours: e.hours, is_billable: e.is_billable
-        }));
-      });
-      setDraftByDay(draft);
+      seedDraftFromWeek(data);
     } catch (error) {
       console.error('Error loading timesheet week:', error);
       message.error('Error al cargar la semana');
     } finally {
       setLoading(false);
     }
-  }, [weekStart]);
+    // refreshSignal cambia cuando el timer arranca o se detiene: obliga a recargar la semana
+    // para que el borrador no quede desfasado respecto de la BD.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekStart, refreshSignal]);
 
   useEffect(() => { loadWeek(); }, [loadWeek]);
 
@@ -126,6 +133,7 @@ const WeekGrid: React.FC<{ projects: Project[] }> = ({ projects }) => {
       const allEntries = Object.values(draftByDay).flat().filter(e => e.hours > 0);
       const updated = await apiService.saveTimesheetWeek(weekStart, allEntries);
       setWeek(updated);
+      seedDraftFromWeek(updated);
       message.success('Semana guardada');
       return true;
     } catch (error: any) {
@@ -289,6 +297,7 @@ export const TimeTrackingPage: React.FC = () => {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [selectedTimerProject, setSelectedTimerProject] = useState<number | undefined>(undefined);
   const [reminderDates, setReminderDates] = useState<string[]>([]);
+  const [gridRefreshSignal, setGridRefreshSignal] = useState(0);
 
   const canApprove = user?.role === 'team_lead';
   const canSeeEffectiveness = user?.role === 'team_lead' || user?.role === 'rpa_operations';
@@ -351,6 +360,7 @@ export const TimeTrackingPage: React.FC = () => {
       setTimerLoading(true);
       const response = await apiService.post('/time-entries/start-timer', { project_id: projectId });
       setActiveTimer(response);
+      setGridRefreshSignal(s => s + 1);
     } catch (error: any) {
       message.error(error.response?.data?.error || 'Error al iniciar timer');
     } finally {
@@ -363,6 +373,7 @@ export const TimeTrackingPage: React.FC = () => {
       setTimerLoading(true);
       await apiService.post('/time-entries/stop-timer');
       setActiveTimer(null);
+      setGridRefreshSignal(s => s + 1);
       message.success('Timer detenido');
     } catch (error: any) {
       message.error(error.response?.data?.error || 'Error al detener timer');
@@ -375,7 +386,7 @@ export const TimeTrackingPage: React.FC = () => {
     {
       key: 'week',
       label: 'Mi semana',
-      children: <WeekGrid projects={projects} />
+      children: <WeekGrid projects={projects} refreshSignal={gridRefreshSignal} />
     }
   ];
 
