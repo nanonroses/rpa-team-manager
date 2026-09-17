@@ -209,6 +209,12 @@ export class PMOController {
 
             logger.info(`Found ${milestones.length} milestones`);
 
+            // Get project baseline (Fase 4 - puede no existir todavía)
+            const baseline = await db.get(
+                `SELECT start_date, end_date, budgeted_cost_clp FROM project_baselines WHERE project_id = ?`,
+                [id]
+            );
+
             // Get project dependencies
             const projectDependencies = await db.query(`
                 SELECT 
@@ -260,7 +266,8 @@ export class PMOController {
             // Update project with calculated completion if different from stored
             const projectWithCompletion = {
                 ...project,
-                completion_percentage: calculatedCompletion
+                completion_percentage: calculatedCompletion,
+                baseline: baseline || null
             };
 
             logger.info(`Calculated completion: ${calculatedCompletion}% (${completedItems}/${totalItems} items completed)`);
