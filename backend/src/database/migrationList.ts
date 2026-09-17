@@ -1519,5 +1519,31 @@ export const migrations: Migration[] = [
       `CREATE INDEX IF NOT EXISTS idx_time_entries_approval_status ON time_entries(approval_status)`,
       `CREATE INDEX IF NOT EXISTS idx_time_entries_period ON time_entries(timesheet_period_id)`
     ]
+  },
+
+  {
+    version: 31,
+    description: 'Agregar project_baselines y baseline_planned_date en project_milestones (Fase 4 - desvíos y salud del proyecto)',
+    up: [
+      `DROP TABLE IF EXISTS project_baselines`,
+
+      `CREATE TABLE IF NOT EXISTS project_baselines (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL UNIQUE,
+        baseline_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        budgeted_cost_clp DECIMAL(12,2) NOT NULL DEFAULT 0,
+        budgeted_hours DECIMAL(8,2) NOT NULL DEFAULT 0,
+        created_by INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_project_baselines_project ON project_baselines(project_id)`,
+
+      `ALTER TABLE project_milestones ADD COLUMN baseline_planned_date DATE`
+    ]
   }
 ];
