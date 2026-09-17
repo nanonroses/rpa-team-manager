@@ -162,6 +162,12 @@ export class TimeController {
         return;
       }
 
+      const targetDate = date ?? existingEntry.date;
+      if (await timesheetService.isDateLocked(userId!, targetDate)) {
+        res.status(400).json({ error: 'This date belongs to a timesheet week that is already submitted or approved' });
+        return;
+      }
+
       // Validation
       if (hours !== undefined && (hours <= 0 || hours > 24)) {
         res.status(400).json({ error: 'Hours must be between 0 and 24' });
@@ -170,7 +176,7 @@ export class TimeController {
 
       // Update time entry
       await db.run(`
-        UPDATE time_entries 
+        UPDATE time_entries
         SET project_id = COALESCE(?, project_id),
             task_id = COALESCE(?, task_id),
             description = COALESCE(?, description),

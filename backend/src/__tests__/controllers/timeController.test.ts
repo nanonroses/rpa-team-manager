@@ -2,7 +2,12 @@ jest.mock('../../database/database', () => ({
     db: { get: jest.fn(), run: jest.fn(), query: jest.fn() }
 }));
 
+jest.mock('../../services/timesheetService', () => ({
+    timesheetService: { isDateLocked: jest.fn() }
+}));
+
 import { db } from '../../database/database';
+import { timesheetService } from '../../services/timesheetService';
 import { TimeController } from '../../controllers/timeController';
 
 function mockRes() {
@@ -29,6 +34,22 @@ describe('TimeController - bloqueo de horas aprobadas (Fase 3)', () => {
             await controller.updateTimeEntry(req, res);
 
             expect(res.status).toHaveBeenCalledWith(400);
+            expect(db.run).not.toHaveBeenCalled();
+        });
+
+        it('rechaza con 400 si la nueva fecha cae en una semana ya cerrada', async () => {
+            (db.get as jest.Mock).mockResolvedValue({ id: 1, user_id: 7, is_locked: 0, date: '2026-09-01' });
+            (timesheetService.isDateLocked as jest.Mock).mockResolvedValue(true);
+            const req: any = { params: { id: '1' }, body: { hours: 5, date: '2026-08-25' }, user: { id: 7 } };
+            const res = mockRes();
+
+            await controller.updateTimeEntry(req, res);
+
+            expect(timesheetService.isDateLocked).toHaveBeenCalledWith(7, '2026-08-25');
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                error: expect.stringMatching(/week|semana/i)
+            }));
             expect(db.run).not.toHaveBeenCalled();
         });
     });
