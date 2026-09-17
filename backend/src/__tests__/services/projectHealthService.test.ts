@@ -83,3 +83,91 @@ describe('ProjectHealthService.freezeBaseline', () => {
         expect(db.rollback).toHaveBeenCalled();
     });
 });
+
+describe('ProjectHealthService.getProjectHealth', () => {
+    let service: ProjectHealthService;
+    const TODAY = '2026-09-17';
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        service = new ProjectHealthService();
+        jest.useFakeTimers().setSystemTime(new Date(`${TODAY}T12:00:00Z`));
+    });
+
+    afterEach(() => {
+        jest.useRealTimers();
+    });
+
+    it('devuelve insufficient_data si el proyecto no tiene baseline', async () => {
+        (db.query as jest.Mock).mockResolvedValue([
+            { completion_percentage: 50, baseline_planned_date: null }
+        ]);
+        (db.get as jest.Mock).mockResolvedValueOnce(null); // sin baseline
+
+        const health = await service.getProjectHealth(1);
+
+        expect(health.status).toBe('insufficient_data');
+        expect(health.has_baseline).toBe(false);
+        expect(health.semaphore).toBe('gray');
+        expect(health.spi).toBeNull();
+        expect(health.cpi).toBeNull();
+        expect(health.ev_percentage).toBe(50);
+    });
+
+    it('devuelve insufficient_data si el baseline no tiene ningún hito con baseline_planned_date', async () => {
+        (db.query as jest.Mock).mockResolvedValue([
+            { completion_percentage: 0, baseline_planned_date: null }
+        ]);
+        (db.get as jest.Mock).mockResolvedValueOnce({
+            id: 1, project_id: 1, start_date: '2026-01-01', end_date: '2026-06-01', budgeted_cost_clp: 5000000
+        });
+
+        const health = await service.getProjectHealth(1);
+
+        expect(health.status).toBe('insufficient_data');
+        expect(health.has_baseline).toBe(true);
+        expect(health.semaphore).toBe('gray');
+    });
+
+    it('calcula SPI<1 y semáforo rojo cuando los hitos van atrasados', async () => {
+        (db.query as jest.Mock).mockResolvedValue([
+            { completion_percentage: 100, baseline_planned_date: '2026-01-01' }, // a tiempo
+            { completion_percentage: 0, baseline_planned_date: '2026-02-01' },   // debía estar listo, no lo está
+            { completion_percentage: 0, baseline_planned_date: '2026-12-01' }    // futuro, no cuenta en PV
+        ]);
+        (db.get as jest.Mock)
+            .mockResolvedValueOnce({ id: 1, project_id: 1, start_date: '2026-01-01', end_date: '2026-06-01', budgeted_cost_clp: 6000000 })
+            .mockResolvedValueOnce({ status: 'active', actual_end_date: null });
+        jest.spyOn(financeService, 'calculateProjectFinancials').mockResolvedValue({
+            real_cost: 4000000
+        } as any);
+
+        const health = await service.getProjectHealth(1);
+
+        // EV% = (100+0+0)/3 = 33.33 ; PV% = 2 de 3 hitos con baseline_planned_date <= hoy => 66.67
+        expect(health.status).toBe('ok');
+        expect(health.ev_percentage).toBeCloseTo(33.33, 1);
+        expect(health.pv_percentage).toBeCloseTo(66.67, 1);
+        expect(health.spi).toBeLessThan(1);
+        expect(health.semaphore).toBe('red');
+        expect(health.projected_end_date).not.toBeNull();
+        expect(health.schedule_variance_days).toBeGreaterThan(0);
+    });
+
+    it('usa actual_end_date en vez de proyectar cuando el proyecto ya está completed', async () => {
+        (db.query as jest.Mock).mockResolvedValue([
+            { completion_percentage: 100, baseline_planned_date: '2026-01-01' }
+        ]);
+        (db.get as jest.Mock)
+            .mockResolvedValueOnce({ id: 1, project_id: 1, start_date: '2026-01-01', end_date: '2026-06-01', budgeted_cost_clp: 6000000 })
+            .mockResolvedValueOnce({ status: 'completed', actual_end_date: '2026-07-01' });
+        jest.spyOn(financeService, 'calculateProjectFinancials').mockResolvedValue({
+            real_cost: 6000000
+        } as any);
+
+        const health = await service.getProjectHealth(1);
+
+        expect(health.projected_end_date).toBe('2026-07-01');
+        expect(health.schedule_variance_days).toBe(30);
+    });
+});
