@@ -78,6 +78,12 @@ router.delete('/:id',
 // GET /api/projects/:id/gantt - Get Gantt chart data
 router.get('/:id/gantt', projectController.getProjectGantt);
 
+// GET /api/projects/:id/health - Derived progress, SPI/CPI, semaphore
+router.get('/:id/health', projectController.getProjectHealth);
+
+// POST /api/projects/:id/baseline - Freeze project baseline (irreversible, team_lead only)
+router.post('/:id/baseline', authorize(['team_lead']), projectController.freezeBaseline);
+
 // DEBUG: Get financial data for all projects (temporary)
 router.get('/debug/financial', authorize(['team_lead']), projectController.debugFinancialData);
 

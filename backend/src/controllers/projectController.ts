@@ -4,6 +4,7 @@ import { db } from '../database/database';
 import { logger } from '../utils/logger';
 import { LLMService, QuoteData } from '../services/llmService';
 import { DocumentParserService } from '../services/documentParserService';
+import { projectHealthService } from '../services/projectHealthService';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -431,6 +432,39 @@ export class ProjectController {
         } catch (error) {
             logger.error('Get project Gantt error:', error);
             res.status(500).json({ error: 'Failed to get project Gantt data' });
+        }
+    };
+
+    // POST /api/projects/:id/baseline
+    freezeBaseline = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.id);
+            const baseline = await projectHealthService.freezeBaseline(projectId, req.user!.id);
+            res.status(201).json(baseline);
+        } catch (error) {
+            const message = (error as Error).message;
+            if (message === 'PROJECT_NOT_FOUND') {
+                res.status(404).json({ error: 'Project not found' });
+            } else if (message === 'PROJECT_MISSING_DATES') {
+                res.status(400).json({ error: 'Project must have start_date and end_date before freezing a baseline' });
+            } else if (message === 'BASELINE_ALREADY_EXISTS') {
+                res.status(409).json({ error: 'Baseline already exists for this project' });
+            } else {
+                logger.error('Freeze baseline error:', error);
+                res.status(500).json({ error: 'Failed to freeze baseline' });
+            }
+        }
+    };
+
+    // GET /api/projects/:id/health
+    getProjectHealth = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.id);
+            const health = await projectHealthService.getProjectHealth(projectId);
+            res.json(health);
+        } catch (error) {
+            logger.error('Get project health error:', error);
+            res.status(500).json({ error: 'Failed to get project health' });
         }
     };
 
