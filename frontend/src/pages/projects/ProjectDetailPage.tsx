@@ -17,7 +17,6 @@ import {
   Spin,
   Alert,
   Breadcrumb,
-  Divider,
   Tabs,
   Modal,
   message
@@ -34,7 +33,6 @@ import {
   ExclamationCircleOutlined,
   ProjectOutlined,
   HomeOutlined,
-  FileOutlined,
   FolderOutlined,
   PictureOutlined,
   FundOutlined,
@@ -118,7 +116,7 @@ export const ProjectDetailPage: React.FC = () => {
     return colors[status as keyof typeof colors] || 'default';
   };
 
-  const handleTaskClick = (task: any) => {
+  const handleTaskClick = (_task: any) => {
     // Navigate to Tasks module with project filter
     navigate(`/tasks?project=${project?.id}`);
   };
@@ -132,7 +130,7 @@ export const ProjectDetailPage: React.FC = () => {
     setEditModalVisible(true);
   };
 
-  const handleEditSuccess = (updatedProject?: Project) => {
+  const handleEditSuccess = (_updatedProject?: Project) => {
     setEditModalVisible(false);
     // Reload project data to show updated information
     loadProjectData();
@@ -379,7 +377,7 @@ export const ProjectDetailPage: React.FC = () => {
                                     <Text strong={task.status !== 'done'} delete={task.status === 'done'}>
                                       {task.title}
                                     </Text>
-                                    <Tag color={getTaskStatusColor(task.status)} size="small">
+                                    <Tag color={getTaskStatusColor(task.status)}>
                                       {task.status.replace('_', ' ')}
                                     </Tag>
                                   </Space>
@@ -527,7 +525,6 @@ export const ProjectDetailPage: React.FC = () => {
                             <Alert
                               message="Project Overdue"
                               type="error"
-                              size="small"
                               showIcon
                             />
                           )}

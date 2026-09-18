@@ -1,4 +1,4 @@
-import React, { Component, ReactNode } from 'react';
+import { Component, ReactNode } from 'react';
 import { Alert, Button, Card } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 

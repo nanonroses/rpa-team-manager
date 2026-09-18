@@ -3,8 +3,7 @@
  * Feature: F09 - Autenticación y Seguridad
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { act, renderHook } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
 
 // Mock del apiService
 vi.mock('@/services/api', () => ({

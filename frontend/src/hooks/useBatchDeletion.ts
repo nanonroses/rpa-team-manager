@@ -1,8 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Modal, message } from 'antd';
-import { 
-  BatchDeletionSummary,
-  BATCH_DELETION_CONFIG 
+import {
+  BATCH_DELETION_CONFIG
 } from '../types/batch-operations';
 import { batchDeletionService } from '../services/batch-deletion.service';
 

@@ -6,7 +6,6 @@ import {
   Space,
   Button,
   Tag,
-  Avatar,
   Tooltip,
   Popconfirm,
   Input,
@@ -28,7 +27,6 @@ import {
   DownloadOutlined,
   DeleteOutlined,
   EyeOutlined,
-  SearchOutlined,
   FilterOutlined,
   LinkOutlined
 } from '@ant-design/icons';

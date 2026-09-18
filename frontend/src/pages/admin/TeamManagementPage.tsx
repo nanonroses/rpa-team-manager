@@ -16,8 +16,7 @@ import {
   Row,
   Col,
   Statistic,
-  Alert,
-  Descriptions
+  Alert
 } from 'antd';
 import {
   UserOutlined,
@@ -43,8 +42,8 @@ interface User {
   full_name: string;
   email: string;
   role: string;
-  is_active: boolean;
-  created_at: string;
+  is_active?: boolean;
+  created_at?: string;
   updated_at?: string;
 }
 

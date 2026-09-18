@@ -76,7 +76,7 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
         {error && (
           <Alert
             message="Login Failed"
-            description={typeof error === 'string' ? error : error?.message || 'Unknown error occurred'}
+            description={error || 'Unknown error occurred'}
             type="error"
             showIcon
             closable

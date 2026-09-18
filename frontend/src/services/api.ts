@@ -317,7 +317,7 @@ class ApiService {
     return response.data;
   }
 
-  async getUsers(): Promise<{ id: number; full_name: string; email: string; role: string }[]> {
+  async getUsers(): Promise<{ id: number; full_name: string; email: string; role: string; is_active?: boolean; created_at?: string }[]> {
     const response = await this.api.get('/auth/users');
     return response.data;
   }

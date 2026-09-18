@@ -2,13 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { Row, Col, Card, Statistic, Table, Tag, Progress, Alert, Space, Typography, Button } from 'antd';
 import { useNavigate } from 'react-router-dom';
 import { 
-  ProjectOutlined, 
-  CheckCircleOutlined, 
+  ProjectOutlined,
+  CheckCircleOutlined,
   ClockCircleOutlined,
-  TeamOutlined,
   TrophyOutlined,
-  ArrowUpOutlined,
-  ArrowDownOutlined,
   DollarOutlined,
   RiseOutlined,
   FallOutlined,
@@ -28,7 +25,7 @@ export const DashboardPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [roiDashboard, setRoiDashboard] = useState<any>(null);
-  const [roiLoading, setRoiLoading] = useState(false);
+  const [, setRoiLoading] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -177,7 +174,7 @@ export const DashboardPage: React.FC = () => {
       <div style={{ padding: '24px' }}>
         <Alert
           message="Failed to load dashboard"
-          description={typeof error === 'string' ? error : error?.message || 'Unknown error occurred'}
+          description={error || 'Unknown error occurred'}
           type="error"
           showIcon
           action={

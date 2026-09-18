@@ -33,7 +33,6 @@ import {
   DollarCircleOutlined,
   ClockCircleOutlined,
   FileTextOutlined,
-  WarningOutlined,
   CheckCircleOutlined,
   ImportOutlined
 } from '@ant-design/icons';
@@ -45,7 +44,6 @@ import { useAuthStore } from '@/store/authStore';
 import ExcelImportModal from '@/components/support/ExcelImportModal';
 
 const { Content } = Layout;
-const { TabPane } = Tabs;
 const { TextArea } = Input;
 const { Option } = Select;
 const { Title, Text } = Typography;
@@ -318,11 +316,11 @@ const SupportPage: React.FC = () => {
   };
 
   // Search handlers
-  const handleRPAProcessSearch = (value: string) => {
+  const handleRPAProcessSearch = (_value: string) => {
     // This will be called when user types in the search
   };
 
-  const handleContactSearch = (value: string) => {
+  const handleContactSearch = (_value: string) => {
     // This will be called when user types in the search
   };
 
@@ -945,7 +943,6 @@ const SupportPage: React.FC = () => {
                     title="Horas Base"
                     value={dashboardData?.billing?.baseHours || 0}
                     prefix="$"
-                    size="small"
                   />
                 </Col>
                 <Col span={12}>
@@ -953,7 +950,6 @@ const SupportPage: React.FC = () => {
                     title="Horas Extra"
                     value={dashboardData?.billing?.extraHours || 0}
                     prefix="$"
-                    size="small"
                   />
                 </Col>
               </Row>

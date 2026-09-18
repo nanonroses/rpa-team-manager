@@ -3,9 +3,9 @@
  * Feature: F09 - Autenticación y Seguridad
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter } from 'react-router-dom';
 import React from 'react';
 
 // Mock del componente simplificado para testing

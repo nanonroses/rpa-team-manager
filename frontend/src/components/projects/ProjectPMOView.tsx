@@ -83,14 +83,12 @@ interface Milestone {
 }
 
 export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
-  projectId,
-  projectName
+  projectId
 }) => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [pmoMetrics, setPmoMetrics] = useState<PMOMetrics | null>(null);
   const [milestones, setMilestones] = useState<Milestone[]>([]);
-  const [ganttData] = useState<any>(null);
   const [error, setError] = useState<ErrorState>({
     hasError: false,
     errorMessage: '',

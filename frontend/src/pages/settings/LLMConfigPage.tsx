@@ -201,7 +201,7 @@ export const LLMConfigPage: React.FC = () => {
     setEditingProvider(null);
     setApiKeyInput('');
     setSelectedModel('');
-    setValidationResults(prev => ({
+    setValidationResults(_prev => ({
       openai: null,
       claude: null,
       gemini: null,
@@ -285,7 +285,6 @@ export const LLMConfigPage: React.FC = () => {
                     description={savedKey.validation_error}
                     type="error"
                     showIcon
-                    size="small"
                   />
                 )}
               </Space>

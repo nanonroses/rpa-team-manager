@@ -1,6 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Upload,
   Button,
   Progress,
   Alert,
@@ -27,7 +26,6 @@ import {
 import { fileService, FileCategory, UploadResult } from '@/services/fileService';
 import { getFileStatusColor } from '@/utils';
 
-const { Dragger } = Upload;
 const { Text, Title } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;

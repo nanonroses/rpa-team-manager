@@ -36,8 +36,7 @@ export const useGanttData = (selectedProjectId: number | null): UseGanttDataRetu
   
   // Configuration
   const MIN_LOAD_INTERVAL = 2000; // Minimum 2 seconds between loads
-  const DEBOUNCE_DELAY = 500; // 500ms debounce delay
-  
+
   // Debounced load function
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   

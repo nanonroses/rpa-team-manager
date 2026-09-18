@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Tag, Progress, Typography, Space, Avatar, Tooltip, Dropdown, Button } from 'antd';
+import { Card, Tag, Progress, Typography, Space, Tooltip, Dropdown, Button } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   CalendarOutlined,
@@ -14,7 +14,7 @@ import {
 import { Project, ProjectStatusLabels, PriorityLabels } from '@/types/project';
 import { useAuthStore } from '@/store/authStore';
 import dayjs from 'dayjs';
-import { getProjectStatusColor, getPriorityColor, getProgressColor } from '@/utils';
+import { getProjectStatusColor, getPriorityColor } from '@/utils';
 
 const { Text, Title } = Typography;
 

@@ -17,17 +17,12 @@ import {
   Empty,
   Tooltip,
   Badge,
-  Dropdown,
-  Menu,
   Spin
 } from 'antd';
-import { 
-  PlusOutlined, 
-  ProjectOutlined,
+import {
+  PlusOutlined,
   UserOutlined,
   CalendarOutlined,
-  FlagOutlined,
-  MoreOutlined,
   EditOutlined,
   DeleteOutlined,
   ClockCircleOutlined,
@@ -221,7 +216,7 @@ export const TasksPage: React.FC = () => {
       const board = await apiService.get(`/tasks/boards/${boardId}`);
       console.log('✅ TasksPage: Board details loaded:', board?.name, 'with', board?.tasks?.length || 0, 'tasks');
       console.log('📋 TasksPage: Board has', board?.columns?.length || 0, 'columns');
-      console.log('📝 TasksPage: Task IDs received:', board?.tasks?.map(t => t.id) || []);
+      console.log('📝 TasksPage: Task IDs received:', board?.tasks?.map((t: any) => t.id) || []);
 
       setSelectedBoard(board);
     } catch (error) {
@@ -244,7 +239,7 @@ export const TasksPage: React.FC = () => {
 
   const handleCreateBoard = async (values: any) => {
     try {
-      const newBoard = await apiService.post('/tasks/boards', {
+      await apiService.post('/tasks/boards', {
         ...values,
         project_id: selectedProject
       });
@@ -333,7 +328,6 @@ export const TasksPage: React.FC = () => {
       return;
     }
 
-    const sourceColumnId = parseInt(source.droppableId);
     const destColumnId = parseInt(destination.droppableId);
     
     // Optimistic update: immediately update the UI

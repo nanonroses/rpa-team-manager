@@ -1,13 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Typography, Tooltip, Tag, Space, Spin, Button } from 'antd';
+import { Card, Typography, Tag, Space, Spin } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { DollarOutlined, ClockCircleOutlined, EyeOutlined } from '@ant-design/icons';
+import { DollarOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { Project } from '@/types/project';
 import { apiService } from '@/services/api';
 import { PriorityMatrix, QuadrantConfig, QuadrantRules, MatrixAxisConfig, MatrixItemRenderer, MatrixSummary } from '@/components/common';
 import { getProjectStatusColor } from '@/utils';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface ProjectROI {
   project_id: number;

@@ -12,7 +12,6 @@ import {
   message,
   Empty,
   Spin,
-  Tag,
   Tooltip,
   Descriptions
 } from 'antd';

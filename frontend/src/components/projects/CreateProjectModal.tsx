@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, DatePicker, InputNumber, message } from 'antd';
-import { Project, ProjectStatus, Priority } from '@/types/project';
+import { Project } from '@/types/project';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/store/authStore';
 import { apiService } from '@/services/api';

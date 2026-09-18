@@ -13,7 +13,6 @@ import {
   MenuFoldOutlined,
   MenuUnfoldOutlined,
   NotificationOutlined,
-  BarChartOutlined,
   FileOutlined,
   CustomerServiceOutlined,
   FundOutlined,
@@ -67,7 +66,7 @@ export const AppLayout: React.FC = () => {
   ];
 
   const getMenuItems = (): MenuProps['items'] => {
-    const baseItems = [
+    const baseItems: MenuProps['items'] = [
       {
         key: '/dashboard',
         icon: <DashboardOutlined />,

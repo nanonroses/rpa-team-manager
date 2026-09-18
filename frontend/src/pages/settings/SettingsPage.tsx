@@ -1,19 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, 
-  Form, 
-  Input, 
-  Button, 
-  InputNumber, 
-  Typography, 
-  Space, 
-  message, 
+import {
+  Card,
+  Form,
+  Button,
+  InputNumber,
+  Typography,
+  Space,
+  message,
   Divider,
   Row,
   Col,
   Alert
 } from 'antd';
-import { DollarOutlined, BankOutlined, ClockCircleOutlined, TeamOutlined } from '@ant-design/icons';
+import { BankOutlined, ClockCircleOutlined, TeamOutlined } from '@ant-design/icons';
 import { apiService } from '@/services/api';
 
 const { Title, Text } = Typography;

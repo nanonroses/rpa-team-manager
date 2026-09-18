@@ -102,7 +102,7 @@ export class BatchDeletionServiceImpl implements BatchDeletionService {
    * Generates appropriate user feedback message based on operation results
    */
   generateUserMessage(summary: BatchDeletionSummary): UserMessage {
-    const { totalDeleted, totalFailed, totalRequested } = summary;
+    const { totalDeleted, totalFailed } = summary;
 
     if (totalFailed === 0) {
       return {

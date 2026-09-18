@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { Card, Statistic, Row, Col, Tag, Progress, Divider, Space, Typography, Alert } from 'antd';
 import {
   DollarOutlined,
-  TrophyOutlined,
   ClockCircleOutlined,
   ExclamationCircleOutlined,
   CheckCircleOutlined
@@ -10,7 +9,7 @@ import {
 import { apiService } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 
 interface ProjectROIData {
   project_id: number;
@@ -54,14 +53,13 @@ interface ProjectROICardProps {
   assignedUserId?: number;
 }
 
-export const ProjectROICard: React.FC<ProjectROICardProps> = ({ 
-  projectId, 
-  projectName,
-  assignedUserId 
+export const ProjectROICard: React.FC<ProjectROICardProps> = ({
+  projectId,
+  projectName
 }) => {
   const [roiData, setRoiData] = useState<ProjectROIData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [userCosts, setUserCosts] = useState<any[]>([]);
+  const [, setUserCosts] = useState<any[]>([]);
   const { user } = useAuthStore();
 
   useEffect(() => {

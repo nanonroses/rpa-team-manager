@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, InputNumber, message, Row, Col, Card, Typography } from 'antd';
-import { Idea, IdeaCategory, IdeaStatus, CreateIdeaRequest } from '@/types/idea';
+import { Modal, Form, Input, Select, message, Row, Col, Card, Typography } from 'antd';
+import { Idea, CreateIdeaRequest } from '@/types/idea';
 import { useIdeaStore } from '@/store/ideaStore';
 
 const { TextArea } = Input;
 const { Option } = Select;
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface CreateIdeaModalProps {
   visible: boolean;

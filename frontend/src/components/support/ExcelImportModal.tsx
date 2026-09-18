@@ -22,10 +22,9 @@ import {
   FileExcelOutlined,
   CheckCircleOutlined,
   ExclamationCircleOutlined,
-  InfoCircleOutlined,
   WarningOutlined
 } from '@ant-design/icons';
-import type { UploadFile, UploadProps } from 'antd/es/upload';
+import type { UploadProps } from 'antd/es/upload';
 import { apiService } from '@/services/api';
 
 const { Title, Text } = Typography;
@@ -191,7 +190,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
             <Select.Option key={field.key} value={field.key}>
               <Space>
                 {field.label}
-                {field.required && <Tag color="red" size="small">Required</Tag>}
+                {field.required && <Tag color="red">Required</Tag>}
               </Space>
             </Select.Option>
           ))}
@@ -223,7 +222,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
     return { missing, mapped };
   };
 
-  const { missing: missingRequired, mapped: mappedRequired } = getRequiredFieldsStatus();
+  const { missing: missingRequired } = getRequiredFieldsStatus();
 
   return (
     <Modal

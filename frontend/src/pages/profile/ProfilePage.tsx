@@ -11,7 +11,6 @@ import {
   message,
   Descriptions,
   Avatar,
-  Divider,
   Row,
   Col,
   Tag

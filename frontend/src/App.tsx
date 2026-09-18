@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider, App as AntdApp } from 'antd';
 import { QueryClient, QueryClientProvider } from 'react-query';

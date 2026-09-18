@@ -19,13 +19,12 @@ import {
 import {
   PlusOutlined,
   DeleteOutlined,
-  EditOutlined,
   SaveOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 const { TextArea } = Input;
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface Task {
   title: string;
@@ -71,8 +70,6 @@ export const QuoteDataPreview: React.FC<QuoteDataPreviewProps> = ({
   const [form] = Form.useForm();
   const [tasks, setTasks] = useState<Task[]>(quoteData.tasks || []);
   const [milestones, setMilestones] = useState<Milestone[]>(quoteData.milestones || []);
-  const [editingTaskIndex, setEditingTaskIndex] = useState<number | null>(null);
-  const [editingMilestoneIndex, setEditingMilestoneIndex] = useState<number | null>(null);
 
   useEffect(() => {
     // Initialize form with quote data
@@ -123,13 +120,6 @@ export const QuoteDataPreview: React.FC<QuoteDataPreviewProps> = ({
     ]);
   };
 
-  const updateTask = (index: number, updatedTask: Task) => {
-    const newTasks = [...tasks];
-    newTasks[index] = updatedTask;
-    setTasks(newTasks);
-    setEditingTaskIndex(null);
-  };
-
   const deleteTask = (index: number) => {
     setTasks(tasks.filter((_, i) => i !== index));
   };
@@ -143,13 +133,6 @@ export const QuoteDataPreview: React.FC<QuoteDataPreviewProps> = ({
         target_date: undefined
       }
     ]);
-  };
-
-  const updateMilestone = (index: number, updatedMilestone: Milestone) => {
-    const newMilestones = [...milestones];
-    newMilestones[index] = updatedMilestone;
-    setMilestones(newMilestones);
-    setEditingMilestoneIndex(null);
   };
 
   const deleteMilestone = (index: number) => {
@@ -199,7 +182,7 @@ export const QuoteDataPreview: React.FC<QuoteDataPreviewProps> = ({
       title: 'Acciones',
       key: 'actions',
       width: '5%',
-      render: (_: any, record: Task, index: number) => (
+      render: (_: any, _record: Task, index: number) => (
         <Space size="small">
           <Popconfirm
             title="¿Eliminar esta tarea?"
@@ -239,7 +222,7 @@ export const QuoteDataPreview: React.FC<QuoteDataPreviewProps> = ({
       title: 'Acciones',
       key: 'actions',
       width: '5%',
-      render: (_: any, record: Milestone, index: number) => (
+      render: (_: any, _record: Milestone, index: number) => (
         <Space size="small">
           <Popconfirm
             title="¿Eliminar este hito?"
@@ -325,21 +308,21 @@ export const QuoteDataPreview: React.FC<QuoteDataPreviewProps> = ({
             <Row gutter={16}>
               <Col span={12}>
                 <Form.Item label="Costo Presupuestado (USD)" name="budgeted_cost">
-                  <InputNumber
+                  <InputNumber<number>
                     style={{ width: '100%' }}
                     min={0}
                     formatter={(value) => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                    parser={(value) => value!.replace(/\$\s?|(,*)/g, '')}
+                    parser={(value) => Number(value!.replace(/\$\s?|(,*)/g, ''))}
                   />
                 </Form.Item>
               </Col>
               <Col span={12}>
                 <Form.Item label="Ingreso Esperado (USD)" name="expected_revenue">
-                  <InputNumber
+                  <InputNumber<number>
                     style={{ width: '100%' }}
                     min={0}
                     formatter={(value) => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-                    parser={(value) => value!.replace(/\$\s?|(,*)/g, '')}
+                    parser={(value) => Number(value!.replace(/\$\s?|(,*)/g, ''))}
                   />
                 </Form.Item>
               </Col>

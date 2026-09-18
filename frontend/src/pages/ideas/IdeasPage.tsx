@@ -1,18 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { 
-  Row, Col, Card, Button, Select, Input, Space, Statistic, 
-  List, Tag, Avatar, Typography, Tooltip, message, Badge,
+import {
+  Row, Col, Card, Button, Select, Input, Space, Statistic,
+  Tag, Avatar, Typography, Tooltip, message,
   Pagination, Empty, Spin, Modal
 } from 'antd';
-import { 
+import {
   BulbOutlined, PlusOutlined, LikeOutlined, DislikeOutlined,
-  CommentOutlined, UserOutlined, FilterOutlined, SortAscendingOutlined,
-  EyeOutlined, EditOutlined, DeleteOutlined
+  CommentOutlined, UserOutlined, SortAscendingOutlined,
+  DeleteOutlined
 } from '@ant-design/icons';
 import { useIdeaStore } from '@/store/ideaStore';
 import { useAuthStore } from '@/store/authStore';
 import { getIdeaStatusColor } from '@/utils';
-import { Idea, IdeaFilters, IdeaCategory, IdeaStatus } from '@/types/idea';
+import { Idea, IdeaFilters, IdeaCategory } from '@/types/idea';
 import CreateIdeaModal from '@/components/ideas/CreateIdeaModal';
 import IdeaPriorityMatrix from '@/components/ideas/IdeaPriorityMatrix';
 import IdeaCommentsModal from '@/components/ideas/IdeaCommentsModal';

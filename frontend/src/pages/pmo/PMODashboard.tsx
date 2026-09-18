@@ -21,7 +21,6 @@ import {
   Divider,
   Alert,
   Typography,
-  Tooltip,
   Upload,
   Drawer,
   Spin,
@@ -35,10 +34,8 @@ import {
   DollarOutlined,
   TeamOutlined,
   RiseOutlined,
-  FallOutlined,
   PlusOutlined,
   BarChartOutlined,
-  LineChartOutlined,
   WarningOutlined,
   TrophyOutlined,
   CalendarOutlined,
@@ -104,12 +101,12 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   const [analytics, setAnalytics] = useState<PMOAnalytics | null>(null);
   const [milestoneModalVisible, setMilestoneModalVisible] = useState(false);
   const [milestoneForm] = Form.useForm();
-  const [users, setUsers] = useState([]);
-  const [projects, setProjects] = useState([]);
+  const [users, setUsers] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   
   // Use the enhanced Gantt data hook for better state management
-  const { ganttData, ganttLoading, error: ganttError, loadGanttData, clearError: clearGanttError, refreshGanttData, setGanttData } = useGanttData(selectedProjectId);
+  const { ganttData, ganttLoading, error: ganttError, loadGanttData, clearError: clearGanttError, setGanttData } = useGanttData(selectedProjectId);
   const [editingItem, setEditingItem] = useState<any>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [editForm] = Form.useForm();
@@ -126,7 +123,6 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   // Refs to prevent multiple simultaneous API calls
   const loadingDashboard = useRef(false);
   const deletingItems = useRef(new Set<number>()); // Track items being deleted
-  const pendingReload = useRef<NodeJS.Timeout | null>(null); // Debounced reload
 
   // Helper function to safely validate ganttData structure
   const isValidGanttData = (data: any): boolean => {
@@ -141,7 +137,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
     const taskRegistry = new Map(); // Para resolver dependencias "after"
     
     // Helper function to parse date or calculate from dependencies
-    const parseDate = (dateStr: string, taskId?: string): string | null => {
+    const parseDate = (dateStr: string, _taskId?: string): string | null => {
       if (!dateStr) return null;
       
       // Direct date format YYYY-MM-DD
@@ -260,10 +256,11 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
     
     // Show loading modal with progress
     const hideLoading = message.loading('Analizando código Mermaid...', 0);
-    
+    let currentLoading: any = null;
+
     try {
       const { tasks, milestones } = parseMermaidCode(mermaidCode);
-      
+
       if (tasks.length === 0 && milestones.length === 0) {
         hideLoading();
         message.warning('No se encontraron tareas ni hitos válidos en el código Mermaid');
@@ -272,7 +269,6 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
 
       const totalItems = tasks.length + milestones.length;
       let completedItems = 0;
-      let currentLoading: any = null;
 
       // Helper function to update progress
       const updateProgress = (progressMessage: string) => {
@@ -450,9 +446,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
           console.error('❌ Error reloading data after Mermaid import:', error);
           // Ensure loading states are cleared even if reload fails
           setLoading(false);
-          setGanttLoading(false);
           loadingDashboard.current = false;
-          loadingGantt.current = false;
           message.warning('Los datos se importaron correctamente, pero hubo un problema al actualizar la vista. Recarga la página si es necesario.');
         }
       }, 500);
@@ -586,51 +580,6 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
     };
   }, [editModalVisible, editingItem]);
 
-  // Debounced reload function to prevent concurrent reloads during rapid deletions
-  const scheduleReload = () => {
-    console.log('📅 Scheduling debounced reload...');
-    
-    // Clear any existing pending reload
-    if (pendingReload.current) {
-      clearTimeout(pendingReload.current);
-      console.log('🗑️ Cancelled previous pending reload');
-    }
-
-    // Schedule new reload with delay
-    pendingReload.current = setTimeout(async () => {
-      console.log('🔄 Executing debounced reload');
-      try {
-        // Reload dashboard data first
-        await loadDashboardData();
-        
-        // Then reload gantt data if we have a selected project
-        if (selectedProjectId && !ganttLoading) {
-          console.log('🔄 Reloading Gantt data after deletion');
-          await loadGanttData(selectedProjectId, true);
-        }
-        console.log('✅ Debounced reload completed successfully');
-      } catch (error) {
-        console.error('❌ Error in debounced reload:', error);
-        // EMERGENCY FIX: Disable recovery retry to prevent infinite loops
-        // This was also contributing to the 429 rate limiting issues
-        // TODO: Implement proper retry logic with backoff and limits
-        /*
-        // Try recovery if reload fails
-        if (selectedProjectId) {
-          setTimeout(() => {
-            console.log('🔄 Retry reload after error');
-            if (selectedProjectId && !ganttLoading) {
-              loadGanttData(selectedProjectId, true);
-            }
-          }, 2000);
-        }
-        */
-      } finally {
-        pendingReload.current = null;
-      }
-    }, 500); // Wait 500ms before reloading to batch multiple quick deletions
-  };
-
   const loadDashboardData = async () => {
     if (loadingDashboard.current) return;
     
@@ -745,7 +694,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       setIsSelectionMode(false);
     },
     onLoadGanttData: (projectId) => loadGanttData(projectId, true), // Force reload after deletion
-    selectedProjectId
+    selectedProjectId: selectedProjectId ?? undefined
   });
 
   useEffect(() => {
@@ -1054,15 +1003,6 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
     }
   };
 
-  const getHealthColor = (status: string) => {
-    switch (status) {
-      case 'healthy': return '#52c41a';
-      case 'warning': return '#faad14';
-      case 'critical': return '#f5222d';
-      default: return '#d9d9d9';
-    }
-  };
-
   const getHealthIcon = (status: string) => {
     switch (status) {
       case 'healthy': return <CheckCircleOutlined style={{ color: '#52c41a' }} />;
@@ -1086,105 +1026,6 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
         return { icon: '🏢', color: '#1890ff', bg: '#e6f7ff', label: 'Interno' };
     }
   };
-
-  const projectColumns = [
-    {
-      title: 'Proyecto',
-      dataIndex: 'name',
-      key: 'name',
-      render: (text: string, record: any) => (
-        <Space>
-          {getHealthIcon(record.project_health_status)}
-          <strong>{text}</strong>
-        </Space>
-      ),
-    },
-    {
-      title: 'Progreso',
-      dataIndex: 'completion_percentage',
-      key: 'completion_percentage',
-      render: (value: number) => (
-        <Progress 
-          percent={value || 0} 
-          size="small" 
-          status={value >= 100 ? 'success' : value >= 75 ? 'active' : 'exception'}
-        />
-      ),
-    },
-    {
-      title: 'Desvío (días)',
-      dataIndex: 'schedule_variance_days',
-      key: 'schedule_variance_days',
-      render: (days: number) => (
-        <Tag color={days > 0 ? 'green' : days < -2 ? 'red' : 'orange'}>
-          {days > 0 ? `+${days}` : days}
-        </Tag>
-      ),
-    },
-    {
-      title: 'Presupuesto',
-      dataIndex: 'cost_variance_percentage',
-      key: 'cost_variance_percentage',
-      render: (variance: number) => (
-        <Tag color={variance > 10 ? 'red' : variance > 5 ? 'orange' : 'green'}>
-          {variance > 0 ? `+${variance}%` : `${variance}%`}
-        </Tag>
-      ),
-    },
-    {
-      title: 'Riesgo',
-      dataIndex: 'risk_level',
-      key: 'risk_level',
-      render: (risk: string) => {
-        const colors = { low: 'green', medium: 'orange', high: 'red', critical: 'purple' };
-        return <Tag color={colors[risk as keyof typeof colors]}>{risk?.toUpperCase()}</Tag>;
-      },
-    },
-    {
-      title: 'Deadline',
-      dataIndex: 'days_to_deadline',
-      key: 'days_to_deadline',
-      render: (days: number) => {
-        if (!days) return 'N/A';
-        const color = days < 0 ? 'red' : days < 7 ? 'orange' : 'green';
-        return <Tag color={color}>{days < 0 ? `${Math.abs(days)} días atrás` : `${days} días`}</Tag>;
-      },
-    }
-  ];
-
-  const milestoneColumns = [
-    {
-      title: 'Hito',
-      dataIndex: 'name',
-      key: 'name',
-    },
-    {
-      title: 'Proyecto',
-      dataIndex: 'project_name',
-      key: 'project_name',
-    },
-    {
-      title: 'Fecha Planificada',
-      dataIndex: 'planned_date',
-      key: 'planned_date',
-      render: (date: string) => dayjs(date).format('DD/MM/YYYY'),
-    },
-    {
-      title: 'Días Restantes',
-      dataIndex: 'days_until',
-      key: 'days_until',
-      render: (days: number) => {
-        const color = days < 0 ? 'red' : days < 3 ? 'orange' : 'green';
-        return <Tag color={color}>{days < 0 ? 'Vencido' : `${days} días`}</Tag>;
-      },
-    },
-    {
-      title: 'Responsable',
-      dataIndex: 'responsible_name',
-      key: 'responsible_name',
-      render: (name: string) => name || 'Sin asignar',
-    }
-  ];
 
   if (loading) {
     return (
@@ -1360,7 +1201,6 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                               ? 'error'
                               : 'warning'
                         }
-                        size="small"
                         style={{ marginBottom: '8px' }}
                         showIcon
                       />
@@ -1597,7 +1437,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                 size="small"
               >
                 <div style={{ height: '385px', overflowY: 'auto' }}>
-                  <Timeline size="small">
+                  <Timeline>
                     {dashboardData?.upcomingMilestones?.slice(0, 12).map((milestone: any) => (
                       <Timeline.Item
                         key={milestone.id}
@@ -1756,8 +1596,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                             <div style={{ fontSize: '11px', fontWeight: 'bold' }}>
                               ${(project.planned_budget / 1000000).toFixed(1)}M
                             </div>
-                            <Tag 
-                              size="small"
+                            <Tag
                               color={
                                 project.budget_status === 'critical' ? 'red' :
                                 project.budget_status === 'warning' ? 'orange' :
@@ -1827,8 +1666,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                 'N/A'
                               }
                             </div>
-                            <Tag 
-                              size="small"
+                            <Tag
                               color={
                                 project.schedule_status === 'severely_delayed' ? 'red' :
                                 project.schedule_status === 'delayed' ? 'orange' :
@@ -1899,7 +1737,6 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                           message={project.project_name}
                           description={`${project.risk_level?.toUpperCase()} - ${project.schedule_variance_days}d retraso`}
                           type="error"
-                          size="small"
                           style={{ marginBottom: '8px' }}
                           showIcon
                         />
@@ -1952,7 +1789,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                               Velocidad: {member.avg_velocity?.toFixed(1) || 'N/A'}
                             </div>
                             <div style={{ fontSize: '9px', marginTop: '2px' }}>
-                              <Tag size="small" color={member.avg_budget_variance > 10 ? 'red' : member.avg_budget_variance > 0 ? 'orange' : 'green'}>
+                              <Tag color={member.avg_budget_variance > 10 ? 'red' : member.avg_budget_variance > 0 ? 'orange' : 'green'}>
                                 {member.avg_budget_variance > 0 ? '+' : ''}{member.avg_budget_variance?.toFixed(1) || 0}% budget
                               </Tag>
                             </div>
@@ -2014,8 +1851,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                             <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#faad14' }}>
                               {project.client_satisfaction_score?.toFixed(1) || 'N/A'}/10
                             </div>
-                            <Tag 
-                              size="small"
+                            <Tag
                               color={
                                 project.quality_status === 'excellent' ? 'green' :
                                 project.quality_status === 'good' ? 'blue' :
@@ -2088,7 +1924,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                           key: 'on_budget_rate',
                           width: 100,
                           render: (value: number) => (
-                            <Tag color={value >= 80 ? 'green' : value >= 60 ? 'blue' : 'orange'} size="small">
+                            <Tag color={value >= 80 ? 'green' : value >= 60 ? 'blue' : 'orange'}>
                               {value?.toFixed(0) || 0}%
                             </Tag>
                           )
@@ -2149,8 +1985,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                             <div style={{ fontSize: '10px', color: '#666' }}>
                               Velocidad: {resource.avg_velocity?.toFixed(1) || 'N/A'}
                             </div>
-                            <Tag 
-                              size="small"
+                            <Tag
                               color={
                                 resource.utilization_status === 'overutilized' ? 'red' :
                                 resource.utilization_status === 'underutilized' ? 'orange' : 'green'
@@ -2519,21 +2354,21 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                         overflowY: 'auto'
                       }}>
                         {[
-                          ...(ganttData.milestones || []).map(milestone => ({ 
-                            ...milestone, 
+                          ...(ganttData.milestones || []).map((milestone: any) => ({
+                            ...milestone,
                             type: 'milestone',
                             sortDate: milestone.planned_date
                           })),
-                          ...(ganttData.tasks || []).map(task => ({ 
-                            ...task, 
+                          ...(ganttData.tasks || []).map((task: any) => ({
+                            ...task,
                             type: 'task',
                             sortDate: task.start_date || task.created_at
                           }))
                         ]
                         .sort((a, b) => new Date(a.sortDate || '2099-12-31').getTime() - new Date(b.sortDate || '2099-12-31').getTime())
-                        .map((item: any, index: number) => {
+                        .map((item: any) => {
                           const responsibilityInfo = getResponsibilityIndicator(item.responsibility || 'internal');
-                          
+
                           return (
                           <div
                             key={`element-${item.type}-${item.id}`}
@@ -2575,10 +2410,9 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                   {item.name || item.title}
                                 </strong>
                                 {item.type === 'milestone' && item.responsibility !== 'internal' && (
-                                  <Tag 
-                                    size="small" 
+                                  <Tag
                                     color={
-                                      item.responsibility === 'external' ? 'red' : 
+                                      item.responsibility === 'external' ? 'red' :
                                       item.responsibility === 'client' ? 'orange' : 'purple'
                                     }
                                     style={{ marginLeft: '8px', fontSize: '10px' }}
@@ -2599,10 +2433,9 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                               </div>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                              <Tag 
-                                size="small"
+                              <Tag
                                 color={
-                                  item.type === 'milestone' 
+                                  item.type === 'milestone'
                                     ? (item.status === 'completed' ? 'green' : 'orange')
                                     : (item.status === 'done' ? 'green' : item.status === 'in_progress' ? 'blue' : 'default')
                                 }
@@ -2682,13 +2515,13 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
 
                         {/* Elementos del timeline alineados */}
                         {[
-                          ...(ganttData.milestones || []).map(milestone => ({ 
-                            ...milestone, 
+                          ...(ganttData.milestones || []).map((milestone: any) => ({
+                            ...milestone,
                             type: 'milestone',
                             sortDate: milestone.planned_date
                           })),
-                          ...(ganttData.tasks || []).map(task => ({ 
-                            ...task, 
+                          ...(ganttData.tasks || []).map((task: any) => ({
+                            ...task,
                             type: 'task',
                             sortDate: task.start_date || task.created_at
                           }))
@@ -2886,7 +2719,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                   <Statistic
                     title="Dependencias Externas"
                     value={
-                      dashboardData?.projects?.reduce((total: number, project: any) => {
+                      dashboardData?.projects?.reduce((total: number, _project: any) => {
                         return total + (ganttData?.milestones?.filter((m: any) => 
                           m.responsibility === 'external' || m.responsibility === 'client'
                         ).length || 0);

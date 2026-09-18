@@ -125,7 +125,7 @@ export const ProjectLifecyclePage: React.FC = () => {
 
   const handleActivitySubmit = async (values: any) => {
     try {
-      await apiService.createPhaseActivity(selectedPhase!.id.toString(), {
+      await apiService.createPhaseActivity(selectedPhase!.id, {
         activity_type: 'development',
         description: values.activity_description,
         duration_minutes: values.hours_worked * 60,
@@ -348,9 +348,9 @@ export const ProjectLifecyclePage: React.FC = () => {
                 title="Apparent ROI"
                 value={roiAnalysis.apparent_roi}
                 suffix="%"
-                prefix={parseFloat(roiAnalysis.apparent_roi) > 0 ? <RiseOutlined /> : <FallOutlined />}
+                prefix={roiAnalysis.apparent_roi > 0 ? <RiseOutlined /> : <FallOutlined />}
                 valueStyle={{
-                  color: parseFloat(roiAnalysis.apparent_roi) > 20 ? '#3f8600' : '#cf1322'
+                  color: roiAnalysis.apparent_roi > 20 ? '#3f8600' : '#cf1322'
                 }}
               />
               <Text type="secondary" style={{ fontSize: '12px' }}>
@@ -364,9 +364,9 @@ export const ProjectLifecyclePage: React.FC = () => {
                 title="Real ROI"
                 value={roiAnalysis.real_roi}
                 suffix="%"
-                prefix={parseFloat(roiAnalysis.real_roi) > 0 ? <RiseOutlined /> : <FallOutlined />}
+                prefix={roiAnalysis.real_roi > 0 ? <RiseOutlined /> : <FallOutlined />}
                 valueStyle={{
-                  color: parseFloat(roiAnalysis.real_roi) > 20 ? '#3f8600' : '#cf1322'
+                  color: roiAnalysis.real_roi > 20 ? '#3f8600' : '#cf1322'
                 }}
               />
               <Text type="secondary" style={{ fontSize: '12px' }}>
@@ -397,7 +397,7 @@ export const ProjectLifecyclePage: React.FC = () => {
                 prefix={<ClockCircleOutlined />}
               />
               <Progress
-                percent={parseFloat(roiAnalysis.non_billable_percentage)}
+                percent={roiAnalysis.non_billable_percentage}
                 showInfo={false}
                 strokeColor="#fa8c16"
                 size="small"

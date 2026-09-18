@@ -30,7 +30,6 @@ import {
 import { apiService } from '@/services/api';
 
 const { Title, Text } = Typography;
-const { Panel } = Collapse;
 
 interface MLPrediction {
   prediction: number;
@@ -228,7 +227,7 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
       {error && (
         <Alert
           message="Prediction Error"
-          description={typeof error === 'string' ? error : error?.message || 'Unknown error occurred'}
+          description={error || 'Unknown error occurred'}
           type="error"
           style={{ marginBottom: '24px' }}
           closable

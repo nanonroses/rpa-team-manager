@@ -3,7 +3,6 @@ import { Button, Input, List, Avatar, Typography, Space, message, Spin, Empty } 
 import { UserOutlined, SendOutlined } from '@ant-design/icons';
 import { Idea, IdeaComment } from '@/types/idea';
 import { useIdeaStore } from '@/store/ideaStore';
-import { useAuthStore } from '@/store/authStore';
 import { formatDistanceToNow } from 'date-fns';
 
 const { TextArea } = Input;
@@ -14,8 +13,7 @@ interface IdeaCommentsModalProps {
 }
 
 export const IdeaCommentsModal: React.FC<IdeaCommentsModalProps> = ({ idea }) => {
-  const { user } = useAuthStore();
-  const { 
+  const {
     comments, 
     isLoading, 
     fetchIdeaComments, 

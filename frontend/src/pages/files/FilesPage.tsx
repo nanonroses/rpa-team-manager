@@ -1,5 +1,5 @@
 import React from 'react';
-import { Typography, Space } from 'antd';
+import { Typography } from 'antd';
 import { FolderOpenOutlined } from '@ant-design/icons';
 import { FileManager } from '@/components/files';
 

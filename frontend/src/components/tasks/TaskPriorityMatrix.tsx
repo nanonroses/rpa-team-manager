@@ -1,18 +1,16 @@
 import React from 'react';
-import { Card, Typography, Tooltip, Tag, Space, Button } from 'antd';
+import { Card, Typography, Tag, Space } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { 
-  ClockCircleOutlined, 
-  UserOutlined, 
-  CalendarOutlined,
-  FlagOutlined,
-  EyeOutlined
+import {
+  ClockCircleOutlined,
+  UserOutlined,
+  CalendarOutlined
 } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { PriorityMatrix, QuadrantConfig, QuadrantRules, MatrixAxisConfig, MatrixItemRenderer, MatrixSummary } from '@/components/common';
 import { getTaskStatusColor, getPriorityColor } from '@/utils';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 interface Task {
   id: number;
@@ -141,7 +139,7 @@ const TaskPriorityMatrix: React.FC<TaskPriorityMatrixProps> = ({ tasks }) => {
     return days;
   };
 
-  const handleTaskClick = (task: Task) => {
+  const handleTaskClick = (_task: Task) => {
     // Navigate to tasks page and potentially highlight the specific task
     navigate('/tasks');
   };
