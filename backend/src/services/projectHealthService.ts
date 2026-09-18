@@ -1,6 +1,6 @@
 import { db } from '../database/database';
 import { financeService } from './financeService';
-import { differenceInCalendarDays, addDays, format } from 'date-fns';
+import { differenceInCalendarDays, addDays, format, parseISO } from 'date-fns';
 
 export interface ProjectBaseline {
     id: number;
@@ -108,16 +108,29 @@ export class ProjectHealthService {
         const dueCount = baselineMilestones.filter((m: any) => m.baseline_planned_date <= today).length;
         const pvPercentage = (dueCount / baselineMilestones.length) * 100;
 
+        // SPI y CPI solo deben medirse contra el alcance que existía cuando se congeló el baseline:
+        // budgeted_cost_clp y baseline_planned_date solo cubren esos hitos, así que promediar sobre
+        // TODOS los hitos (incluyendo los agregados después del freeze, sin plan original) distorsionaría
+        // el desempeño vs. lo planificado. ev_percentage (el campo público) sigue siendo el promedio
+        // sobre todos los hitos actuales, para reflejar el avance real incluyendo crecimiento de alcance.
+        const baselineEvPercentage = baselineMilestones.length > 0
+            ? baselineMilestones.reduce((sum: number, m: any) => sum + (m.completion_percentage || 0), 0) / baselineMilestones.length
+            : 0;
+
         const financials = await financeService.calculateProjectFinancials(projectId);
-        const evDollars = (evPercentage / 100) * baseline.budgeted_cost_clp;
+        // financeService usa 'projected' cuando no hay horas de timesheet aprobadas: en ese caso
+        // real_cost es un placeholder (= planned_cost), no una medición real, y el CPI calculado a
+        // partir de él no significa nada. Tratamos el costo como no disponible en ese escenario.
+        const hasRealCostData = financials.real_hours_source === 'approved';
+        const evDollars = (baselineEvPercentage / 100) * baseline.budgeted_cost_clp;
 
         const spi = pvPercentage > 0
-            ? evPercentage / pvPercentage
-            : (evPercentage > 0 ? 2 : 1);
+            ? baselineEvPercentage / pvPercentage
+            : (baselineEvPercentage > 0 ? 2 : 1);
 
-        const cpi = financials.real_cost > 0
-            ? evDollars / financials.real_cost
-            : (evDollars > 0 ? 2 : 1);
+        const cpi = hasRealCostData
+            ? (financials.real_cost > 0 ? evDollars / financials.real_cost : (evDollars > 0 ? 2 : 1))
+            : null;
 
         const project = await db.get(`SELECT status, actual_end_date FROM projects WHERE id = ?`, [projectId]);
 
@@ -127,19 +140,19 @@ export class ProjectHealthService {
         if (project?.status === 'completed' && project.actual_end_date) {
             projectedEndDate = project.actual_end_date;
             scheduleVarianceDays = differenceInCalendarDays(
-                new Date(project.actual_end_date),
-                new Date(baseline.end_date)
+                parseISO(project.actual_end_date),
+                parseISO(baseline.end_date)
             );
         } else {
             const baselineDurationDays = differenceInCalendarDays(
-                new Date(baseline.end_date),
-                new Date(baseline.start_date)
+                parseISO(baseline.end_date),
+                parseISO(baseline.start_date)
             );
             const effectiveSpi = Math.max(spi, 0.01);
             const projectedDurationDays = Math.round(baselineDurationDays / effectiveSpi);
-            const projectedEnd = addDays(new Date(baseline.start_date), projectedDurationDays);
+            const projectedEnd = addDays(parseISO(baseline.start_date), projectedDurationDays);
             projectedEndDate = format(projectedEnd, 'yyyy-MM-dd');
-            scheduleVarianceDays = differenceInCalendarDays(projectedEnd, new Date(baseline.end_date));
+            scheduleVarianceDays = differenceInCalendarDays(projectedEnd, parseISO(baseline.end_date));
         }
 
         return {
@@ -149,16 +162,20 @@ export class ProjectHealthService {
             ev_percentage: Math.round(evPercentage * 100) / 100,
             pv_percentage: Math.round(pvPercentage * 100) / 100,
             spi: Math.round(spi * 100) / 100,
-            cpi: Math.round(cpi * 100) / 100,
+            cpi: cpi !== null ? Math.round(cpi * 100) / 100 : null,
             semaphore: this.classifySemaphore(spi, cpi),
             projected_end_date: projectedEndDate,
             schedule_variance_days: scheduleVarianceDays
         };
     }
 
-    private classifySemaphore(spi: number, cpi: number): 'green' | 'yellow' | 'red' {
+    private classifySemaphore(spi: number, cpi: number | null): 'green' | 'yellow' | 'red' {
         const classify = (value: number): 'green' | 'yellow' | 'red' =>
             value >= 1.0 ? 'green' : value >= 0.9 ? 'yellow' : 'red';
+
+        if (cpi === null) {
+            return classify(spi);
+        }
 
         const scheduleColor = classify(spi);
         const costColor = classify(cpi);

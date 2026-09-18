@@ -35,6 +35,22 @@ describe('ProjectHealthCard', () => {
     expect(screen.getByText(/0.67/)).toBeInTheDocument();
   });
 
+  it('muestra "—" (no "0.00") para CPI cuando health.cpi es null (real_hours_source "projected")', async () => {
+    (apiService.getProjectHealth as any).mockResolvedValue({
+      project_id: 1, has_baseline: true, status: 'ok',
+      ev_percentage: 40, pv_percentage: 60, spi: 1.1, cpi: null,
+      semaphore: 'green', projected_end_date: '2026-08-01', schedule_variance_days: 0
+    });
+
+    render(<ProjectHealthCard projectId={1} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/CPI/i)).toBeInTheDocument();
+    });
+    expect(screen.getByText('—')).toBeInTheDocument();
+    expect(screen.queryByText('0.00')).not.toBeInTheDocument();
+  });
+
   it('muestra el botón "Congelar baseline" para team_lead cuando no hay baseline, y lo llama al hacer click', async () => {
     (apiService.getProjectHealth as any).mockResolvedValue({
       project_id: 1, has_baseline: false, status: 'insufficient_data',

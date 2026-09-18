@@ -98,9 +98,9 @@ export const ProjectHealthCard: React.FC<ProjectHealthCardProps> = ({ projectId 
           <Col span={6}>
             <Statistic
               title="CPI"
-              value={health.cpi ?? 0}
+              value={health.cpi ?? '—'}
               precision={2}
-              formatter={(value) => Number(value).toFixed(2)}
+              formatter={(value) => (health.cpi === null ? '—' : Number(value).toFixed(2))}
             />
           </Col>
           <Col span={6}>
