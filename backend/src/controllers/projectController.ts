@@ -5,6 +5,7 @@ import { logger } from '../utils/logger';
 import { LLMService, QuoteData } from '../services/llmService';
 import { DocumentParserService } from '../services/documentParserService';
 import { projectHealthService } from '../services/projectHealthService';
+import { activityLogService } from '../services/activityLogService';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -218,7 +219,7 @@ export class ProjectController {
             }
 
             // Log activity
-            await this.logActivity(
+            await activityLogService.logActivity(
                 req.user?.id,
                 'project',
                 projectId,
@@ -320,7 +321,7 @@ export class ProjectController {
             }
 
             // Log activity
-            await this.logActivity(
+            await activityLogService.logActivity(
                 req.user?.id,
                 'project',
                 parseInt(id),
@@ -376,7 +377,7 @@ export class ProjectController {
             await db.run('DELETE FROM projects WHERE id = ?', [id]);
 
             // Log activity
-            await this.logActivity(
+            await activityLogService.logActivity(
                 req.user?.id,
                 'project',
                 parseInt(id),
@@ -467,32 +468,6 @@ export class ProjectController {
             res.status(500).json({ error: 'Failed to get project health' });
         }
     };
-
-    private async logActivity(
-        userId: number | undefined,
-        entityType: string,
-        entityId: number,
-        action: string,
-        oldValues: any,
-        newValues: any
-    ): Promise<void> {
-        try {
-            await db.run(`
-                INSERT INTO activity_log (
-                    user_id, entity_type, entity_id, action, old_values, new_values
-                ) VALUES (?, ?, ?, ?, ?, ?)
-            `, [
-                userId || null,
-                entityType,
-                entityId,
-                action,
-                oldValues ? JSON.stringify(oldValues) : null,
-                newValues ? JSON.stringify(newValues) : null
-            ]);
-        } catch (error) {
-            logger.error('Failed to log activity:', error);
-        }
-    }
 
     // DEBUG: Temporary endpoint to check financial data
     debugFinancialData = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -919,7 +894,7 @@ export class ProjectController {
                 }
 
                 // 7. Log activity
-                await this.logActivity(
+                await activityLogService.logActivity(
                     userId,
                     'project',
                     projectId,
