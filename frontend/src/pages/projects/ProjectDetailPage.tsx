@@ -41,6 +41,7 @@ import {
 } from '@ant-design/icons';
 import { ProjectROICard } from '@/components/projects/ProjectROICard';
 import { ProjectHealthCard } from '@/components/projects/ProjectHealthCard';
+import { ActivityTimeline } from '@/components/activity/ActivityTimeline';
 import { ProjectPMOView } from '@/components/projects/ProjectPMOView';
 import { ProjectMLAnalytics } from '@/components/projects/ProjectMLAnalytics';
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal';
@@ -476,6 +477,8 @@ export const ProjectDetailPage: React.FC = () => {
                     {user?.role === 'team_lead' && (
                       <ProjectHealthCard projectId={project.id} />
                     )}
+
+                    <ActivityTimeline projectId={project.id} />
 
                     {/* PMO Quick Actions */}
                     <Card title="PMO & Analytics" style={{ marginTop: '24px' }}>
