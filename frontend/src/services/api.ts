@@ -2,6 +2,7 @@ import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { LoginCredentials, LoginResponse, User } from '@/types/auth';
 import { Project } from '@/types/project';
 import { ProjectHealth, ProjectBaseline } from '../types/projectHealth';
+import { ActivityLogEntry } from '../types/activity';
 
 interface RequestCache {
   [key: string]: {
@@ -375,6 +376,16 @@ class ApiService {
 
   async freezeProjectBaseline(projectId: number): Promise<ProjectBaseline> {
     const response = await this.api.post(`/projects/${projectId}/baseline`);
+    return response.data;
+  }
+
+  async getProjectActivity(projectId: number, params?: { limit?: number; offset?: number }): Promise<ActivityLogEntry[]> {
+    const response = await this.api.get(`/projects/${projectId}/activity`, { params });
+    return response.data;
+  }
+
+  async getTaskActivity(taskId: number, params?: { limit?: number; offset?: number }): Promise<ActivityLogEntry[]> {
+    const response = await this.api.get(`/tasks/${taskId}/activity`, { params });
     return response.data;
   }
 
