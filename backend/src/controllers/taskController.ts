@@ -173,6 +173,11 @@ export class TaskController {
         WHERE tb.id = ?
       `, [result.id]);
 
+      await activityLogService.logActivity(
+        userId, 'project', project_id, 'board_created', null,
+        { name, board_type }
+      );
+
       res.status(201).json(newBoard);
     } catch (error) {
       logger.error('Create board error:', error);
@@ -334,6 +339,11 @@ export class TaskController {
         WHERE t.id = ?
       `, [result.id]);
 
+      await activityLogService.logActivity(
+        userId, 'task', result.id!, 'created', null,
+        { title, task_type, priority, column_id, board_id }
+      );
+
       res.status(201).json(newTask);
     } catch (error) {
       logger.error('Create task error:', error);
@@ -438,6 +448,15 @@ export class TaskController {
         WHERE t.id = ?
       `, [id]);
 
+      const updatePayload = {
+        title, description, task_type, status, priority,
+        assignee_id, estimated_hours, story_points, start_date, due_date, column_id, position
+      };
+      const hasChanges = Object.values(updatePayload).some((value) => value !== undefined);
+      if (hasChanges) {
+        await activityLogService.logActivity(userId, 'task', parseInt(id), 'updated', task, updatePayload);
+      }
+
       res.json(updatedTask);
     } catch (error) {
       logger.error('Update task error:', error);
@@ -503,8 +522,10 @@ export class TaskController {
           WHERE column_id = ? AND position > ?
         `, [column_id, position]);
 
+        await activityLogService.logActivity(userId, 'task', parseInt(id), 'deleted', existsCheck, null);
+
         await db.commit();
-        
+
         logger.info(`Task ${id} deleted successfully by user ${userId}`);
         res.json({ 
           success: true,
@@ -617,8 +638,14 @@ export class TaskController {
           WHERE id = ?
         `, [column_id, position, id]);
 
+        await activityLogService.logActivity(
+          userId, 'task', parseInt(id), 'moved',
+          { column_id: task.column_id, position: task.position },
+          { column_id, position }
+        );
+
         await db.commit();
-        
+
         res.json({ message: 'Task moved successfully' });
       } catch (transactionError) {
         await db.rollback();
