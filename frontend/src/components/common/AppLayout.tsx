@@ -123,6 +123,12 @@ export const AppLayout: React.FC = () => {
     // Add configuration menu for team lead
     if (user?.role === 'team_lead') {
       baseItems.push({
+        key: '/admin',
+        icon: <UserOutlined />,
+        label: 'Administración'
+      });
+
+      baseItems.push({
         key: 'configuration',
         icon: <SettingOutlined />,
         label: 'Configuración',

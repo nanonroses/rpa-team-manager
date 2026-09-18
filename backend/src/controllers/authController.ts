@@ -69,6 +69,36 @@ export class AuthController {
         }
     };
 
+    // PUT /api/auth/me - Update own profile (full_name/email only, no role/is_active)
+    updateProfile = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            if (!req.user) {
+                res.status(401).json({ error: 'User not authenticated' });
+                return;
+            }
+
+            const { full_name, email } = req.body;
+
+            if (!full_name && !email) {
+                res.status(400).json({ error: 'full_name or email is required' });
+                return;
+            }
+
+            const updates: any = {};
+            if (full_name !== undefined) updates.full_name = full_name;
+            if (email !== undefined) updates.email = email;
+
+            const result = await this.authService.updateUser(req.user.id, updates);
+
+            const { password_hash, ...user } = result;
+            logger.info(`Profile updated: ${req.user.email}`);
+            res.json({ user });
+        } catch (error) {
+            logger.error('Update profile error:', error);
+            res.status(400).json({ error: (error as Error).message });
+        }
+    };
+
     // GET /api/auth/users
     getUsers = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {

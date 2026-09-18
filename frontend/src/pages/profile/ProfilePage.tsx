@@ -44,7 +44,7 @@ interface UpdateProfileForm {
 }
 
 export const ProfilePage: React.FC = () => {
-  const { user, setUser } = useAuthStore();
+  const { user, getCurrentUser } = useAuthStore();
   const [loading, setLoading] = useState(false);
   const [passwordModalVisible, setPasswordModalVisible] = useState(false);
   const [editProfileModalVisible, setEditProfileModalVisible] = useState(false);
@@ -78,8 +78,9 @@ export const ProfilePage: React.FC = () => {
   const handleUpdateProfile = async (values: UpdateProfileForm) => {
     try {
       setLoading(true);
-      // For now, we'll just show a message since the endpoint doesn't exist yet
-      message.info('Profile update feature will be available soon');
+      await apiService.updateProfile(values);
+      await getCurrentUser();
+      message.success('Profile updated successfully');
       setEditProfileModalVisible(false);
     } catch (error: any) {
       message.error(error.response?.data?.error || 'Failed to update profile');
@@ -276,13 +277,6 @@ export const ProfilePage: React.FC = () => {
         footer={null}
         width={400}
       >
-        <Alert
-          message="Coming Soon"
-          description="Profile editing functionality will be available in a future update."
-          type="info"
-          style={{ marginBottom: '16px' }}
-        />
-        
         <Form
           form={profileForm}
           layout="vertical"
@@ -298,7 +292,6 @@ export const ProfilePage: React.FC = () => {
             <Input
               prefix={<IdcardOutlined />}
               placeholder="Enter your full name"
-              disabled
             />
           </Form.Item>
 
@@ -313,7 +306,6 @@ export const ProfilePage: React.FC = () => {
             <Input
               prefix={<MailOutlined />}
               placeholder="Enter your email"
-              disabled
             />
           </Form.Item>
 
@@ -325,7 +317,7 @@ export const ProfilePage: React.FC = () => {
               }}>
                 Cancel
               </Button>
-              <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />} disabled>
+              <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
                 Update Profile
               </Button>
             </Space>

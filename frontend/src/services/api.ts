@@ -300,6 +300,11 @@ class ApiService {
     return response.data;
   }
 
+  async updateProfile(data: { full_name?: string; email?: string }): Promise<{ user: User }> {
+    const response = await this.api.put('/auth/me', data);
+    return response.data;
+  }
+
   async changePassword(oldPassword: string, newPassword: string): Promise<void> {
     await this.api.post('/auth/change-password', {
       oldPassword,

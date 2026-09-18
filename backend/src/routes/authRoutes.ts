@@ -15,6 +15,7 @@ router.get('/health', authController.health);
 // Protected routes (require authentication)
 router.post('/logout', authenticate, authController.logout);
 router.get('/me', authenticate, authController.me);
+router.put('/me', authenticate, authController.updateProfile);
 router.get('/users', authenticate, authController.getUsers);
 router.post('/change-password', authenticate, authController.changePassword);
 router.get('/sessions', authenticate, authController.getSessions);

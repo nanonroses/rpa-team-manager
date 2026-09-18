@@ -1,10 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../database/database';
 import { logger } from '../utils/logger';
+import { authenticate, authorize } from '../middleware/auth';
 import fs from 'fs';
 import path from 'path';
 
 const router = Router();
+
+router.use(authenticate, authorize(['team_lead']));
 
 // Database health check endpoint
 router.get('/db/health', async (req: Request, res: Response) => {
