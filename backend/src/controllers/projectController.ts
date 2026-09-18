@@ -488,8 +488,10 @@ export class ProjectController {
                 return;
             }
 
-            const limit = parseInt(req.query.limit as string) || 50;
-            const offset = parseInt(req.query.offset as string) || 0;
+            const parsedLimit = parseInt(req.query.limit as string);
+            const parsedOffset = parseInt(req.query.offset as string);
+            const limit = Math.min(Math.max(Number.isNaN(parsedLimit) ? 50 : parsedLimit, 1), 200);
+            const offset = Math.max(Number.isNaN(parsedOffset) ? 0 : parsedOffset, 0);
 
             const activity = await activityLogService.getProjectActivity(projectId, { limit, offset });
             res.json(activity);

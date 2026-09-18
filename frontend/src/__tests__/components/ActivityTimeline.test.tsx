@@ -46,4 +46,40 @@ describe('ActivityTimeline', () => {
     });
     expect(screen.getByText(/status/)).toBeInTheDocument();
   });
+
+  it('renderiza información identificatoria a partir de old_values para entradas de borrado (new_values null)', async () => {
+    (apiService.getProjectActivity as any).mockResolvedValue([
+      {
+        id: 3, user_id: 3, user_name: 'Ana', entity_type: 'project', entity_id: 7,
+        action: 'task_deleted', old_values: { id: 55, column_id: 2, position: 1, project_id: 7 }, new_values: null,
+        created_at: '2026-09-18T12:00:00Z'
+      }
+    ]);
+
+    render(<ActivityTimeline projectId={7} />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText(/Ana/)).not.toHaveLength(0);
+    });
+    // Debe listar los campos de old_values (identificatorios) en vez de no mostrar nada.
+    expect(screen.getByText(/column_id: 2/)).toBeInTheDocument();
+    expect(screen.getByText(/position: 1/)).toBeInTheDocument();
+  });
+
+  it('no anexa el sufijo genérico de entidad para acciones autocontenidas como board_created', async () => {
+    (apiService.getProjectActivity as any).mockResolvedValue([
+      {
+        id: 4, user_id: 3, user_name: 'Ana', entity_type: 'project', entity_id: 7,
+        action: 'board_created', old_values: null, new_values: { name: 'Board X' },
+        created_at: '2026-09-18T13:00:00Z'
+      }
+    ]);
+
+    render(<ActivityTimeline projectId={7} />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/creó un tablero nuevo/)).toBeInTheDocument();
+    });
+    expect(screen.queryByText('el proyecto')).not.toBeInTheDocument();
+  });
 });

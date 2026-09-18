@@ -523,6 +523,7 @@ export class TaskController {
         `, [column_id, position]);
 
         await activityLogService.logActivity(userId, 'task', parseInt(id), 'deleted', existsCheck, null);
+        await activityLogService.logActivity(userId, 'project', existsCheck.project_id, 'task_deleted', existsCheck, null);
 
         await db.commit();
 
@@ -960,8 +961,10 @@ export class TaskController {
         return;
       }
 
-      const limit = parseInt(req.query.limit as string) || 50;
-      const offset = parseInt(req.query.offset as string) || 0;
+      const parsedLimit = parseInt(req.query.limit as string);
+      const parsedOffset = parseInt(req.query.offset as string);
+      const limit = Math.min(Math.max(Number.isNaN(parsedLimit) ? 50 : parsedLimit, 1), 200);
+      const offset = Math.max(Number.isNaN(parsedOffset) ? 0 : parsedOffset, 0);
 
       const activity = await activityLogService.getTaskActivity(parseInt(id), { limit, offset });
       res.json(activity);

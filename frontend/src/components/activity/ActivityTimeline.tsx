@@ -10,28 +10,46 @@ const ACTION_LABEL: Record<string, string> = {
   updated: 'actualizó',
   deleted: 'eliminó',
   moved: 'movió',
-  board_created: 'creó el tablero de',
-  tasks_batch_created: 'creó en lote',
-  tasks_batch_deleted: 'eliminó en lote',
+  board_created: 'creó un tablero nuevo',
+  tasks_batch_created: 'creó varias tareas en lote',
+  tasks_batch_deleted: 'eliminó varias tareas en lote',
+  task_deleted: 'eliminó una tarea de',
   created_from_quote: 'creó desde cotización'
 };
 
-function renderDiffSummary(entry: ActivityLogEntry): string | null {
-  if (!entry.new_values) return null;
+// Acciones cuyo label es autocontenido (no se les debe anexar el sufijo de entidad).
+const SELF_CONTAINED_ACTIONS = new Set(['board_created', 'tasks_batch_created', 'tasks_batch_deleted']);
 
-  const fields = Object.keys(entry.new_values);
+function summarizeValues(values: Record<string, any> | null | undefined): string | null {
+  if (!values) return null;
+
+  const fields = Object.keys(values);
   if (fields.length === 0) return null;
 
   return fields
-    .map((field) => {
-      const newValue = entry.new_values?.[field];
-      const oldValue = entry.old_values?.[field];
-      if (oldValue !== undefined && oldValue !== newValue) {
-        return `${field}: ${oldValue ?? '—'} → ${newValue ?? '—'}`;
-      }
-      return `${field}: ${newValue ?? '—'}`;
-    })
+    .map((field) => `${field}: ${values[field] ?? '—'}`)
     .join(', ');
+}
+
+function renderDiffSummary(entry: ActivityLogEntry): string | null {
+  if (entry.new_values) {
+    const fields = Object.keys(entry.new_values);
+    if (fields.length === 0) return null;
+
+    return fields
+      .map((field) => {
+        const newValue = entry.new_values?.[field];
+        const oldValue = entry.old_values?.[field];
+        if (oldValue !== undefined && oldValue !== newValue) {
+          return `${field}: ${oldValue ?? '—'} → ${newValue ?? '—'}`;
+        }
+        return `${field}: ${newValue ?? '—'}`;
+      })
+      .join(', ');
+  }
+
+  // Sin new_values (p.ej. acciones de borrado): usar old_values como resumen identificatorio.
+  return summarizeValues(entry.old_values);
 }
 
 interface ActivityTimelineProps {
@@ -75,10 +93,14 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({ projectId })
                 <Text strong>{entry.user_name || 'Usuario desconocido'}</Text>
                 {' '}
                 <Text>{ACTION_LABEL[entry.action] || entry.action}</Text>
-                {' '}
-                <Text type="secondary">
-                  {entry.entity_type === 'task' ? 'una tarea' : 'el proyecto'}
-                </Text>
+                {!SELF_CONTAINED_ACTIONS.has(entry.action) && (
+                  <>
+                    {' '}
+                    <Text type="secondary">
+                      {entry.entity_type === 'task' ? 'una tarea' : 'el proyecto'}
+                    </Text>
+                  </>
+                )}
                 <br />
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   {new Date(entry.created_at).toLocaleString('es-CL')}

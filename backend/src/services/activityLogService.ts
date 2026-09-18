@@ -83,7 +83,7 @@ export class ActivityLogService {
                      JOIN task_boards tb ON t.board_id = tb.id
                      WHERE tb.project_id = ?
                    ))
-            ORDER BY al.created_at DESC
+            ORDER BY al.created_at DESC, al.id DESC
             LIMIT ? OFFSET ?
         `, [projectId, projectId, options.limit, options.offset]);
 
@@ -96,7 +96,7 @@ export class ActivityLogService {
             FROM activity_log al
             LEFT JOIN users u ON al.user_id = u.id
             WHERE al.entity_type = 'task' AND al.entity_id = ?
-            ORDER BY al.created_at DESC
+            ORDER BY al.created_at DESC, al.id DESC
             LIMIT ? OFFSET ?
         `, [taskId, options.limit, options.offset]);
 

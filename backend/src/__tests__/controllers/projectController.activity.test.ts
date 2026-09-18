@@ -83,4 +83,56 @@ describe('ProjectController.getProjectActivity', () => {
 
         expect(activityLogService.getProjectActivity).toHaveBeenCalledWith(7, { limit: 10, offset: 20 });
     });
+
+    it('clamp: limit negativo se ajusta a 1', async () => {
+        (db.get as jest.Mock).mockResolvedValueOnce({ id: 7, assigned_to: 1, created_by: 1 });
+        (activityLogService.getProjectActivity as jest.Mock).mockResolvedValue([]);
+        const req = {
+            params: { id: '7' }, user: { id: 1, role: 'rpa_developer' }, query: { limit: '-5' }
+        } as unknown as AuthenticatedRequest;
+        const res = mockRes();
+
+        await controller.getProjectActivity(req, res);
+
+        expect(activityLogService.getProjectActivity).toHaveBeenCalledWith(7, { limit: 1, offset: 0 });
+    });
+
+    it('clamp: limit=0 se ajusta a 1', async () => {
+        (db.get as jest.Mock).mockResolvedValueOnce({ id: 7, assigned_to: 1, created_by: 1 });
+        (activityLogService.getProjectActivity as jest.Mock).mockResolvedValue([]);
+        const req = {
+            params: { id: '7' }, user: { id: 1, role: 'rpa_developer' }, query: { limit: '0' }
+        } as unknown as AuthenticatedRequest;
+        const res = mockRes();
+
+        await controller.getProjectActivity(req, res);
+
+        expect(activityLogService.getProjectActivity).toHaveBeenCalledWith(7, { limit: 1, offset: 0 });
+    });
+
+    it('clamp: limit por encima de 200 se ajusta a 200', async () => {
+        (db.get as jest.Mock).mockResolvedValueOnce({ id: 7, assigned_to: 1, created_by: 1 });
+        (activityLogService.getProjectActivity as jest.Mock).mockResolvedValue([]);
+        const req = {
+            params: { id: '7' }, user: { id: 1, role: 'rpa_developer' }, query: { limit: '9999' }
+        } as unknown as AuthenticatedRequest;
+        const res = mockRes();
+
+        await controller.getProjectActivity(req, res);
+
+        expect(activityLogService.getProjectActivity).toHaveBeenCalledWith(7, { limit: 200, offset: 0 });
+    });
+
+    it('clamp: offset negativo se ajusta a 0', async () => {
+        (db.get as jest.Mock).mockResolvedValueOnce({ id: 7, assigned_to: 1, created_by: 1 });
+        (activityLogService.getProjectActivity as jest.Mock).mockResolvedValue([]);
+        const req = {
+            params: { id: '7' }, user: { id: 1, role: 'rpa_developer' }, query: { offset: '-10' }
+        } as unknown as AuthenticatedRequest;
+        const res = mockRes();
+
+        await controller.getProjectActivity(req, res);
+
+        expect(activityLogService.getProjectActivity).toHaveBeenCalledWith(7, { limit: 50, offset: 0 });
+    });
 });

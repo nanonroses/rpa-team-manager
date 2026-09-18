@@ -85,6 +85,15 @@ describe('ActivityLogService.getProjectActivity', () => {
             expect.stringContaining("entity_type = 'project'"),
             [7, 7, 50, 0]
         );
+        // El branch de tasks del proyecto (feature principal del feed combinado) debe seguir presente.
+        expect(db.query).toHaveBeenCalledWith(
+            expect.stringContaining('tb.project_id = ?'),
+            [7, 7, 50, 0]
+        );
+        expect(db.query).toHaveBeenCalledWith(
+            expect.stringContaining('ORDER BY al.created_at DESC, al.id DESC'),
+            [7, 7, 50, 0]
+        );
         expect(result).toHaveLength(2);
         expect(result[0].new_values).toEqual({ title: 'Nueva tarea' });
         expect(result[1].new_values).toEqual({ name: 'AGROSUPER' });
@@ -127,6 +136,10 @@ describe('ActivityLogService.getTaskActivity', () => {
 
         expect(db.query).toHaveBeenCalledWith(
             expect.stringContaining("entity_type = 'task'"),
+            [10, 20, 0]
+        );
+        expect(db.query).toHaveBeenCalledWith(
+            expect.stringContaining('ORDER BY al.created_at DESC, al.id DESC'),
             [10, 20, 0]
         );
         expect(result[0].old_values).toEqual({ status: 'todo' });

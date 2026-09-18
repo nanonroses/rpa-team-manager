@@ -90,8 +90,12 @@ describe('TaskController - logging de actividad', () => {
 
         await controller.deleteTask(req, res);
 
-        expect(activityLogService.logActivity).toHaveBeenCalledWith(
-            3, 'task', 55, 'deleted', existsCheck, null
+        expect(activityLogService.logActivity).toHaveBeenCalledTimes(2);
+        expect(activityLogService.logActivity).toHaveBeenNthCalledWith(
+            1, 3, 'task', 55, 'deleted', existsCheck, null
+        );
+        expect(activityLogService.logActivity).toHaveBeenNthCalledWith(
+            2, 3, 'project', 7, 'task_deleted', existsCheck, null
         );
         expect(db.commit).toHaveBeenCalled();
     });

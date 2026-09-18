@@ -48,4 +48,32 @@ describe('TaskController.getTaskActivity', () => {
         expect(activityLogService.getTaskActivity).toHaveBeenCalledWith(10, { limit: 50, offset: 0 });
         expect(res.json).toHaveBeenCalledWith([{ id: 1, action: 'created' }]);
     });
+
+    it('clamp: limit negativo, limit=0 y offset negativo se ajustan a valores sanos', async () => {
+        (db.get as jest.Mock)
+            .mockResolvedValueOnce({ id: 10, project_id: 7 })
+            .mockResolvedValueOnce({ id: 10, project_id: 7 })
+            .mockResolvedValueOnce({ id: 10, project_id: 7 });
+        (activityLogService.getTaskActivity as jest.Mock).mockResolvedValue([]);
+        const res1 = mockRes();
+        await controller.getTaskActivity(
+            { params: { id: '10' }, user: { id: 1 }, query: { limit: '-5' } } as unknown as AuthenticatedRequest,
+            res1
+        );
+        expect(activityLogService.getTaskActivity).toHaveBeenCalledWith(10, { limit: 1, offset: 0 });
+
+        const res2 = mockRes();
+        await controller.getTaskActivity(
+            { params: { id: '10' }, user: { id: 1 }, query: { limit: '0' } } as unknown as AuthenticatedRequest,
+            res2
+        );
+        expect(activityLogService.getTaskActivity).toHaveBeenCalledWith(10, { limit: 1, offset: 0 });
+
+        const res3 = mockRes();
+        await controller.getTaskActivity(
+            { params: { id: '10' }, user: { id: 1 }, query: { offset: '-10' } } as unknown as AuthenticatedRequest,
+            res3
+        );
+        expect(activityLogService.getTaskActivity).toHaveBeenCalledWith(10, { limit: 50, offset: 0 });
+    });
 });
