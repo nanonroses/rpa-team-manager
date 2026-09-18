@@ -475,7 +475,9 @@ export const ProjectDetailPage: React.FC = () => {
                         assignedUserId={project.assigned_to}
                       />
                     )}
-                    <ProjectHealthCard projectId={project.id} />
+                    {user?.role === 'team_lead' && (
+                      <ProjectHealthCard projectId={project.id} />
+                    )}
 
                     {/* PMO Quick Actions */}
                     <Card title="PMO & Analytics" style={{ marginTop: '24px' }}>

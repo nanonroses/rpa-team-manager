@@ -30,7 +30,7 @@ describe('PMOController.getProjectGantt - baseline', () => {
         (db.get as jest.Mock)
             .mockResolvedValueOnce({ id: 7, name: 'AGROSUPER' }) // proyecto
             .mockResolvedValueOnce({ // baseline
-                start_date: '2026-01-01', end_date: '2026-06-01', budgeted_cost_clp: 5000000
+                start_date: '2026-01-01', end_date: '2026-06-01'
             });
         (db.query as jest.Mock).mockImplementation((sql: string) => {
             if (sql.includes('FROM tasks')) return Promise.resolve([]);
@@ -51,7 +51,7 @@ describe('PMOController.getProjectGantt - baseline', () => {
 
         const payload = (res.json as jest.Mock).mock.calls[0][0];
         expect(payload.project.baseline).toEqual({
-            start_date: '2026-01-01', end_date: '2026-06-01', budgeted_cost_clp: 5000000
+            start_date: '2026-01-01', end_date: '2026-06-01'
         });
         expect(payload.milestones[0].baseline_planned_date).toBe('2026-02-01');
     });

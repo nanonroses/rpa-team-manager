@@ -311,7 +311,9 @@ export const ProjectsPage: React.FC = () => {
                     assignedUserId={project.assigned_to}
                   />
                 )}
-                <ProjectHealthCard projectId={project.id} />
+                {user?.role === 'team_lead' && (
+                  <ProjectHealthCard projectId={project.id} />
+                )}
               </Space>
             </Col>
           ))}

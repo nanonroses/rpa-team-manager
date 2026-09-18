@@ -211,7 +211,7 @@ export class PMOController {
 
             // Get project baseline (Fase 4 - puede no existir todavía)
             const baseline = await db.get(
-                `SELECT start_date, end_date, budgeted_cost_clp FROM project_baselines WHERE project_id = ?`,
+                `SELECT start_date, end_date FROM project_baselines WHERE project_id = ?`,
                 [id]
             );
 
