@@ -723,7 +723,8 @@ export class TaskController {
       try {
         const deletedTaskIds: number[] = [];
         const columnsToReorder: Set<number> = new Set();
-        
+        const projectCounts: Map<number, number> = new Map();
+
         // Process each task deletion in the same transaction
         for (const taskId of validTaskIds) {
           // Verify user access and get task position info before deletion
@@ -742,6 +743,7 @@ export class TaskController {
             if (deleteResult.changes > 0) {
               deletedTaskIds.push(parseInt(taskId.toString()));
               columnsToReorder.add(taskCheck.column_id);
+              projectCounts.set(taskCheck.project_id, (projectCounts.get(taskCheck.project_id) || 0) + 1);
               logger.info(`Task ${taskId} marked for deletion in batch operation`);
             }
           } else {
@@ -751,6 +753,10 @@ export class TaskController {
 
         // Reorder positions for all affected columns using centralized utility
         await reorderColumnPositions(db, columnsToReorder, 'tasks');
+
+        for (const [projectId, count] of projectCounts) {
+          await activityLogService.logActivity(userId, 'project', projectId, 'tasks_batch_deleted', null, { count });
+        }
 
         await db.commit();
         
@@ -866,9 +872,14 @@ export class TaskController {
         }
 
         await db.commit();
-        
+
+        await activityLogService.logActivity(
+          userId, 'project', board.project_id, 'tasks_batch_created', null,
+          { count: createdTasks.length, board_id }
+        );
+
         logger.info(`Batch task creation completed: ${createdTasks.length} tasks created by user ${userId}`);
-        res.status(201).json({ 
+        res.status(201).json({
           success: true,
           message: `Successfully created ${createdTasks.length} tasks`,
           createdTasks,

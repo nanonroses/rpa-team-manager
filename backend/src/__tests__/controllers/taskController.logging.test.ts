@@ -131,4 +131,45 @@ describe('TaskController - logging de actividad', () => {
             expect.objectContaining({ name: 'Board X' })
         );
     });
+
+    it('batchCreateTasks loguea UNA sola fila resumida con el conteo', async () => {
+        (db.get as jest.Mock)
+            .mockResolvedValueOnce({ id: 1, project_id: 7 }) // board access check
+            .mockResolvedValueOnce({ max_position: 0 });     // maxPos para la única columna
+        (db.query as jest.Mock).mockResolvedValueOnce([{ id: 2, position: 1 }]); // columns
+        (db.run as jest.Mock).mockResolvedValue({ id: 100, changes: 1 });
+        const req = {
+            body: { board_id: 1, tasks: [{ column_id: 2, title: 'T1' }, { column_id: 2, title: 'T2' }] },
+            user: { id: 3 }
+        } as unknown as AuthenticatedRequest;
+        const res = mockRes();
+
+        await controller.batchCreateTasks(req, res);
+
+        expect(activityLogService.logActivity).toHaveBeenCalledTimes(1);
+        expect(activityLogService.logActivity).toHaveBeenCalledWith(
+            3, 'project', 7, 'tasks_batch_created', null,
+            expect.objectContaining({ count: 2, board_id: 1 })
+        );
+    });
+
+    it('batchDeleteTasks agrupa el logging por proyecto (una fila por proyecto distinto)', async () => {
+        (db.get as jest.Mock)
+            .mockResolvedValueOnce({ id: 55, column_id: 2, position: 1, project_id: 7, assigned_to: 3, created_by: 3 })
+            .mockResolvedValueOnce({ id: 56, column_id: 2, position: 2, project_id: 7, assigned_to: 3, created_by: 3 })
+            .mockResolvedValueOnce({ id: 57, column_id: 5, position: 1, project_id: 9, assigned_to: 3, created_by: 3 });
+        (db.run as jest.Mock).mockResolvedValue({ changes: 1 });
+        const req = { body: { taskIds: [55, 56, 57] }, user: { id: 3 } } as unknown as AuthenticatedRequest;
+        const res = mockRes();
+
+        await controller.batchDeleteTasks(req, res);
+
+        expect(activityLogService.logActivity).toHaveBeenCalledTimes(2);
+        expect(activityLogService.logActivity).toHaveBeenCalledWith(
+            3, 'project', 7, 'tasks_batch_deleted', null, expect.objectContaining({ count: 2 })
+        );
+        expect(activityLogService.logActivity).toHaveBeenCalledWith(
+            3, 'project', 9, 'tasks_batch_deleted', null, expect.objectContaining({ count: 1 })
+        );
+    });
 });
