@@ -469,6 +469,46 @@ export class ProjectController {
         }
     };
 
+    // GET /api/projects/:id/activity
+    getProjectActivity = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.id);
+            const project = await db.get(
+                'SELECT id, assigned_to, created_by FROM projects WHERE id = ?',
+                [projectId]
+            );
+
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
+
+            const limit = parseInt(req.query.limit as string) || 50;
+            const offset = parseInt(req.query.offset as string) || 0;
+
+            const activity = await activityLogService.getProjectActivity(projectId, { limit, offset });
+            res.json(activity);
+        } catch (error) {
+            logger.error('Get project activity error:', error);
+            res.status(500).json({ error: 'Failed to get project activity' });
+        }
+    };
+
+    private hasProjectAccess(
+        user: AuthenticatedRequest['user'],
+        project: { assigned_to: number | null; created_by: number }
+    ): boolean {
+        if (user?.role === 'rpa_developer' && project.assigned_to !== user.id && project.created_by !== user.id) {
+            return false;
+        }
+        return true;
+    }
+
     // DEBUG: Temporary endpoint to check financial data
     debugFinancialData = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {

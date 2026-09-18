@@ -81,6 +81,9 @@ router.get('/:id/gantt', projectController.getProjectGantt);
 // GET /api/projects/:id/health - Derived progress, SPI/CPI, semaphore
 router.get('/:id/health', projectController.getProjectHealth);
 
+// GET /api/projects/:id/activity - Combined activity timeline (project + its tasks)
+router.get('/:id/activity', projectController.getProjectActivity);
+
 // POST /api/projects/:id/baseline - Freeze project baseline (irreversible, team_lead only)
 router.post('/:id/baseline', authorize(['team_lead']), projectController.freezeBaseline);
 
