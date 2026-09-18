@@ -26,6 +26,7 @@ router.delete('/tasks/:id', authenticate, taskController.deleteTask);
 
 // Task operations
 router.post('/tasks/:id/move', authenticate, taskController.moveTask);
+router.get('/tasks/:id/activity', authenticate, taskController.getTaskActivity);
 router.get('/tasks/my-tasks', authenticate, taskController.getMyTasks);
 router.get('/tasks/project/:projectId', authenticate, taskController.getProjectTasks);
 
