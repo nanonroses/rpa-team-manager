@@ -3,6 +3,7 @@ import { LoginCredentials, LoginResponse, User } from '@/types/auth';
 import { Project } from '@/types/project';
 import { ProjectHealth, ProjectBaseline } from '../types/projectHealth';
 import { ActivityLogEntry } from '../types/activity';
+import { NotificationItem } from '../types/notification';
 
 interface RequestCache {
   [key: string]: {
@@ -386,6 +387,29 @@ class ApiService {
 
   async getTaskActivity(taskId: number, params?: { limit?: number; offset?: number }): Promise<ActivityLogEntry[]> {
     const response = await this.api.get(`/tasks/${taskId}/activity`, { params });
+    return response.data;
+  }
+
+  async getNotifications(params?: { limit?: number; offset?: number; unread?: boolean }): Promise<NotificationItem[]> {
+    const response = await this.api.get('/notifications', { params });
+    return response.data;
+  }
+
+  async getUnreadNotificationCount(): Promise<{ count: number }> {
+    const response = await this.api.get('/notifications/unread-count');
+    return response.data;
+  }
+
+  async markNotificationRead(notificationId: number): Promise<void> {
+    await this.api.patch(`/notifications/${notificationId}/read`);
+  }
+
+  async markAllNotificationsRead(): Promise<void> {
+    await this.api.patch('/notifications/read-all');
+  }
+
+  async getTaskById(taskId: number): Promise<any> {
+    const response = await this.api.get(`/tasks/${taskId}`);
     return response.data;
   }
 
