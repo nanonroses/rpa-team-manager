@@ -202,3 +202,63 @@ describe('NotificationService.markAllRead', () => {
         );
     });
 });
+
+describe('NotificationService.checkLoginReminders', () => {
+    let service: NotificationService;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        service = new NotificationService();
+    });
+
+    it('notifica task_due_soon por cada tarea propia con due_date en los próximos días, con dedupe', async () => {
+        (db.query as jest.Mock).mockResolvedValue([
+            { id: 42, title: 'Tarea por vencer' }
+        ]);
+        (db.get as jest.Mock).mockResolvedValue(undefined); // sin duplicado previo
+        (db.run as jest.Mock).mockResolvedValue({ id: 1, changes: 1 });
+
+        await service.checkLoginReminders(5, 0);
+
+        expect(db.query).toHaveBeenCalledWith(expect.stringContaining('assignee_id = ?'), [5, 3]);
+        expect(db.run).toHaveBeenCalledWith(
+            expect.stringContaining('INSERT INTO notifications'),
+            expect.arrayContaining(['task_due_soon'])
+        );
+    });
+
+    it('no notifica task_due_soon si no hay tareas próximas a vencer', async () => {
+        (db.query as jest.Mock).mockResolvedValue([]);
+
+        await service.checkLoginReminders(5, 0);
+
+        expect(db.run).not.toHaveBeenCalled();
+    });
+
+    it('notifica timesheet_missing_days cuando el conteo recibido es mayor a 0', async () => {
+        (db.query as jest.Mock).mockResolvedValue([]);
+        (db.get as jest.Mock).mockResolvedValue(undefined);
+        (db.run as jest.Mock).mockResolvedValue({ id: 1, changes: 1 });
+
+        await service.checkLoginReminders(5, 3);
+
+        expect(db.run).toHaveBeenCalledWith(
+            expect.stringContaining('INSERT INTO notifications'),
+            expect.arrayContaining(['timesheet_missing_days'])
+        );
+    });
+
+    it('no notifica timesheet_missing_days cuando el conteo recibido es 0', async () => {
+        (db.query as jest.Mock).mockResolvedValue([]);
+
+        await service.checkLoginReminders(5, 0);
+
+        expect(db.run).not.toHaveBeenCalled();
+    });
+
+    it('nunca lanza aunque falle la consulta de tareas por vencer', async () => {
+        (db.query as jest.Mock).mockRejectedValue(new Error('db down'));
+
+        await expect(service.checkLoginReminders(5, 0)).resolves.toBeUndefined();
+    });
+});

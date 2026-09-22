@@ -112,6 +112,50 @@ export class NotificationService {
             [userId]
         );
     }
+
+    private static readonly TASK_DUE_SOON_DAYS = 3;
+
+    async checkLoginReminders(userId: number, missingTimesheetDaysCount: number): Promise<void> {
+        try {
+            const tasks = await db.query(`
+                SELECT id, title FROM tasks
+                WHERE assignee_id = ?
+                  AND status NOT IN ('done', 'blocked')
+                  AND due_date IS NOT NULL
+                  AND date(due_date) BETWEEN date('now') AND date('now', '+' || ? || ' days')
+            `, [userId, NotificationService.TASK_DUE_SOON_DAYS]);
+
+            for (const task of tasks) {
+                await this.notify({
+                    userId,
+                    eventKey: 'task_due_soon',
+                    title: 'Una tarea tuya vence pronto',
+                    message: task.title,
+                    type: 'warning',
+                    entityType: 'task',
+                    entityId: task.id,
+                    link: `/tasks?taskId=${task.id}`,
+                    dedupe: true
+                });
+            }
+        } catch (error) {
+            logger.error('Failed to check task_due_soon reminders:', error);
+        }
+
+        if (missingTimesheetDaysCount > 0) {
+            await this.notify({
+                userId,
+                eventKey: 'timesheet_missing_days',
+                title: 'Tenés días sin registrar horas',
+                message: `${missingTimesheetDaysCount} día(s) hábil(es) sin horas registradas en las últimas 2 semanas`,
+                type: 'warning',
+                entityType: 'timesheet_reminder',
+                entityId: userId,
+                link: '/time',
+                dedupe: true
+            });
+        }
+    }
 }
 
 export const notificationService = new NotificationService();
