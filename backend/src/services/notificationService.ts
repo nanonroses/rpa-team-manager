@@ -143,17 +143,21 @@ export class NotificationService {
         }
 
         if (missingTimesheetDaysCount > 0) {
-            await this.notify({
-                userId,
-                eventKey: 'timesheet_missing_days',
-                title: 'Tenés días sin registrar horas',
-                message: `${missingTimesheetDaysCount} día(s) hábil(es) sin horas registradas en las últimas 2 semanas`,
-                type: 'warning',
-                entityType: 'timesheet_reminder',
-                entityId: userId,
-                link: '/time',
-                dedupe: true
-            });
+            try {
+                await this.notify({
+                    userId,
+                    eventKey: 'timesheet_missing_days',
+                    title: 'Tenés días sin registrar horas',
+                    message: `${missingTimesheetDaysCount} día(s) hábil(es) sin horas registradas en las últimas 2 semanas`,
+                    type: 'warning',
+                    entityType: 'timesheet_reminder',
+                    entityId: userId,
+                    link: '/time',
+                    dedupe: true
+                });
+            } catch (error) {
+                logger.error('Failed to check timesheet_missing_days reminder:', error);
+            }
         }
     }
 }
