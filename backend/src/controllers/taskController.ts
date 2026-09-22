@@ -9,6 +9,7 @@ import {
   reorderColumnPositions
 } from '../utils/batch-deletion.utils';
 import { activityLogService } from '../services/activityLogService';
+import { notificationService } from '../services/notificationService';
 
 export class TaskController {
 
@@ -344,6 +345,19 @@ export class TaskController {
         { title, task_type, priority, column_id, board_id }
       );
 
+      if (assignee_id !== undefined && assignee_id !== null && assignee_id !== userId) {
+        await notificationService.notify({
+          userId: assignee_id,
+          eventKey: 'task_assigned',
+          title: 'Te asignaron una tarea',
+          message: title,
+          entityType: 'task',
+          entityId: result.id!,
+          senderId: userId,
+          link: `/tasks?taskId=${result.id}`
+        });
+      }
+
       res.status(201).json(newTask);
     } catch (error) {
       logger.error('Create task error:', error);
@@ -481,6 +495,35 @@ export class TaskController {
       const hasChanges = Object.values(updatePayload).some((value) => value !== undefined);
       if (hasChanges) {
         await activityLogService.logActivity(userId, 'task', parseInt(id), 'updated', task, updatePayload);
+      }
+
+      const taskId = parseInt(id);
+      const taskLink = `/tasks?taskId=${id}`;
+
+      if (assignee_id !== undefined && assignee_id !== null && assignee_id !== task.assignee_id && assignee_id !== userId) {
+        await notificationService.notify({
+          userId: assignee_id,
+          eventKey: 'task_assigned',
+          title: 'Te asignaron una tarea',
+          message: updatedTask.title,
+          entityType: 'task',
+          entityId: taskId,
+          senderId: userId,
+          link: taskLink
+        });
+      }
+
+      if (status !== undefined && status !== task.status && task.reporter_id && task.reporter_id !== userId) {
+        await notificationService.notify({
+          userId: task.reporter_id,
+          eventKey: 'task_status_changed',
+          title: 'Cambió el estado de una tarea',
+          message: `${updatedTask.title}: ${task.status} → ${status}`,
+          entityType: 'task',
+          entityId: taskId,
+          senderId: userId,
+          link: taskLink
+        });
       }
 
       res.json(updatedTask);
