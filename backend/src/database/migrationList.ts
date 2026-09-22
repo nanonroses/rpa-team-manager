@@ -1545,5 +1545,17 @@ export const migrations: Migration[] = [
 
       `ALTER TABLE project_milestones ADD COLUMN baseline_planned_date DATE`
     ]
+  },
+
+  {
+    version: 32,
+    description: 'Notificaciones in-app: link, sender_id, event_key en notifications (Fase 5)',
+    up: [
+      `ALTER TABLE notifications ADD COLUMN link VARCHAR(255)`,
+      `ALTER TABLE notifications ADD COLUMN sender_id INTEGER REFERENCES users(id)`,
+      `ALTER TABLE notifications ADD COLUMN event_key VARCHAR(40)`,
+
+      `CREATE INDEX IF NOT EXISTS idx_notifications_event ON notifications(user_id, event_key, entity_id)`
+    ]
   }
 ];
