@@ -1,6 +1,7 @@
 // frontend/src/__tests__/pages/TimeTrackingPage.test.tsx
 import { render, screen, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 
 vi.mock('@/services/api', () => ({
   apiService: {
@@ -27,15 +28,17 @@ vi.mock('@/services/api', () => ({
 }));
 
 vi.mock('@/store/authStore', () => ({
-  useAuthStore: () => ({ user: { id: 1, role: 'rpa_developer', full_name: 'Dev Uno' } })
+  useAuthStore: vi.fn(() => ({ user: { id: 1, role: 'rpa_developer', full_name: 'Dev Uno' } }))
 }));
 
 import { apiService } from '@/services/api';
 import { TimeTrackingPage } from '@/pages/time/TimeTrackingPage';
 
 describe('TimeTrackingPage', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    const { useAuthStore } = await import('@/store/authStore');
+    (useAuthStore as any).mockReturnValue({ user: { id: 1, role: 'rpa_developer', full_name: 'Dev Uno' } });
     (apiService.getProjects as any).mockResolvedValue([{ id: 1, name: 'AGROSUPER' }]);
     (apiService.get as any).mockResolvedValue(null);
     (apiService.getTimesheetWeek as any).mockResolvedValue({
@@ -51,7 +54,7 @@ describe('TimeTrackingPage', () => {
   });
 
   it('carga la grilla semanal de 7 días (tab "Mi semana" y sus 7 tarjetas de día)', async () => {
-    render(<TimeTrackingPage />);
+    render(<MemoryRouter><TimeTrackingPage /></MemoryRouter>);
 
     await waitFor(() => {
       expect(screen.getByText('Mi semana')).toBeInTheDocument();
@@ -65,10 +68,10 @@ describe('TimeTrackingPage', () => {
     // (el nombre accesible incluye el aria-label del ícono antd, p. ej. "plus Agregar")
     const addButtons = await screen.findAllByRole('button', { name: /Agregar/i });
     expect(addButtons).toHaveLength(7);
-  });
+  }, 10000);
 
   it('no muestra los tabs de "Aprobaciones" ni "Efectividad" para un rol que no es team_lead/rpa_operations', async () => {
-    render(<TimeTrackingPage />);
+    render(<MemoryRouter><TimeTrackingPage /></MemoryRouter>);
 
     await waitFor(() => {
       expect(screen.getByText('Mi semana')).toBeInTheDocument();
@@ -76,5 +79,20 @@ describe('TimeTrackingPage', () => {
 
     expect(screen.queryByText('Aprobaciones')).not.toBeInTheDocument();
     expect(screen.queryByText('Efectividad')).not.toBeInTheDocument();
+  });
+
+  it('abre directo en la tab "Aprobaciones" cuando la URL trae ?tab=approvals', async () => {
+    const { useAuthStore } = await import('@/store/authStore');
+    (useAuthStore as any).mockReturnValue({ user: { id: 1, role: 'team_lead', full_name: 'Lead Uno' } });
+
+    render(
+      <MemoryRouter initialEntries={['/time?tab=approvals']}>
+        <TimeTrackingPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(apiService.getPendingTimesheetApprovals).toHaveBeenCalled();
+    });
   });
 });

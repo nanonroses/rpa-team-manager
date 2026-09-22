@@ -28,6 +28,7 @@ import {
   RightOutlined,
   SendOutlined
 } from '@ant-design/icons';
+import { useSearchParams } from 'react-router-dom';
 import { apiService } from '@/services/api';
 import {
   SaveWeekEntryInput,
@@ -299,6 +300,9 @@ export const TimeTrackingPage: React.FC = () => {
   const [reminderDates, setReminderDates] = useState<string[]>([]);
   const [gridRefreshSignal, setGridRefreshSignal] = useState(0);
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'week');
+
   const canApprove = user?.role === 'team_lead';
   const canSeeEffectiveness = user?.role === 'team_lead' || user?.role === 'rpa_operations';
 
@@ -329,6 +333,11 @@ export const TimeTrackingPage: React.FC = () => {
       console.error('Error loading reminders:', error);
     }
   };
+
+  useEffect(() => {
+    const tabFromParams = searchParams.get('tab') || 'week';
+    setActiveTab(tabFromParams);
+  }, [searchParams]);
 
   useEffect(() => {
     loadProjects();
@@ -460,7 +469,14 @@ export const TimeTrackingPage: React.FC = () => {
         )}
       </Card>
 
-      <Tabs items={tabItems} />
+      <Tabs
+        items={tabItems}
+        activeKey={activeTab}
+        onChange={(key) => {
+          setActiveTab(key);
+          setSearchParams(key === 'week' ? {} : { tab: key }, { replace: true });
+        }}
+      />
     </div>
   );
 };
