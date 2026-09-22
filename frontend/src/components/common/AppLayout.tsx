@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout, Menu, Avatar, Dropdown, Button, Typography, Badge, Space } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Button, Typography, Space } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   DashboardOutlined,
@@ -12,7 +12,6 @@ import {
   SettingOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  NotificationOutlined,
   FileOutlined,
   CustomerServiceOutlined,
   FundOutlined,
@@ -21,6 +20,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
+import { NotificationBell } from './NotificationBell';
 import { RoleLabels, RoleColors } from '@/types/auth';
 
 const { Header, Sider, Content } = Layout;
@@ -247,15 +247,9 @@ export const AppLayout: React.FC = () => {
           </Space>
 
           <Space align="center">
-            <Badge count={0} size="small">
-              <Button 
-                type="text" 
-                icon={<NotificationOutlined />}
-                style={{ fontSize: '16px' }}
-              />
-            </Badge>
+            <NotificationBell />
 
-            <Dropdown 
+            <Dropdown
               menu={{ items: userMenuItems }} 
               trigger={['click']}
               placement="bottomRight"
