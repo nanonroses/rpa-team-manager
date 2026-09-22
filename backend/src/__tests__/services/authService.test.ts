@@ -53,4 +53,20 @@ describe('AuthService.login', () => {
         await expect(authService.login({ email: 'ana@x.com', password: 'mala' })).rejects.toThrow('Invalid credentials');
         expect(notificationService.checkLoginReminders).not.toHaveBeenCalled();
     });
+
+    it('no llama a checkLoginReminders si el usuario no existe', async () => {
+        (db.get as jest.Mock).mockResolvedValue(null);
+
+        await expect(authService.login({ email: 'noexiste@x.com', password: 'secret' })).rejects.toThrow('Invalid credentials');
+        expect(notificationService.checkLoginReminders).not.toHaveBeenCalled();
+    });
+
+    it('no llama a checkLoginReminders si la cuenta está desactivada', async () => {
+        (db.get as jest.Mock).mockResolvedValue({
+            id: 5, email: 'ana@x.com', password_hash: 'hash', is_active: 0, role: 'rpa_developer', full_name: 'Ana'
+        });
+
+        await expect(authService.login({ email: 'ana@x.com', password: 'secret' })).rejects.toThrow('Account is deactivated');
+        expect(notificationService.checkLoginReminders).not.toHaveBeenCalled();
+    });
 });
