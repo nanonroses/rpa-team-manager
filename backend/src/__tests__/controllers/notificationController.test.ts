@@ -89,4 +89,34 @@ describe('NotificationController', () => {
         expect(notificationService.markAllRead).toHaveBeenCalledWith(5);
         expect(res.status).toHaveBeenCalledWith(204);
     });
+
+    it('GET /notifications?limit=abc devuelve 400 con error de validación', async () => {
+        const req = { user: { id: 5 }, query: { limit: 'abc' } } as unknown as AuthenticatedRequest;
+        const res = mockRes();
+
+        await controller.list(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith({ error: 'Invalid limit or offset parameter' });
+    });
+
+    it('GET /notifications?offset=xyz devuelve 400 con error de validación', async () => {
+        const req = { user: { id: 5 }, query: { offset: 'xyz' } } as unknown as AuthenticatedRequest;
+        const res = mockRes();
+
+        await controller.list(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith({ error: 'Invalid limit or offset parameter' });
+    });
+
+    it('PATCH /notifications/abc/read devuelve 400 con error de validación', async () => {
+        const req = { user: { id: 5 }, params: { id: 'abc' } } as unknown as AuthenticatedRequest;
+        const res = mockRes();
+
+        await controller.markRead(req, res);
+
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith({ error: 'Invalid notification id' });
+    });
 });
