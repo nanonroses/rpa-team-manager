@@ -74,4 +74,32 @@ describe('NotificationBell', () => {
 
     expect(apiService.markAllNotificationsRead).toHaveBeenCalled();
   });
+
+  it('refresca el conteo de no leídas cada 60 segundos y limpia el interval al desmontar', async () => {
+    vi.useFakeTimers();
+    (apiService.getUnreadNotificationCount as any)
+      .mockResolvedValueOnce({ count: 1 })
+      .mockResolvedValueOnce({ count: 5 });
+
+    const { unmount } = renderBell();
+    await vi.waitFor(() => expect(apiService.getUnreadNotificationCount).toHaveBeenCalledTimes(1));
+
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(apiService.getUnreadNotificationCount).toHaveBeenCalledTimes(2);
+
+    unmount();
+    await vi.advanceTimersByTimeAsync(60000);
+    expect(apiService.getUnreadNotificationCount).toHaveBeenCalledTimes(2); // no llamó de nuevo tras desmontar
+
+    vi.useRealTimers();
+  });
+
+  it('no rompe el render si getNotifications falla al abrir el dropdown', async () => {
+    (apiService.getNotifications as any).mockRejectedValue(new Error('network error'));
+
+    renderBell();
+    await userEvent.click(screen.getByRole('button'));
+
+    expect(await screen.findByText(/sin notificaciones/i)).toBeInTheDocument();
+  });
 });

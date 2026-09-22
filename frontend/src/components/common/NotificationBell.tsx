@@ -36,6 +36,8 @@ export const NotificationBell: React.FC = () => {
       setLoading(true);
       const data = await apiService.getNotifications({ limit: 10, offset: 0 });
       setItems(data);
+    } catch {
+      // silencioso: el dropdown queda con la última lista cargada o vacío
     } finally {
       setLoading(false);
     }
@@ -49,10 +51,14 @@ export const NotificationBell: React.FC = () => {
   };
 
   const handleItemClick = async (item: NotificationItem) => {
-    if (!item.is_read) {
-      await apiService.markNotificationRead(item.id);
-      setItems((prev) => prev.map((n) => (n.id === item.id ? { ...n, is_read: true } : n)));
-      setUnreadCount((prev) => Math.max(0, prev - 1));
+    try {
+      if (!item.is_read) {
+        await apiService.markNotificationRead(item.id);
+        setItems((prev) => prev.map((n) => (n.id === item.id ? { ...n, is_read: true } : n)));
+        setUnreadCount((prev) => Math.max(0, prev - 1));
+      }
+    } catch {
+      // silencioso: si falla marcar como leída, igual dejamos navegar
     }
     setOpen(false);
     if (item.link) {
@@ -61,9 +67,13 @@ export const NotificationBell: React.FC = () => {
   };
 
   const handleMarkAllRead = async () => {
-    await apiService.markAllNotificationsRead();
-    setItems((prev) => prev.map((n) => ({ ...n, is_read: true })));
-    setUnreadCount(0);
+    try {
+      await apiService.markAllNotificationsRead();
+      setItems((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setUnreadCount(0);
+    } catch {
+      // silencioso: si falla, el estado local simplemente no se actualiza
+    }
   };
 
   return (
