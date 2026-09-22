@@ -52,7 +52,7 @@ export class NotificationService {
         try {
             if (params.dedupe) {
                 const existing = await db.get(
-                    `SELECT id FROM notifications WHERE user_id = ? AND event_key = ? AND entity_id = ? AND is_read = 0`,
+                    `SELECT id FROM notifications WHERE user_id = ? AND event_key = ? AND entity_id IS ? AND is_read = 0`,
                     [params.userId, params.eventKey, params.entityId ?? null]
                 );
                 if (existing) return;

@@ -75,6 +75,43 @@ describe('NotificationService.notify', () => {
 
         expect(db.run).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO notifications'), expect.any(Array));
     });
+
+    it('con dedupe=true sin entityId, usa entity_id IS ? con parámetro null', async () => {
+        (db.get as jest.Mock).mockResolvedValue(undefined);
+        (db.run as jest.Mock).mockResolvedValue({ id: 1, changes: 1 });
+
+        await service.notify({
+            userId: 5, eventKey: 'task_assigned', title: 'Título', dedupe: true
+        });
+
+        expect(db.get).toHaveBeenCalledWith(
+            expect.stringContaining('entity_id IS ?'),
+            [5, 'task_assigned', null]
+        );
+        expect(db.run).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO notifications'), expect.any(Array));
+    });
+
+    it('con dedupe=true sin entityId, no inserta si ya existe un duplicado con entity_id IS NULL', async () => {
+        (db.get as jest.Mock).mockResolvedValue({ id: 99 });
+
+        await service.notify({
+            userId: 5, eventKey: 'task_assigned', title: 'Título', dedupe: true
+        });
+
+        expect(db.get).toHaveBeenCalledWith(
+            expect.stringContaining('entity_id IS ?'),
+            [5, 'task_assigned', null]
+        );
+        expect(db.run).not.toHaveBeenCalled();
+    });
+
+    it('con dedupe=true, nunca lanza si db.get() falla durante dedupe check (error solo se loguea)', async () => {
+        (db.get as jest.Mock).mockRejectedValue(new Error('db connection lost'));
+
+        await expect(
+            service.notify({ userId: 5, eventKey: 'task_assigned', title: 'Título', dedupe: true })
+        ).resolves.toBeUndefined();
+    });
 });
 
 describe('NotificationService.getForUser', () => {
