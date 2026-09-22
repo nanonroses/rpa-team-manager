@@ -4,6 +4,8 @@ import crypto from 'crypto';
 import { db } from '../database/database';
 import { User, UserRole, JWTPayload, LoginRequest, LoginResponse, UserSession, PasswordPolicy, defaultPasswordPolicy } from '../types/auth';
 import { logger } from '../utils/logger';
+import { notificationService } from './notificationService';
+import { timesheetService } from './timesheetService';
 
 export class AuthService {
     private jwtSecret: string;
@@ -66,6 +68,14 @@ export class AuthService {
 
         // Update last login
         await this.updateLastLogin(user.id);
+
+        // Fase 5: recordatorios in-app, nunca deben bloquear ni romper el login
+        try {
+            const { missing_dates } = await timesheetService.getPendingReminders(user.id);
+            await notificationService.checkLoginReminders(user.id, missing_dates.length);
+        } catch (error) {
+            logger.error('Failed to generate login reminders:', error);
+        }
 
         // Remove password from response
         const { password_hash, ...userResponse } = user;
