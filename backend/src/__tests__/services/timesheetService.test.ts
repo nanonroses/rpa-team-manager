@@ -9,7 +9,12 @@ jest.mock('../../database/database', () => ({
     }
 }));
 
+jest.mock('../../services/notificationService', () => ({
+    notificationService: { notify: jest.fn() }
+}));
+
 import { db } from '../../database/database';
+import { notificationService } from '../../services/notificationService';
 import { TimesheetService } from '../../services/timesheetService';
 
 describe('TimesheetService', () => {
@@ -208,6 +213,7 @@ describe('TimesheetService', () => {
         it('marca el periodo y sus entradas como submitted', async () => {
             (db.get as jest.Mock).mockResolvedValue({ id: 10, status: 'open' });
             (db.run as jest.Mock).mockResolvedValue({ changes: 1 });
+            (db.query as jest.Mock).mockResolvedValue([]);
 
             const result = await timesheetService.submitWeek(1, '2026-09-14');
 
@@ -225,6 +231,7 @@ describe('TimesheetService', () => {
         it('adopta las entradas huérfanas de la semana antes de marcarlas como submitted', async () => {
             (db.get as jest.Mock).mockResolvedValue({ id: 10, status: 'open' });
             (db.run as jest.Mock).mockResolvedValue({ changes: 1 });
+            (db.query as jest.Mock).mockResolvedValue([]);
 
             await timesheetService.submitWeek(1, '2026-09-14');
 
@@ -247,6 +254,39 @@ describe('TimesheetService', () => {
         it('rechaza si el periodo ya fue aprobado', async () => {
             (db.get as jest.Mock).mockResolvedValue({ id: 10, status: 'approved' });
             await expect(timesheetService.submitWeek(1, '2026-09-14')).rejects.toThrow('already approved');
+        });
+
+        it('notifica timesheet_submitted a cada team_lead activo', async () => {
+            (db.get as jest.Mock).mockResolvedValue({ id: 10, status: 'open' });
+            (db.run as jest.Mock).mockResolvedValue({ changes: 1 });
+            (db.query as jest.Mock).mockResolvedValue([
+                { id: 1 }, { id: 2 }
+            ]);
+
+            await timesheetService.submitWeek(1, '2026-09-14');
+
+            expect(db.query).toHaveBeenCalledWith(
+                expect.stringContaining("role = 'team_lead'"),
+                []
+            );
+            expect(notificationService.notify).toHaveBeenCalledTimes(2);
+            expect(notificationService.notify).toHaveBeenCalledWith(expect.objectContaining({
+                userId: 1, eventKey: 'timesheet_submitted', entityType: 'timesheet_period', entityId: 10, senderId: 1
+            }));
+            expect(notificationService.notify).toHaveBeenCalledWith(expect.objectContaining({
+                userId: 2, eventKey: 'timesheet_submitted', entityType: 'timesheet_period', entityId: 10, senderId: 1
+            }));
+        });
+
+        it('no notifica a nadie ni lanza si no hay ningún team_lead activo', async () => {
+            (db.get as jest.Mock).mockResolvedValue({ id: 10, status: 'open' });
+            (db.run as jest.Mock).mockResolvedValue({ changes: 1 });
+            (db.query as jest.Mock).mockResolvedValue([]);
+
+            await expect(timesheetService.submitWeek(1, '2026-09-14')).resolves.toEqual(
+                expect.objectContaining({ status: 'submitted' })
+            );
+            expect(notificationService.notify).not.toHaveBeenCalled();
         });
     });
 

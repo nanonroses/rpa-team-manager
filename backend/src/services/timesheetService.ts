@@ -2,6 +2,7 @@ import { startOfWeek, addDays, format, parseISO } from 'date-fns';
 import { db } from '../database/database';
 import { logger } from '../utils/logger';
 import { financeService, Currency } from './financeService';
+import { notificationService } from './notificationService';
 
 export interface TimeEntryRow {
     id: number;
@@ -279,6 +280,20 @@ export class TimesheetService {
             `UPDATE time_entries SET approval_status = 'submitted' WHERE timesheet_period_id = ?`,
             [period.id]
         );
+
+        const teamLeads = await db.query(`SELECT id FROM users WHERE role = 'team_lead' AND is_active = 1`, []);
+        for (const teamLead of teamLeads) {
+            await notificationService.notify({
+                userId: teamLead.id,
+                eventKey: 'timesheet_submitted',
+                title: 'Un timesheet fue enviado para aprobación',
+                message: `Semana del ${monday}`,
+                entityType: 'timesheet_period',
+                entityId: period.id,
+                senderId: userId,
+                link: '/time?tab=approvals'
+            });
+        }
 
         logger.info(`Timesheet: usuario ${userId} envió la semana del ${monday} para aprobación`);
         return { ...period, status: 'submitted' };
