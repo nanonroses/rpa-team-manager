@@ -43,7 +43,8 @@ describe('TaskController - notificaciones', () => {
         await controller.createTask(req, mockRes());
 
         expect(notificationService.notify).toHaveBeenCalledWith(expect.objectContaining({
-            userId: 9, eventKey: 'task_assigned', entityType: 'task', entityId: 55, senderId: 3
+            userId: 9, eventKey: 'task_assigned', entityType: 'task', entityId: 55, senderId: 3,
+            link: '/tasks?taskId=55', message: expect.any(String)
         }));
     });
 
@@ -92,7 +93,8 @@ describe('TaskController - notificaciones', () => {
         await controller.updateTask(req, mockRes());
 
         expect(notificationService.notify).toHaveBeenCalledWith(expect.objectContaining({
-            userId: 9, eventKey: 'task_assigned', entityType: 'task', entityId: 55, senderId: 3
+            userId: 9, eventKey: 'task_assigned', entityType: 'task', entityId: 55, senderId: 3,
+            link: '/tasks?taskId=55', message: expect.any(String)
         }));
     });
 
@@ -139,7 +141,8 @@ describe('TaskController - notificaciones', () => {
         await controller.updateTask(req, mockRes());
 
         expect(notificationService.notify).toHaveBeenCalledWith(expect.objectContaining({
-            userId: 8, eventKey: 'task_status_changed', entityType: 'task', entityId: 55, senderId: 3
+            userId: 8, eventKey: 'task_status_changed', entityType: 'task', entityId: 55, senderId: 3,
+            link: '/tasks?taskId=55', message: expect.any(String)
         }));
     });
 
@@ -156,5 +159,58 @@ describe('TaskController - notificaciones', () => {
         await controller.updateTask(req, mockRes());
 
         expect(notificationService.notify).not.toHaveBeenCalled();
+    });
+
+    it('updateTask no notifica task_assigned si assignee_id cambia pero es igual a quien hace el cambio (autoreasignación)', async () => {
+        const previousTask = { id: 55, assignee_id: 4, status: 'todo', reporter_id: 8, column_id: 2, position: 1 };
+        (db.get as jest.Mock)
+            .mockResolvedValueOnce(previousTask)
+            .mockResolvedValueOnce({ id: 55, title: 'Tarea' });
+        (db.run as jest.Mock).mockResolvedValue({ id: 55, changes: 1 });
+        const req = {
+            params: { id: '55' }, body: { assignee_id: 3 }, user: { id: 3 }
+        } as unknown as AuthenticatedRequest;
+
+        await controller.updateTask(req, mockRes());
+
+        expect(notificationService.notify).not.toHaveBeenCalled();
+    });
+
+    it('updateTask no notifica task_status_changed si status viene en el body pero es igual al valor viejo', async () => {
+        const previousTask = { id: 55, assignee_id: 4, status: 'todo', reporter_id: 8, column_id: 2, position: 1 };
+        (db.get as jest.Mock)
+            .mockResolvedValueOnce(previousTask)
+            .mockResolvedValueOnce({ id: 55, title: 'Tarea' });
+        (db.run as jest.Mock).mockResolvedValue({ id: 55, changes: 1 });
+        const req = {
+            params: { id: '55' }, body: { status: 'todo' }, user: { id: 3 }
+        } as unknown as AuthenticatedRequest;
+
+        await controller.updateTask(req, mockRes());
+
+        expect(notificationService.notify).not.toHaveBeenCalled();
+    });
+
+    it('updateTask dispara ambas notificaciones cuando assignee_id y status cambian en la misma request', async () => {
+        const previousTask = { id: 55, assignee_id: 4, status: 'todo', reporter_id: 8, column_id: 2, position: 1 };
+        (db.get as jest.Mock)
+            .mockResolvedValueOnce(previousTask)
+            .mockResolvedValueOnce({ id: 55, title: 'Tarea' });
+        (db.run as jest.Mock).mockResolvedValue({ id: 55, changes: 1 });
+        const req = {
+            params: { id: '55' }, body: { assignee_id: 9, status: 'done' }, user: { id: 3 }
+        } as unknown as AuthenticatedRequest;
+
+        await controller.updateTask(req, mockRes());
+
+        expect(notificationService.notify).toHaveBeenCalledTimes(2);
+        expect(notificationService.notify).toHaveBeenCalledWith(expect.objectContaining({
+            userId: 9, eventKey: 'task_assigned', entityType: 'task', entityId: 55, senderId: 3,
+            link: '/tasks?taskId=55', message: expect.any(String)
+        }));
+        expect(notificationService.notify).toHaveBeenCalledWith(expect.objectContaining({
+            userId: 8, eventKey: 'task_status_changed', entityType: 'task', entityId: 55, senderId: 3,
+            link: '/tasks?taskId=55', message: expect.any(String)
+        }));
     });
 });
