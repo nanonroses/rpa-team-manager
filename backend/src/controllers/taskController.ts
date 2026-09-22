@@ -351,6 +351,32 @@ export class TaskController {
     }
   };
 
+  // GET /api/tasks/:id - Get a single task (usado por el deep-link de notificaciones)
+  getTaskById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { id } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.*, tb.project_id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [id, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      res.json(task);
+    } catch (error) {
+      logger.error('Get task by id error:', error);
+      res.status(500).json({ error: 'Failed to get task' });
+    }
+  };
+
   // PUT /api/tasks/:id - Update task
   updateTask = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {

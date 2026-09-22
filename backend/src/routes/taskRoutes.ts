@@ -30,4 +30,8 @@ router.get('/tasks/:id/activity', authenticate, taskController.getTaskActivity);
 router.get('/tasks/my-tasks', authenticate, taskController.getMyTasks);
 router.get('/tasks/project/:projectId', authenticate, taskController.getProjectTasks);
 
+// IMPORTANTE: va después de /tasks/my-tasks y /tasks/project/:projectId (rutas literales de un
+// segmento bajo /tasks/) para que Express no las capture como si "my-tasks" fuera un :id.
+router.get('/tasks/:id', authenticate, taskController.getTaskById);
+
 export { router as taskRoutes };
