@@ -29,6 +29,7 @@ import {
   DollarOutlined
 } from '@ant-design/icons';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
+import { useSearchParams } from 'react-router-dom';
 import { apiService } from '@/services/api';
 import { getPriorityColor } from '@/utils';
 import dayjs from 'dayjs';
@@ -99,6 +100,9 @@ export const TasksPage: React.FC = () => {
   const [boards, setBoards] = useState<Board[]>([]);
   const [selectedBoard, setSelectedBoard] = useState<Board | null>(null);
   const [selectedProject, setSelectedProject] = useState<number | null>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [pendingBoardId, setPendingBoardId] = useState<number | null>(null);
+  const [pendingTaskId, setPendingTaskId] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [boardLoading, setBoardLoading] = useState(false);
   
@@ -120,6 +124,46 @@ export const TasksPage: React.FC = () => {
       loadBoards();
     }
   }, [selectedProject]);
+
+  useEffect(() => {
+    const taskIdParam = searchParams.get('taskId');
+    if (!taskIdParam) return;
+    const taskId = parseInt(taskIdParam, 10);
+    if (isNaN(taskId)) return;
+
+    (async () => {
+      try {
+        const task = await apiService.getTaskById(taskId);
+        setSelectedProject(task.project_id);
+        setPendingBoardId(task.board_id);
+        setPendingTaskId(taskId);
+      } catch (error) {
+        console.error('🔴 TasksPage: No se pudo cargar la tarea del link de notificación:', error);
+        message.error('No se pudo abrir la tarea indicada');
+      }
+    })();
+    // Deep-link se consume una sola vez al montar; no reaccionar a cambios posteriores de searchParams.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (pendingBoardId !== null && boards.some((b) => b.id === pendingBoardId)) {
+      loadBoard(pendingBoardId);
+      setPendingBoardId(null);
+    }
+  }, [pendingBoardId, boards]);
+
+  useEffect(() => {
+    if (pendingTaskId !== null && selectedBoard) {
+      const task = selectedBoard.tasks.find((t) => t.id === pendingTaskId);
+      if (task) {
+        openEditTaskModal(task);
+        setPendingTaskId(null);
+        searchParams.delete('taskId');
+        setSearchParams(searchParams, { replace: true });
+      }
+    }
+  }, [pendingTaskId, selectedBoard]);
 
   const loadInitialData = async () => {
     try {
