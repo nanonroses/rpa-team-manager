@@ -161,6 +161,9 @@ export const TasksPage: React.FC = () => {
         setPendingTaskId(null);
         searchParams.delete('taskId');
         setSearchParams(searchParams, { replace: true });
+      } else {
+        message.error('No se pudo abrir la tarea indicada');
+        setPendingTaskId(null);
       }
     }
   }, [pendingTaskId, selectedBoard]);
@@ -227,8 +230,12 @@ export const TasksPage: React.FC = () => {
       
       // Auto-select first board if available
       if (boardsData && boardsData.length > 0) {
-        console.log('🎯 TasksPage: Auto-selecting first board:', boardsData[0].name);
-        loadBoard(boardsData[0].id);
+        if (!pendingBoardId) {
+          console.log('🎯 TasksPage: Auto-selecting first board:', boardsData[0].name);
+          loadBoard(boardsData[0].id);
+        } else {
+          console.log('⏳ TasksPage: Auto-select de primer board omitido, hay un pendingBoardId de deep-link:', pendingBoardId);
+        }
       } else {
         console.log('⚠️ TasksPage: No boards available for project');
         setSelectedBoard(null);
