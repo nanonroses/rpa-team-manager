@@ -27,6 +27,7 @@ import llmConfigRoutes from './routes/llmConfigRoutes';
 import billingRoutes from './routes/billingRoutes';
 import timesheetRoutes from './routes/timesheetRoutes';
 import adminRoutes from './routes/adminRoutes';
+import notificationRoutes from './routes/notificationRoutes';
 
 // Import database and logger
 import { db } from './database/database';
@@ -153,6 +154,7 @@ class RPATeamManagerServer {
         this.app.use('/api/billing', billingRoutes);
         this.app.use('/api/timesheet', timesheetRoutes);
         this.app.use('/api/admin', commonEndpointsLimiter, adminRoutes);
+        this.app.use('/api/notifications', notificationRoutes);
 
         // API documentation route
         this.app.get('/api', (req, res) => {
