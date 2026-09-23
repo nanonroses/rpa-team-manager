@@ -7,8 +7,10 @@ vi.mock('@/services/api', () => ({
   apiService: {
     getProjects: vi.fn(),
     get: vi.fn(),
+    put: vi.fn(),
     getTaskById: vi.fn(),
-    getTaskSubtasks: vi.fn()
+    getTaskSubtasks: vi.fn(),
+    createTaskSubtask: vi.fn()
   }
 }));
 
@@ -144,5 +146,23 @@ describe('TasksPage - deep link ?taskId=', () => {
     expect(await screen.findByText('Título')).toBeInTheDocument();
     expect(screen.queryByText(/^Subtareas/)).not.toBeInTheDocument();
     expect(apiService.getTaskSubtasks).not.toHaveBeenCalled();
+  });
+
+  it('presionar Enter en "Agregar subtarea..." no envía el formulario de edición de tarea', async () => {
+    (apiService.getTaskById as any).mockResolvedValue({ ...board.tasks[0], project_id: 7 });
+    (apiService.createTaskSubtask as any).mockResolvedValue({ id: 1, task_id: 42, title: 'X', is_done: 0 });
+
+    renderWithTaskId('42');
+
+    expect(await screen.findByDisplayValue('Tarea deep-link')).toBeInTheDocument();
+
+    await userEvent.type(screen.getByPlaceholderText('Agregar subtarea...'), 'X{Enter}');
+
+    await waitFor(() => {
+      expect(apiService.createTaskSubtask).toHaveBeenCalledWith(42, 'X');
+    });
+
+    expect(apiService.put).not.toHaveBeenCalled();
+    expect(screen.getByDisplayValue('Tarea deep-link')).toBeInTheDocument();
   });
 });

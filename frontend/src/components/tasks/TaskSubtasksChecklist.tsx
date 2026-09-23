@@ -115,7 +115,7 @@ export const TaskSubtasksChecklist: React.FC<TaskSubtasksChecklistProps> = ({ ta
           placeholder="Agregar subtarea..."
           value={newTitle}
           onChange={(e) => setNewTitle(e.target.value)}
-          onPressEnter={handleAdd}
+          onPressEnter={(e) => { e.preventDefault(); handleAdd(); }}
         />
         <Button icon={<PlusOutlined />} onClick={handleAdd} loading={adding}>
           Agregar
