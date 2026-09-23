@@ -1557,5 +1557,23 @@ export const migrations: Migration[] = [
 
       `CREATE INDEX IF NOT EXISTS idx_notifications_event ON notifications(user_id, event_key, entity_id)`
     ]
+  },
+
+  {
+    version: 33,
+    description: 'Subtareas (checklist liviano) para tasks - Fase 5',
+    up: [
+      `CREATE TABLE IF NOT EXISTS task_subtasks (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id INTEGER NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        is_done BOOLEAN NOT NULL DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_task_subtasks_task ON task_subtasks(task_id)`
+    ]
   }
 ];
