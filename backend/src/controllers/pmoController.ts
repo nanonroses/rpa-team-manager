@@ -93,21 +93,19 @@ export class PMOController {
                 LIMIT 15
             `);
 
-            // Get team workload distribution
+            // Get team workload distribution (tareas activas por persona, dato vivo de la tabla tasks)
             const teamWorkload = await db.query(`
-                SELECT 
+                SELECT
                     u.id,
                     u.full_name,
                     u.role,
-                    COUNT(DISTINCT p.id) as assigned_projects,
-                    SUM(pm.planned_hours - COALESCE(pm.actual_hours, 0)) as remaining_hours,
-                    AVG(pm.completion_percentage) as avg_project_completion
+                    COUNT(t.id) as active_tasks
                 FROM users u
-                LEFT JOIN projects p ON u.id = p.assigned_to AND p.status = 'active'
-                LEFT JOIN project_pmo_metrics pm ON p.id = pm.project_id
-                WHERE u.role IN ('rpa_developer', 'rpa_operations')
+                JOIN tasks t ON t.assignee_id = u.id AND t.status != 'done'
+                WHERE u.is_active = 1
                 GROUP BY u.id, u.full_name, u.role
-                ORDER BY remaining_hours DESC
+                HAVING COUNT(t.id) > 0
+                ORDER BY active_tasks DESC
             `);
 
             res.json({
