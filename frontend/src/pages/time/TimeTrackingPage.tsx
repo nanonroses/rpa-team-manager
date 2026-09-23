@@ -406,6 +406,10 @@ export const TimeTrackingPage: React.FC = () => {
     tabItems.push({ key: 'effectiveness', label: 'Efectividad', children: <EffectivenessTab /> });
   }
 
+  // Validar que activeTab sea un tab visible; si no, caer a 'week'
+  const visibleTabKeys = tabItems.map((item) => item.key);
+  const safeActiveTab = visibleTabKeys.includes(activeTab) ? activeTab : 'week';
+
   return (
     <div style={{ padding: '24px' }}>
       <div style={{ marginBottom: '24px' }}>
@@ -471,7 +475,7 @@ export const TimeTrackingPage: React.FC = () => {
 
       <Tabs
         items={tabItems}
-        activeKey={activeTab}
+        activeKey={safeActiveTab}
         onChange={(key) => {
           setActiveTab(key);
           setSearchParams(key === 'week' ? {} : { tab: key }, { replace: true });

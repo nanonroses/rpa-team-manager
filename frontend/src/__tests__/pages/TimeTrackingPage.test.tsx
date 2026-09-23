@@ -95,4 +95,22 @@ describe('TimeTrackingPage', () => {
       expect(apiService.getPendingTimesheetApprovals).toHaveBeenCalled();
     });
   });
+
+  it('fallback a "Mi semana" si usuario sin acceso intenta ir a ?tab=approvals', async () => {
+    const { useAuthStore } = await import('@/store/authStore');
+    (useAuthStore as any).mockReturnValue({ user: { id: 1, role: 'rpa_developer', full_name: 'Dev Uno' } });
+
+    render(
+      <MemoryRouter initialEntries={['/time?tab=approvals']}>
+        <TimeTrackingPage />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Mi semana')).toBeInTheDocument();
+    });
+
+    // Verificar que NO se intentó cargar aprobaciones
+    expect(apiService.getPendingTimesheetApprovals).not.toHaveBeenCalled();
+  });
 });
