@@ -177,3 +177,34 @@ describe('TaskController - subtareas', () => {
         });
     });
 });
+
+describe('TaskController.getBoard - contador de subtareas', () => {
+    let controller: TaskController;
+
+    beforeEach(() => {
+        jest.clearAllMocks();
+        controller = new TaskController();
+    });
+
+    it('incluye subtasks_total y subtasks_done en cada tarea del board', async () => {
+        (db.get as jest.Mock).mockResolvedValue({ id: 2, name: 'Board 1', project_name: 'AGROSUPER' });
+        (db.query as jest.Mock)
+            .mockResolvedValueOnce([{ id: 1, name: 'To Do', position: 0 }])
+            .mockResolvedValueOnce([
+                { id: 55, title: 'Con subtareas', subtasks_total: 3, subtasks_done: 1 },
+                { id: 56, title: 'Sin subtareas', subtasks_total: 0, subtasks_done: 0 }
+            ]);
+        const req = { params: { id: '2' }, user: { id: 3 } } as unknown as AuthenticatedRequest;
+        const res = mockRes();
+
+        await controller.getBoard(req, res);
+
+        expect(db.query).toHaveBeenNthCalledWith(2, expect.stringContaining('subtasks_total'), ['2']);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            tasks: [
+                { id: 55, title: 'Con subtareas', subtasks_total: 3, subtasks_done: 1 },
+                { id: 56, title: 'Sin subtareas', subtasks_total: 0, subtasks_done: 0 }
+            ]
+        }));
+    });
+});

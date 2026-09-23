@@ -88,7 +88,9 @@ export class TaskController {
           u_assignee.avatar_url as assignee_avatar,
           u_reporter.full_name as reporter_name,
           te.total_hours,
-          te.total_value
+          te.total_value,
+          COALESCE(st.subtasks_total, 0) as subtasks_total,
+          COALESCE(st.subtasks_done, 0) as subtasks_done
         FROM tasks t
         LEFT JOIN users u_assignee ON t.assignee_id = u_assignee.id
         LEFT JOIN users u_reporter ON t.reporter_id = u_reporter.id
@@ -101,6 +103,14 @@ export class TaskController {
           WHERE task_id IS NOT NULL
           GROUP BY task_id
         ) te ON t.id = te.task_id
+        LEFT JOIN (
+          SELECT
+            task_id,
+            COUNT(*) as subtasks_total,
+            SUM(CASE WHEN is_done = 1 THEN 1 ELSE 0 END) as subtasks_done
+          FROM task_subtasks
+          GROUP BY task_id
+        ) st ON t.id = st.task_id
         WHERE t.board_id = ?
         ORDER BY t.position ASC
       `, [id]);
