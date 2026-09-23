@@ -586,6 +586,26 @@ class ApiService {
     return response.data;
   }
 
+  async getTaskSubtasks(taskId: number): Promise<any[]> {
+    const response = await this.api.get(`/tasks/${taskId}/subtasks`);
+    return response.data;
+  }
+
+  async createTaskSubtask(taskId: number, title: string): Promise<any> {
+    const response = await this.api.post(`/tasks/${taskId}/subtasks`, { title });
+    return response.data;
+  }
+
+  async updateTaskSubtask(taskId: number, subtaskId: number, data: { title?: string; is_done?: boolean }): Promise<any> {
+    const response = await this.api.patch(`/tasks/${taskId}/subtasks/${subtaskId}`, data);
+    return response.data;
+  }
+
+  async deleteTaskSubtask(taskId: number, subtaskId: number): Promise<any> {
+    const response = await this.api.delete(`/tasks/${taskId}/subtasks/${subtaskId}`);
+    return response.data;
+  }
+
   async getProjectGantt(id: number): Promise<{ tasks: any[]; dependencies: any[]; milestones: any[] }> {
     const response = await this.api.get(`/pmo/projects/${id}/gantt`);
     return response.data;
