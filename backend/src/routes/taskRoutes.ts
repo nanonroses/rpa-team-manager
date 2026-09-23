@@ -27,6 +27,13 @@ router.delete('/tasks/:id', authenticate, taskController.deleteTask);
 // Task operations
 router.post('/tasks/:id/move', authenticate, taskController.moveTask);
 router.get('/tasks/:id/activity', authenticate, taskController.getTaskActivity);
+
+// Subtareas (checklist liviano) - path de 3 segmentos, no colisiona con /tasks/:id
+router.get('/tasks/:taskId/subtasks', authenticate, taskController.getTaskSubtasks);
+router.post('/tasks/:taskId/subtasks', authenticate, taskController.createTaskSubtask);
+router.patch('/tasks/:taskId/subtasks/:subtaskId', authenticate, taskController.updateTaskSubtask);
+router.delete('/tasks/:taskId/subtasks/:subtaskId', authenticate, taskController.deleteTaskSubtask);
+
 router.get('/tasks/my-tasks', authenticate, taskController.getMyTasks);
 router.get('/tasks/project/:projectId', authenticate, taskController.getProjectTasks);
 

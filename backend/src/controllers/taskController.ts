@@ -727,6 +727,161 @@ export class TaskController {
     }
   };
 
+  // GET /api/tasks/:taskId/subtasks - List subtasks for a task
+  getTaskSubtasks = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const subtasks = await db.query(`
+        SELECT id, task_id, title, is_done, created_at, updated_at
+        FROM task_subtasks
+        WHERE task_id = ?
+        ORDER BY id ASC
+      `, [taskId]);
+
+      res.json(subtasks);
+    } catch (error) {
+      logger.error('Get task subtasks error:', error);
+      res.status(500).json({ error: 'Failed to get subtasks' });
+    }
+  };
+
+  // POST /api/tasks/:taskId/subtasks - Create a subtask
+  createTaskSubtask = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+      const { title } = req.body;
+
+      if (!title || !title.trim()) {
+        res.status(400).json({ error: 'Title is required' });
+        return;
+      }
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const result = await db.run(`
+        INSERT INTO task_subtasks (task_id, title)
+        VALUES (?, ?)
+      `, [taskId, title.trim()]);
+
+      const subtask = await db.get(`
+        SELECT id, task_id, title, is_done, created_at, updated_at
+        FROM task_subtasks WHERE id = ?
+      `, [result.id]);
+
+      res.status(201).json(subtask);
+    } catch (error) {
+      logger.error('Create task subtask error:', error);
+      res.status(500).json({ error: 'Failed to create subtask' });
+    }
+  };
+
+  // PATCH /api/tasks/:taskId/subtasks/:subtaskId - Update a subtask (title and/or is_done)
+  updateTaskSubtask = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId, subtaskId } = req.params;
+      const userId = req.user?.id;
+      const { title, is_done } = req.body;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const result = await db.run(`
+        UPDATE task_subtasks
+        SET title = COALESCE(?, title),
+            is_done = COALESCE(?, is_done),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND task_id = ?
+      `, [title, is_done === undefined ? undefined : (is_done ? 1 : 0), subtaskId, taskId]);
+
+      if (result.changes === 0) {
+        res.status(404).json({ error: 'Subtask not found' });
+        return;
+      }
+
+      const subtask = await db.get(`
+        SELECT id, task_id, title, is_done, created_at, updated_at
+        FROM task_subtasks WHERE id = ?
+      `, [subtaskId]);
+
+      res.json(subtask);
+    } catch (error) {
+      logger.error('Update task subtask error:', error);
+      res.status(500).json({ error: 'Failed to update subtask' });
+    }
+  };
+
+  // DELETE /api/tasks/:taskId/subtasks/:subtaskId - Delete a subtask
+  deleteTaskSubtask = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId, subtaskId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const result = await db.run(`
+        DELETE FROM task_subtasks WHERE id = ? AND task_id = ?
+      `, [subtaskId, taskId]);
+
+      if (result.changes === 0) {
+        res.status(404).json({ error: 'Subtask not found' });
+        return;
+      }
+
+      res.json({ success: true, deletedId: subtaskId });
+    } catch (error) {
+      logger.error('Delete task subtask error:', error);
+      res.status(500).json({ error: 'Failed to delete subtask' });
+    }
+  };
+
   // GET /api/tasks/my-tasks - Get current user's assigned tasks
   getMyTasks = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
