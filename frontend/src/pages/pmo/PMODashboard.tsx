@@ -1275,7 +1275,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                 style={{ height: '300px' }}
               >
                 <div style={{ height: '240px', overflowY: 'auto' }}>
-                  {dashboardData?.teamWorkload?.slice(0, 6)?.map((member: any) => (
+                  {dashboardData?.teamWorkload?.length ? dashboardData.teamWorkload.slice(0, 6).map((member: any) => (
                     <div key={member.id} style={{
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -1303,7 +1303,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                         {member.active_tasks}
                       </div>
                     </div>
-                  )) || (
+                  )) : (
                     <div style={{ textAlign: 'center', padding: '60px 0', color: '#999' }}>
                       Sin datos del equipo
                     </div>
