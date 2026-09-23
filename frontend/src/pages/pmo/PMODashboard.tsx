@@ -1276,9 +1276,9 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
               >
                 <div style={{ height: '240px', overflowY: 'auto' }}>
                   {dashboardData?.teamWorkload?.slice(0, 6)?.map((member: any) => (
-                    <div key={member.id} style={{ 
-                      display: 'flex', 
-                      justifyContent: 'space-between', 
+                    <div key={member.id} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
                       alignItems: 'center',
                       padding: '8px',
                       background: '#fafafa',
@@ -1290,17 +1290,17 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                           {member.full_name}
                         </div>
                         <div style={{ fontSize: '10px', color: '#666' }}>
-                          {member.assigned_projects} proyectos • {Math.round(member.avg_project_completion || 0)}% prog.
+                          {member.active_tasks} {member.active_tasks === 1 ? 'tarea activa' : 'tareas activas'}
                         </div>
                       </div>
-                      <div style={{ 
+                      <div style={{
                         padding: '2px 6px',
                         borderRadius: '10px',
                         fontSize: '10px',
-                        background: member.remaining_hours > 40 ? '#fff1f0' : member.remaining_hours > 20 ? '#fff7e6' : '#f6ffed',
-                        color: member.remaining_hours > 40 ? '#f5222d' : member.remaining_hours > 20 ? '#fa8c16' : '#52c41a'
+                        background: member.active_tasks > 8 ? '#fff1f0' : member.active_tasks > 4 ? '#fff7e6' : '#f6ffed',
+                        color: member.active_tasks > 8 ? '#f5222d' : member.active_tasks > 4 ? '#fa8c16' : '#52c41a'
                       }}>
-                        {Math.round(member.remaining_hours || 0)}h
+                        {member.active_tasks}
                       </div>
                     </div>
                   )) || (
