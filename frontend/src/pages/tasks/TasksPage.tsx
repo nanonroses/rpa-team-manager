@@ -17,7 +17,8 @@ import {
   Empty,
   Tooltip,
   Badge,
-  Spin
+  Spin,
+  Divider
 } from 'antd';
 import {
   PlusOutlined,
@@ -26,11 +27,13 @@ import {
   EditOutlined,
   DeleteOutlined,
   ClockCircleOutlined,
-  DollarOutlined
+  DollarOutlined,
+  CheckSquareOutlined
 } from '@ant-design/icons';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { useSearchParams } from 'react-router-dom';
 import { apiService } from '@/services/api';
+import { TaskSubtasksChecklist } from '@/components/tasks/TaskSubtasksChecklist';
 import { getPriorityColor } from '@/utils';
 import dayjs from 'dayjs';
 
@@ -77,6 +80,8 @@ interface Task {
   position: number;
   total_hours?: number;
   total_value?: number;
+  subtasks_total?: number;
+  subtasks_done?: number;
   created_at: string;
   updated_at: string;
 }
@@ -546,6 +551,14 @@ export const TasksPage: React.FC = () => {
                       </Tag>
                     </Tooltip>
                   )}
+
+                  {!!task.subtasks_total && (
+                    <Tooltip title={`Subtareas: ${task.subtasks_done}/${task.subtasks_total} completadas`}>
+                      <Tag icon={<CheckSquareOutlined />}>
+                        {task.subtasks_done}/{task.subtasks_total}
+                      </Tag>
+                    </Tooltip>
+                  )}
                 </Space>
               </div>
 
@@ -953,7 +966,17 @@ export const TasksPage: React.FC = () => {
               </Form.Item>
             </Col>
           </Row>
-          
+
+          {editingTask && (
+            <>
+              <Divider />
+              <TaskSubtasksChecklist
+                taskId={editingTask.id}
+                onChange={() => selectedBoard && loadBoard(selectedBoard.id)}
+              />
+            </>
+          )}
+
           <Form.Item>
             <Space>
               <Button type="primary" htmlType="submit">

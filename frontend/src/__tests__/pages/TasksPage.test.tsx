@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -6,7 +7,8 @@ vi.mock('@/services/api', () => ({
   apiService: {
     getProjects: vi.fn(),
     get: vi.fn(),
-    getTaskById: vi.fn()
+    getTaskById: vi.fn(),
+    getTaskSubtasks: vi.fn()
   }
 }));
 
@@ -37,6 +39,7 @@ describe('TasksPage - deep link ?taskId=', () => {
       if (url.startsWith('/tasks/boards/')) return Promise.resolve(board);
       return Promise.resolve(null);
     });
+    (apiService.getTaskSubtasks as any).mockResolvedValue([]);
   });
 
   it('abre el modal de edición de la tarea indicada por ?taskId=', async () => {
@@ -105,5 +108,41 @@ describe('TasksPage - deep link ?taskId=', () => {
     expect(apiService.get).not.toHaveBeenCalledWith('/tasks/boards/1');
     expect(screen.getByText('Tarea deep-link')).toBeInTheDocument();
     expect(screen.queryByText('Tarea board 1')).not.toBeInTheDocument();
+  });
+
+  it('muestra el contador de subtareas en la tarjeta cuando la tarea tiene subtareas', async () => {
+    const boardWithSubtasks = {
+      ...board,
+      tasks: [{ ...board.tasks[0], subtasks_total: 3, subtasks_done: 1 }]
+    };
+    (apiService.get as any).mockImplementation((url: string) => {
+      if (url.startsWith('/auth/users')) return Promise.resolve([]);
+      if (url.startsWith('/tasks/boards?')) return Promise.resolve([boardWithSubtasks]);
+      if (url.startsWith('/tasks/boards/')) return Promise.resolve(boardWithSubtasks);
+      return Promise.resolve(null);
+    });
+    (apiService.getTaskById as any).mockResolvedValue({ ...boardWithSubtasks.tasks[0], project_id: 7 });
+
+    renderWithTaskId('42');
+
+    expect(await screen.findByText('1/3')).toBeInTheDocument();
+  });
+
+  it('no muestra el checklist de subtareas en el modal de "Nueva Tarea" (crear, no editar)', async () => {
+    render(
+      <MemoryRouter initialEntries={['/tasks']}>
+        <TasksPage />
+      </MemoryRouter>
+    );
+
+    // Esperar a que el board termine de auto-seleccionarse y el botón deje de estar disabled
+    // (el botón "Nueva Tarea" está deshabilitado mientras no hay board seleccionado).
+    const newTaskButton = await screen.findByRole('button', { name: /nueva tarea/i });
+    await waitFor(() => expect(newTaskButton).not.toBeDisabled());
+    await userEvent.click(newTaskButton);
+
+    expect(await screen.findByText('Título')).toBeInTheDocument();
+    expect(screen.queryByText(/^Subtareas/)).not.toBeInTheDocument();
+    expect(apiService.getTaskSubtasks).not.toHaveBeenCalled();
   });
 });
