@@ -606,6 +606,26 @@ class ApiService {
     return response.data;
   }
 
+  async getComments(entityType: 'task' | 'project', entityId: number): Promise<any[]> {
+    const response = await this.api.get(`/${entityType}s/${entityId}/comments`);
+    return response.data;
+  }
+
+  async createComment(entityType: 'task' | 'project', entityId: number, content: string): Promise<any> {
+    const response = await this.api.post(`/${entityType}s/${entityId}/comments`, { content });
+    return response.data;
+  }
+
+  async updateComment(entityType: 'task' | 'project', entityId: number, commentId: number, content: string): Promise<any> {
+    const response = await this.api.patch(`/${entityType}s/${entityId}/comments/${commentId}`, { content });
+    return response.data;
+  }
+
+  async deleteComment(entityType: 'task' | 'project', entityId: number, commentId: number): Promise<any> {
+    const response = await this.api.delete(`/${entityType}s/${entityId}/comments/${commentId}`);
+    return response.data;
+  }
+
   async getProjectGantt(id: number): Promise<{ tasks: any[]; dependencies: any[]; milestones: any[] }> {
     const response = await this.api.get(`/pmo/projects/${id}/gantt`);
     return response.data;
