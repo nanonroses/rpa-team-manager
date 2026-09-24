@@ -116,7 +116,12 @@ export const TasksPage: React.FC = () => {
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [selectedColumn, setSelectedColumn] = useState<number | null>(null);
-  
+
+  // Filtros del board
+  const [filterPriority, setFilterPriority] = useState<string | undefined>(undefined);
+  const [filterTaskType, setFilterTaskType] = useState<string | undefined>(undefined);
+  const [filterAssigneeId, setFilterAssigneeId] = useState<number | undefined>(undefined);
+
   const [form] = Form.useForm();
   const [boardForm] = Form.useForm();
 
@@ -440,6 +445,14 @@ export const TasksPage: React.FC = () => {
     }
   };
 
+  const clearFilters = () => {
+    setFilterPriority(undefined);
+    setFilterTaskType(undefined);
+    setFilterAssigneeId(undefined);
+  };
+
+  const hasActiveFilters = filterPriority !== undefined || filterTaskType !== undefined || filterAssigneeId !== undefined;
+
   const openCreateTaskModal = (columnId?: number) => {
     setSelectedColumn(columnId || null);
     setIsCreateTaskModalOpen(true);
@@ -632,7 +645,11 @@ export const TasksPage: React.FC = () => {
   };
 
   const renderColumn = (column: TaskColumn) => {
-    const columnTasks = selectedBoard?.tasks.filter(task => task.column_id === column.id) || [];
+    const columnTasks = (selectedBoard?.tasks || [])
+      .filter(task => task.column_id === column.id)
+      .filter(task => !filterPriority || task.priority === filterPriority)
+      .filter(task => !filterTaskType || task.task_type === filterTaskType)
+      .filter(task => filterAssigneeId === undefined || task.assignee_id === filterAssigneeId);
 
     // Debug log
     if (selectedBoard) {
@@ -720,7 +737,10 @@ export const TasksPage: React.FC = () => {
               <Select
                 style={{ minWidth: 200 }}
                 value={selectedProject}
-                onChange={setSelectedProject}
+                onChange={(value) => {
+                  clearFilters();
+                  setSelectedProject(value);
+                }}
                 placeholder="Seleccionar proyecto"
               >
                 {projects.map(project => (
@@ -736,9 +756,13 @@ export const TasksPage: React.FC = () => {
             <Space>
               <Text strong>Board:</Text>
               <Select
+                aria-label="Board"
                 style={{ minWidth: 200 }}
                 value={selectedBoard?.id}
-                onChange={loadBoard}
+                onChange={(value) => {
+                  clearFilters();
+                  loadBoard(value);
+                }}
                 placeholder="Seleccionar board"
                 loading={boardLoading}
               >
@@ -773,6 +797,67 @@ export const TasksPage: React.FC = () => {
           </Col>
         </Row>
       </Card>
+
+      {/* Filtros */}
+      {selectedBoard && (
+        <Card size="small" style={{ marginBottom: 16 }}>
+          <Row gutter={16} align="middle">
+            <Col>
+              <Text strong>Filtrar:</Text>
+            </Col>
+            <Col>
+              <Select
+                aria-label="Filtrar por prioridad"
+                placeholder="Prioridad"
+                style={{ width: 160 }}
+                value={filterPriority}
+                onChange={setFilterPriority}
+                allowClear
+              >
+                <Option value="critical">🔴 Crítica</Option>
+                <Option value="high">🟠 Alta</Option>
+                <Option value="medium">🔵 Media</Option>
+                <Option value="low">🟢 Baja</Option>
+              </Select>
+            </Col>
+            <Col>
+              <Select
+                aria-label="Filtrar por tipo"
+                placeholder="Tipo"
+                style={{ width: 160 }}
+                value={filterTaskType}
+                onChange={setFilterTaskType}
+                allowClear
+              >
+                <Option value="task">📋 Tarea</Option>
+                <Option value="bug">🐛 Bug</Option>
+                <Option value="feature">✨ Feature</Option>
+                <Option value="research">🔍 Investigación</Option>
+                <Option value="documentation">📄 Documentación</Option>
+              </Select>
+            </Col>
+            <Col>
+              <Select
+                aria-label="Filtrar por asignado"
+                placeholder="Asignado a"
+                style={{ width: 180 }}
+                value={filterAssigneeId}
+                onChange={setFilterAssigneeId}
+                allowClear
+              >
+                {users.map(user => (
+                  <Option key={user.id} value={user.id}>{user.full_name}</Option>
+                ))}
+              </Select>
+            </Col>
+            {hasActiveFilters && (
+              <Col>
+                <Button onClick={clearFilters}>Limpiar filtros</Button>
+              </Col>
+            )}
+          </Row>
+        </Card>
+      )}
 
       {/* Kanban Board */}
       {selectedBoard ? (
