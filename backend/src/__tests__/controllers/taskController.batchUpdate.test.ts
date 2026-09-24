@@ -158,6 +158,27 @@ describe('TaskController - batchUpdateTasks (edicion masiva)', () => {
         );
     });
 
+    it('no renumera la columna de origen al mover tareas a otra columna (no destruye el orden manual)', async () => {
+        (db.query as jest.Mock).mockResolvedValueOnce([
+            { id: 1, column_id: 10, position: 1, assignee_id: 5, board_id: 100, project_id: 7 },
+            { id: 2, column_id: 10, position: 2, assignee_id: 6, board_id: 100, project_id: 7 }
+        ]);
+        (db.get as jest.Mock)
+            .mockResolvedValueOnce({ id: 20, board_id: 100 })   // target column lookup
+            .mockResolvedValueOnce({ max_position: 3 });         // max position en columna 20
+        (db.run as jest.Mock).mockResolvedValue({ changes: 1 });
+        const res = mockRes();
+
+        await controller.batchUpdateTasks(req({ taskIds: [1, 2], updates: { column_id: 20 } }), res);
+
+        expect(db.run).toHaveBeenCalledTimes(2);
+        expect(db.run).not.toHaveBeenCalledWith(
+            expect.stringContaining('SELECT COUNT(*)'),
+            expect.anything()
+        );
+        expect(db.commit).toHaveBeenCalled();
+    });
+
     it('agrupa el log de actividad por proyecto con action=tasks_batch_updated', async () => {
         (db.query as jest.Mock).mockResolvedValueOnce([
             { id: 1, column_id: 10, position: 1, assignee_id: 5, board_id: 100, project_id: 7 },

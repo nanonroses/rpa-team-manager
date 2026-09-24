@@ -1217,7 +1217,6 @@ export class TaskController {
         }
 
         if (targetColumnId !== undefined) {
-          const columnsToReorder: Set<number> = new Set();
           const maxPosRow = await db.get(`SELECT MAX(position) as max_position FROM tasks WHERE column_id = ?`, [targetColumnId]);
           let nextPosition = maxPosRow?.max_position || 0;
 
@@ -1228,11 +1227,6 @@ export class TaskController {
               `UPDATE tasks SET column_id = ?, position = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
               [targetColumnId, nextPosition, task.id]
             );
-            columnsToReorder.add(task.column_id);
-          }
-
-          if (columnsToReorder.size > 0) {
-            await reorderColumnPositions(db, columnsToReorder, 'tasks');
           }
         }
 

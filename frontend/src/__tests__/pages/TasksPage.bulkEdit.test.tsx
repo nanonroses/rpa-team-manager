@@ -30,6 +30,16 @@ const board = {
   ]
 };
 
+const board2 = {
+  id: 3, project_id: 7, name: 'Board 2', board_type: 'kanban', project_name: 'AGROSUPER',
+  columns: [
+    { id: 3, board_id: 3, name: 'To Do', position: 0, color: '#000', is_done_column: false }
+  ],
+  tasks: [
+    { id: 99, board_id: 3, column_id: 3, title: 'Tarea C', task_type: 'task', status: 'todo', priority: 'medium', position: 0, created_at: '', updated_at: '' }
+  ]
+};
+
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/tasks']}>
@@ -50,7 +60,8 @@ describe('TasksPage - edicion masiva', () => {
     (apiService.getProjects as any).mockResolvedValue([{ id: 7, name: 'AGROSUPER' }]);
     (apiService.get as any).mockImplementation((url: string) => {
       if (url.startsWith('/auth/users')) return Promise.resolve([{ id: 9, full_name: 'Ana Reasignada' }]);
-      if (url.startsWith('/tasks/boards?')) return Promise.resolve([board]);
+      if (url.startsWith('/tasks/boards?')) return Promise.resolve([board, board2]);
+      if (url.startsWith('/tasks/boards/3')) return Promise.resolve(board2);
       if (url.startsWith('/tasks/boards/')) return Promise.resolve(board);
       return Promise.resolve(null);
     });
@@ -104,5 +115,22 @@ describe('TasksPage - edicion masiva', () => {
     await userEvent.click(screen.getByRole('button', { name: /cancelar selección/i }));
 
     expect(apiService.batchUpdateTasks).not.toHaveBeenCalled();
+  }, 30000);
+
+  it('limpia la seleccion al cambiar de board con la seleccion activa', async () => {
+    renderPage();
+    await selectBoard();
+
+    await userEvent.click(screen.getByRole('button', { name: /selección múltiple/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /seleccionar tarea tarea a/i }));
+
+    expect(await screen.findByText(/1 tarea\(s\) seleccionada/i)).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('combobox', { name: /board/i }));
+    await userEvent.click(await screen.findByText('Board 2'));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/tarea\(s\) seleccionada/i)).not.toBeInTheDocument();
+    });
   }, 30000);
 });

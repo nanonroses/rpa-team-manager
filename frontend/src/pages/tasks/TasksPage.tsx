@@ -784,7 +784,10 @@ export const TasksPage: React.FC = () => {
               <Select
                 style={{ minWidth: 200 }}
                 value={selectedProject}
-                onChange={setSelectedProject}
+                onChange={(value) => {
+                  exitSelectionMode();
+                  setSelectedProject(value);
+                }}
                 placeholder="Seleccionar proyecto"
               >
                 {projects.map(project => (
@@ -800,9 +803,13 @@ export const TasksPage: React.FC = () => {
             <Space>
               <Text strong>Board:</Text>
               <Select
+                aria-label="Board"
                 style={{ minWidth: 200 }}
                 value={selectedBoard?.id}
-                onChange={loadBoard}
+                onChange={(value) => {
+                  exitSelectionMode();
+                  loadBoard(value);
+                }}
                 placeholder="Seleccionar board"
                 loading={boardLoading}
               >
