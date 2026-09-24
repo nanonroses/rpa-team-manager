@@ -22,6 +22,7 @@ import PMODashboard from '@/pages/pmo/PMODashboard';
 import BillingPage from '@/pages/billing/BillingPage';
 import ProfilePage from '@/pages/profile/ProfilePage';
 import TeamManagementPage from '@/pages/admin/TeamManagementPage';
+import PriorityMatrixPage from '@/pages/priorities/PriorityMatrixPage';
 
 // Ant Design theme configuration
 const theme = {
@@ -127,7 +128,14 @@ function App() {
                   <TeamManagementPage />
                 </ProtectedRoute>
               } />
-              
+
+              {/* Priority Matrices (Team Lead only - datos de rentabilidad) */}
+              <Route path="priorities" element={
+                <ProtectedRoute requiredRoles={['team_lead']}>
+                  <PriorityMatrixPage />
+                </ProtectedRoute>
+              } />
+
               {/* Profile */}
               <Route path="profile" element={<ProfilePage />} />
               

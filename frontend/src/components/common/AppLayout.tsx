@@ -16,7 +16,8 @@ import {
   CustomerServiceOutlined,
   FundOutlined,
   KeyOutlined,
-  DollarOutlined
+  DollarOutlined,
+  BarChartOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
@@ -129,6 +130,12 @@ export const AppLayout: React.FC = () => {
       });
 
       baseItems.push({
+        key: '/priorities',
+        icon: <BarChartOutlined />,
+        label: 'Matriz de Prioridad'
+      });
+
+      baseItems.push({
         key: 'configuration',
         icon: <SettingOutlined />,
         label: 'Configuración',
@@ -168,7 +175,7 @@ export const AppLayout: React.FC = () => {
       case '/ideas':
         return 'Ideas';
       case '/priorities':
-        return 'Priority Matrix';
+        return 'Matriz de Prioridad';
       case '/files':
         return 'Files';
       case '/support':

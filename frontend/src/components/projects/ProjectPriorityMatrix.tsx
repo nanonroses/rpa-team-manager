@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Typography, Tag, Space, Spin } from 'antd';
 import { useNavigate } from 'react-router-dom';
-import { DollarOutlined, ClockCircleOutlined } from '@ant-design/icons';
+import { DollarOutlined, WarningOutlined } from '@ant-design/icons';
 import { Project } from '@/types/project';
 import { apiService } from '@/services/api';
 import { PriorityMatrix, QuadrantConfig, QuadrantRules, MatrixAxisConfig, MatrixItemRenderer, MatrixSummary } from '@/components/common';
@@ -11,15 +11,20 @@ const { Text } = Typography;
 
 interface ProjectROI {
   project_id: number;
-  revenue: number;
-  estimated_cost: number;
-  actual_cost: number;
-  roi_percentage: number;
-  profit_margin: number;
-  budget_variance: number;
-  timeline_adherence: number;
+  sale_price: number;
+  planned_cost: number;
+  real_cost: number;
+  planned_roi: number;
+  real_roi: number;
   alerts: string[];
 }
+
+// El backend (financeService.calculateProjectFinancials) no expone un "budget_variance"
+// directo: se deriva como el % de desvío entre costo real y costo planificado.
+const getBudgetVariance = (roi: ProjectROI): number => {
+  if (!roi.planned_cost) return 0;
+  return ((roi.real_cost - roi.planned_cost) / roi.planned_cost) * 100;
+};
 
 interface ProjectPriorityMatrixProps {
   projects: Project[];
@@ -65,10 +70,10 @@ const ProjectPriorityMatrix: React.FC<ProjectPriorityMatrixProps> = ({ projects 
     const roi = roiData[project.id];
     if (!roi) return 3; // default medium
     
-    if (roi.roi_percentage >= 200) return 5; // Very High ROI
-    else if (roi.roi_percentage >= 100) return 4; // High ROI
-    else if (roi.roi_percentage >= 50) return 3; // Medium ROI
-    else if (roi.roi_percentage >= 0) return 2; // Low ROI
+    if (roi.real_roi >= 200) return 5; // Very High ROI
+    else if (roi.real_roi >= 100) return 4; // High ROI
+    else if (roi.real_roi >= 50) return 3; // Medium ROI
+    else if (roi.real_roi >= 0) return 2; // Low ROI
     else return 1; // Negative ROI
   };
 
@@ -76,14 +81,13 @@ const ProjectPriorityMatrix: React.FC<ProjectPriorityMatrixProps> = ({ projects 
   const calculateComplexityScore = (project: Project): number => {
     const roi = roiData[project.id];
     if (!roi) return 3; // default medium
-    
-    const budgetOverrun = Math.abs(roi.budget_variance);
-    const timelineRisk = 100 - (roi.timeline_adherence || 80);
-    
-    if (budgetOverrun >= 50 || timelineRisk >= 40) return 5; // Very High Risk
-    else if (budgetOverrun >= 25 || timelineRisk >= 25) return 4; // High Risk
-    else if (budgetOverrun >= 10 || timelineRisk >= 15) return 3; // Medium Risk
-    else if (budgetOverrun >= 5 || timelineRisk >= 10) return 2; // Low Risk
+
+    const budgetOverrun = Math.abs(getBudgetVariance(roi));
+
+    if (budgetOverrun >= 50) return 5; // Very High Risk
+    else if (budgetOverrun >= 25) return 4; // High Risk
+    else if (budgetOverrun >= 10) return 3; // Medium Risk
+    else if (budgetOverrun >= 5) return 2; // Low Risk
     else return 1; // Very Low Risk
   };
 
@@ -194,16 +198,13 @@ const ProjectPriorityMatrix: React.FC<ProjectPriorityMatrixProps> = ({ projects 
           {projectROI && (
             <>
               <div style={{ marginBottom: '4px' }}>
-                ROI: {formatPercentage(projectROI.roi_percentage)}
+                ROI real: {formatPercentage(projectROI.real_roi)}
               </div>
               <div style={{ marginBottom: '4px' }}>
-                Revenue: {formatCurrency(projectROI.revenue)}
+                Venta: {formatCurrency(projectROI.sale_price)}
               </div>
               <div style={{ marginBottom: '4px' }}>
-                Budget Variance: {formatPercentage(projectROI.budget_variance)}
-              </div>
-              <div style={{ marginBottom: '4px' }}>
-                Timeline: {formatPercentage(projectROI.timeline_adherence || 80)}
+                Desvío de costo: {formatPercentage(getBudgetVariance(projectROI))}
               </div>
             </>
           )}
@@ -248,11 +249,11 @@ const ProjectPriorityMatrix: React.FC<ProjectPriorityMatrixProps> = ({ projects 
             {projectROI && (
               <div style={{ fontSize: '10px' }}>
                 <Space size="small">
-                  <span style={{ color: projectROI.roi_percentage >= 50 ? '#52c41a' : '#f5222d' }}>
-                    <DollarOutlined /> {formatPercentage(projectROI.roi_percentage)}
+                  <span style={{ color: projectROI.real_roi >= 50 ? '#52c41a' : '#f5222d' }}>
+                    <DollarOutlined /> {formatPercentage(projectROI.real_roi)}
                   </span>
                   <span>
-                    <ClockCircleOutlined /> {formatPercentage(projectROI.timeline_adherence || 80)}
+                    <WarningOutlined /> {formatPercentage(getBudgetVariance(projectROI))}
                   </span>
                 </Space>
               </div>
@@ -267,26 +268,26 @@ const ProjectPriorityMatrix: React.FC<ProjectPriorityMatrixProps> = ({ projects 
   const summary: MatrixSummary<Project> = {
     getStats: (projects) => [
       { label: 'Total Projects', value: projects.length },
-      { 
-        label: 'Strategic Winners', 
+      {
+        label: 'Strategic Winners',
         value: projects.filter(p => {
           const roi = roiData[p.id];
-          return roi && roi.roi_percentage >= 100 && Math.abs(roi.budget_variance) < 25;
-        }).length 
+          return roi && roi.real_roi >= 100 && Math.abs(getBudgetVariance(roi)) < 25;
+        }).length
       },
-      { 
-        label: 'High Stakes', 
+      {
+        label: 'High Stakes',
         value: projects.filter(p => {
           const roi = roiData[p.id];
-          return roi && roi.roi_percentage >= 100 && Math.abs(roi.budget_variance) >= 25;
-        }).length 
+          return roi && roi.real_roi >= 100 && Math.abs(getBudgetVariance(roi)) >= 25;
+        }).length
       },
-      { 
-        label: 'Money Pits', 
+      {
+        label: 'Money Pits',
         value: projects.filter(p => {
           const roi = roiData[p.id];
-          return roi && roi.roi_percentage < 0 && Math.abs(roi.budget_variance) >= 25;
-        }).length 
+          return roi && roi.real_roi < 0 && Math.abs(getBudgetVariance(roi)) >= 25;
+        }).length
       }
     ]
   };
