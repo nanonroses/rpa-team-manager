@@ -130,17 +130,20 @@ export function createBatchDeletionResponse(
  * Reorders positions for items in a column after deletion
  */
 export async function reorderColumnPositions(
-  db: any, 
-  columnIds: Set<number>, 
+  db: any,
+  columnIds: Set<number>,
   tableName: string
 ): Promise<void> {
   for (const columnId of columnIds) {
+    // Renumera respetando el orden manual existente (`position`, ej. drag-and-drop),
+    // no el orden de creacion (`id`) - de lo contrario se pierde el reordenamiento manual
+    // de toda la columna cada vez que se borra una tarea de ella.
     await db.run(`
       UPDATE ${tableName}
       SET position = (
-        SELECT COUNT(*) + 1 
-        FROM ${tableName} t2 
-        WHERE t2.column_id = ? AND t2.id < ${tableName}.id
+        SELECT COUNT(*) + 1
+        FROM ${tableName} t2
+        WHERE t2.column_id = ? AND t2.position < ${tableName}.position
       ), updated_at = CURRENT_TIMESTAMP
       WHERE column_id = ?
     `, [columnId, columnId]);
