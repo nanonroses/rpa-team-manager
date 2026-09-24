@@ -914,7 +914,7 @@ export const migrations: Migration[] = [
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id),
         FOREIGN KEY (task_id) REFERENCES tasks(id),
-        FOREIGN KEY (project_id) REFERENCES projects(id)
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
       )`,
 
       `CREATE INDEX IF NOT EXISTS idx_time_entries_user_date ON time_entries(user_id, date)`,
@@ -948,7 +948,7 @@ export const migrations: Migration[] = [
         resolved_date DATETIME,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (project_id) REFERENCES projects(id),
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
         FOREIGN KEY (task_id) REFERENCES tasks(id),
         FOREIGN KEY (reported_by) REFERENCES users(id),
         FOREIGN KEY (assigned_to) REFERENCES users(id)

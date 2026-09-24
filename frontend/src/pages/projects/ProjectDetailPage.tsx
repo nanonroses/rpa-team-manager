@@ -18,8 +18,7 @@ import {
   Alert,
   Breadcrumb,
   Tabs,
-  Modal,
-  message
+  App
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -67,6 +66,7 @@ export const ProjectDetailPage: React.FC = () => {
   
   const { getProject } = useProjectStore();
   const { user } = useAuthStore();
+  const { message, modal } = App.useApp();
 
   useEffect(() => {
     if (id) {
@@ -138,7 +138,7 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   const handleDelete = () => {
-    Modal.confirm({
+    modal.confirm({
       title: 'Delete Project',
       icon: <ExclamationCircleOutlined />,
       content: `Are you sure you want to delete "${project?.name}"? This action cannot be undone.`,
@@ -151,8 +151,9 @@ export const ProjectDetailPage: React.FC = () => {
           await deleteProject(project!.id);
           message.success('Project deleted successfully');
           navigate('/projects');
-        } catch (error) {
-          message.error('Failed to delete project');
+        } catch (error: any) {
+          const errorMessage = error?.response?.data?.error || 'Failed to delete project';
+          message.error(errorMessage);
         }
       }
     });
