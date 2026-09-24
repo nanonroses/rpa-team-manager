@@ -33,6 +33,8 @@ interface DependencyEdge {
     successor_id: number;
 }
 
+const VALID_DEPENDENCY_TYPES = ['finish_to_start', 'start_to_start', 'finish_to_finish', 'start_to_finish'];
+
 export class TaskDependencyService {
 
     async createDependency(
@@ -76,6 +78,10 @@ export class TaskDependencyService {
             throw new TaskDependencyError('Esta dependencia generaria un ciclo entre tareas', 400);
         }
 
+        if (!VALID_DEPENDENCY_TYPES.includes(dependencyType)) {
+            throw new TaskDependencyError('dependency_type invalido', 400);
+        }
+
         let result;
         try {
             result = await db.run(`
@@ -83,7 +89,7 @@ export class TaskDependencyService {
                 VALUES (?, ?, ?, ?)
             `, [dependsOnTaskId, taskId, dependencyType, lagDays]);
         } catch (error: any) {
-            if (error.code === 'SQLITE_CONSTRAINT' || error.message?.includes('UNIQUE constraint failed')) {
+            if (typeof error.message === 'string' && error.message.toLowerCase().includes('unique constraint failed')) {
                 throw new TaskDependencyError('Esta dependencia ya existe', 409);
             }
             throw error;

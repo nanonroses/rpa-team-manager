@@ -115,6 +115,31 @@ describe('TaskDependencyService', () => {
                 status: 409
             });
         });
+
+        it('rechaza un dependency_type invalido sin llegar al INSERT', async () => {
+            (db.query as jest.Mock)
+                .mockResolvedValueOnce([{ id: 10, project_id: 1 }, { id: 20, project_id: 1 }])
+                .mockResolvedValueOnce([]);
+
+            await expect(service.createDependency(10, 20, 'tipo-invalido')).rejects.toMatchObject({
+                message: 'dependency_type invalido',
+                status: 400
+            });
+            expect(db.run).not.toHaveBeenCalled();
+        });
+
+        it('propaga sin traducir un error de CHECK constraint en el INSERT (no deberia ser alcanzable en la practica)', async () => {
+            (db.query as jest.Mock)
+                .mockResolvedValueOnce([{ id: 10, project_id: 1 }, { id: 20, project_id: 1 }])
+                .mockResolvedValueOnce([]);
+            const checkError = Object.assign(
+                new Error('SQLITE_CONSTRAINT: CHECK constraint failed: task_dependencies'),
+                { code: 'SQLITE_CONSTRAINT' }
+            );
+            (db.run as jest.Mock).mockRejectedValue(checkError);
+
+            await expect(service.createDependency(10, 20)).rejects.toBe(checkError);
+        });
     });
 
     describe('getDependenciesForTask', () => {
