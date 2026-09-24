@@ -6,7 +6,8 @@ export type NotificationEventKey =
     | 'task_status_changed'
     | 'task_due_soon'
     | 'timesheet_submitted'
-    | 'timesheet_missing_days';
+    | 'timesheet_missing_days'
+    | 'comment_mention';
 
 export interface NotifyParams {
     userId: number;

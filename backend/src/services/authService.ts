@@ -310,18 +310,18 @@ export class AuthService {
         return user || null;
     }
 
-    async getActiveUsers(): Promise<{ id: number; full_name: string; email: string; role: string }[]> {
+    async getActiveUsers(): Promise<{ id: number; username: string; full_name: string; email: string; role: string }[]> {
         const users = await db.query(
-            'SELECT id, full_name, email, role FROM users WHERE is_active = 1 ORDER BY full_name',
+            'SELECT id, username, full_name, email, role FROM users WHERE is_active = 1 ORDER BY full_name',
             []
         );
         return users;
     }
 
     // Admin method to get all users (active and inactive)
-    async getAllUsersForAdmin(): Promise<{ id: number; full_name: string; email: string; role: string; is_active: boolean }[]> {
+    async getAllUsersForAdmin(): Promise<{ id: number; username: string; full_name: string; email: string; role: string; is_active: boolean }[]> {
         const users = await db.query(
-            'SELECT id, full_name, email, role, is_active FROM users ORDER BY full_name',
+            'SELECT id, username, full_name, email, role, is_active FROM users ORDER BY full_name',
             []
         );
         return users;
