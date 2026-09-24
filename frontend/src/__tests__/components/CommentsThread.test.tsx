@@ -7,7 +7,8 @@ vi.mock('@/services/api', () => ({
     getComments: vi.fn(),
     createComment: vi.fn(),
     updateComment: vi.fn(),
-    deleteComment: vi.fn()
+    deleteComment: vi.fn(),
+    getMentionableUsers: vi.fn()
   }
 }));
 
@@ -18,7 +19,7 @@ vi.mock('@/store/authStore', () => ({
 import { apiService } from '@/services/api';
 import { CommentsThread } from '@/components/comments/CommentsThread';
 
-const users = [
+const mentionableUsers = [
   { id: 3, full_name: 'Ana', username: 'ana' },
   { id: 9, full_name: 'Dev Uno', username: 'dev1' }
 ];
@@ -26,6 +27,7 @@ const users = [
 describe('CommentsThread', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (apiService.getMentionableUsers as any).mockResolvedValue(mentionableUsers);
   });
 
   it('carga y muestra los comentarios existentes', async () => {
@@ -33,7 +35,7 @@ describe('CommentsThread', () => {
       { id: 1, entity_type: 'task', entity_id: 55, user_id: 9, author_name: 'Dev Uno', content: 'Hola equipo', created_at: '2026-09-23T10:00:00Z', updated_at: '2026-09-23T10:00:00Z' }
     ]);
 
-    render(<CommentsThread entityType="task" entityId={55} users={users} />);
+    render(<CommentsThread entityType="task" entityId={55} />);
 
     expect(await screen.findByText('Hola equipo')).toBeInTheDocument();
     expect(screen.getByText('Dev Uno')).toBeInTheDocument();
@@ -42,9 +44,17 @@ describe('CommentsThread', () => {
   it('muestra el estado vacio cuando no hay comentarios', async () => {
     (apiService.getComments as any).mockResolvedValue([]);
 
-    render(<CommentsThread entityType="task" entityId={55} users={users} />);
+    render(<CommentsThread entityType="task" entityId={55} />);
 
     expect(await screen.findByText('Sin comentarios todavía')).toBeInTheDocument();
+  });
+
+  it('carga los usuarios mencionables acotados a la entidad (no una lista global)', async () => {
+    (apiService.getComments as any).mockResolvedValue([]);
+
+    render(<CommentsThread entityType="task" entityId={55} />);
+
+    await waitFor(() => expect(apiService.getMentionableUsers).toHaveBeenCalledWith('task', 55));
   });
 
   it('publica un comentario nuevo al escribir y hacer click en Comentar', async () => {
@@ -53,7 +63,7 @@ describe('CommentsThread', () => {
       id: 2, entity_type: 'task', entity_id: 55, user_id: 3, author_name: 'Ana', content: 'Nuevo comentario', created_at: '2026-09-23T10:00:00Z', updated_at: '2026-09-23T10:00:00Z'
     });
 
-    render(<CommentsThread entityType="task" entityId={55} users={users} />);
+    render(<CommentsThread entityType="task" entityId={55} />);
     await waitFor(() => expect(apiService.getComments).toHaveBeenCalled());
 
     const input = screen.getByPlaceholderText(/escribí un comentario/i);
@@ -70,7 +80,7 @@ describe('CommentsThread', () => {
       { id: 2, entity_type: 'task', entity_id: 55, user_id: 9, author_name: 'Dev Uno', content: 'Ajeno', created_at: 'x', updated_at: 'x' }
     ]);
 
-    render(<CommentsThread entityType="task" entityId={55} users={users} />);
+    render(<CommentsThread entityType="task" entityId={55} />);
     await screen.findByText('Mio');
     await screen.findByText('Ajeno');
 
@@ -84,7 +94,7 @@ describe('CommentsThread', () => {
     ]);
     (apiService.deleteComment as any).mockResolvedValue({ success: true });
 
-    render(<CommentsThread entityType="task" entityId={55} users={users} />);
+    render(<CommentsThread entityType="task" entityId={55} />);
     await screen.findByText('Mio');
 
     await userEvent.click(screen.getByRole('button', { name: /eliminar comentario/i }));

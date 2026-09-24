@@ -626,6 +626,11 @@ class ApiService {
     return response.data;
   }
 
+  async getMentionableUsers(entityType: 'task' | 'project', entityId: number): Promise<any[]> {
+    const response = await this.api.get(`/${entityType}s/${entityId}/mentionable-users`);
+    return response.data;
+  }
+
   async getProjectGantt(id: number): Promise<{ tasks: any[]; dependencies: any[]; milestones: any[] }> {
     const response = await this.api.get(`/pmo/projects/${id}/gantt`);
     return response.data;

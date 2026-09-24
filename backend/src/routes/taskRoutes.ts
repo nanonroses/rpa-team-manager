@@ -39,6 +39,7 @@ router.get('/tasks/:taskId/comments', authenticate, taskController.getTaskCommen
 router.post('/tasks/:taskId/comments', authenticate, taskController.createTaskComment);
 router.patch('/tasks/:taskId/comments/:commentId', authenticate, taskController.updateTaskComment);
 router.delete('/tasks/:taskId/comments/:commentId', authenticate, taskController.deleteTaskComment);
+router.get('/tasks/:taskId/mentionable-users', authenticate, taskController.getTaskMentionableUsers);
 
 router.get('/tasks/my-tasks', authenticate, taskController.getMyTasks);
 router.get('/tasks/project/:projectId', authenticate, taskController.getProjectTasks);

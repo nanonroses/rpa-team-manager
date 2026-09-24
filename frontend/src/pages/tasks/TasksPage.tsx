@@ -980,7 +980,6 @@ export const TasksPage: React.FC = () => {
               <CommentsThread
                 entityType="task"
                 entityId={editingTask.id}
-                users={users}
               />
             </>
           )}

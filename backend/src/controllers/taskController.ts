@@ -1243,7 +1243,7 @@ export class TaskController {
       const userId = req.user?.id as number;
       const { content } = req.body;
 
-      if (!content || !content.trim()) {
+      if (!content || typeof content !== 'string' || !content.trim()) {
         res.status(400).json({ error: 'Content is required' });
         return;
       }
@@ -1276,7 +1276,7 @@ export class TaskController {
       const userId = req.user?.id;
       const { content } = req.body;
 
-      if (!content || !content.trim()) {
+      if (!content || typeof content !== 'string' || !content.trim()) {
         res.status(400).json({ error: 'Content is required' });
         return;
       }
@@ -1346,6 +1346,33 @@ export class TaskController {
     } catch (error) {
       logger.error('Delete task comment error:', error);
       res.status(500).json({ error: 'Failed to delete comment' });
+    }
+  };
+
+  // GET /api/tasks/:taskId/mentionable-users - Users who can be @mentioned in comments on this task
+  getTaskMentionableUsers = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const users = await commentService.getMentionableUsers('task', parseInt(taskId));
+      res.json(users);
+    } catch (error) {
+      logger.error('Get task mentionable users error:', error);
+      res.status(500).json({ error: 'Failed to get mentionable users' });
     }
   };
 }

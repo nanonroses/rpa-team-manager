@@ -10,7 +10,8 @@ jest.mock('../../services/commentService', () => ({
         create: jest.fn(),
         findById: jest.fn(),
         update: jest.fn(),
-        delete: jest.fn()
+        delete: jest.fn(),
+        getMentionableUsers: jest.fn()
     }
 }));
 
@@ -103,6 +104,16 @@ describe('ProjectController - comentarios', () => {
             expect(res.status).toHaveBeenCalledWith(403);
             expect(commentService.create).not.toHaveBeenCalled();
         });
+
+        it('devuelve 400 si el contenido no es un string (por ejemplo un numero)', async () => {
+            const req = { params: { id: '7' }, body: { content: 123 }, user: { id: 1, role: 'team_lead' } } as unknown as AuthenticatedRequest;
+            const res = mockRes();
+
+            await controller.createProjectComment(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(db.get).not.toHaveBeenCalled();
+        });
     });
 
     describe('updateProjectComment', () => {
@@ -141,6 +152,16 @@ describe('ProjectController - comentarios', () => {
 
             expect(res.status).toHaveBeenCalledWith(404);
         });
+
+        it('devuelve 400 si el contenido no es un string (por ejemplo un numero)', async () => {
+            const req = { params: { id: '7', commentId: '5' }, body: { content: 123 }, user: { id: 1, role: 'team_lead' } } as unknown as AuthenticatedRequest;
+            const res = mockRes();
+
+            await controller.updateProjectComment(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(db.get).not.toHaveBeenCalled();
+        });
     });
 
     describe('deleteProjectComment', () => {
@@ -166,6 +187,31 @@ describe('ProjectController - comentarios', () => {
 
             expect(res.status).toHaveBeenCalledWith(403);
             expect(commentService.delete).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('getProjectMentionableUsers', () => {
+        it('devuelve los usuarios mencionables si el usuario tiene acceso', async () => {
+            (db.get as jest.Mock).mockResolvedValue({ id: 7, assigned_to: 1, created_by: 1 });
+            (commentService.getMentionableUsers as jest.Mock).mockResolvedValue([{ id: 9, username: 'dev1', full_name: 'Dev Uno' }]);
+            const req = { params: { id: '7' }, user: { id: 1, role: 'rpa_developer' } } as unknown as AuthenticatedRequest;
+            const res = mockRes();
+
+            await controller.getProjectMentionableUsers(req, res);
+
+            expect(commentService.getMentionableUsers).toHaveBeenCalledWith('project', 7);
+            expect(res.json).toHaveBeenCalledWith([{ id: 9, username: 'dev1', full_name: 'Dev Uno' }]);
+        });
+
+        it('devuelve 403 si un rpa_developer sin pertenencia intenta ver los mencionables', async () => {
+            (db.get as jest.Mock).mockResolvedValue({ id: 7, assigned_to: 2, created_by: 3 });
+            const req = { params: { id: '7' }, user: { id: 1, role: 'rpa_developer' } } as unknown as AuthenticatedRequest;
+            const res = mockRes();
+
+            await controller.getProjectMentionableUsers(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(403);
+            expect(commentService.getMentionableUsers).not.toHaveBeenCalled();
         });
     });
 });

@@ -64,7 +64,6 @@ export const ProjectDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<any[]>([]);
-  const [users, setUsers] = useState<{ id: number; full_name: string; username?: string }[]>([]);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   
@@ -75,7 +74,6 @@ export const ProjectDetailPage: React.FC = () => {
     if (id) {
       loadProjectData();
     }
-    apiService.get('/auth/users').then(setUsers).catch(() => setUsers([]));
   }, [id]);
 
   const loadProjectData = async () => {
@@ -643,7 +641,6 @@ export const ProjectDetailPage: React.FC = () => {
                   <CommentsThread
                     entityType="project"
                     entityId={project.id}
-                    users={users}
                   />
                 </div>
               )

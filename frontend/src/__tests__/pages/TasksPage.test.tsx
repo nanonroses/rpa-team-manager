@@ -11,7 +11,8 @@ vi.mock('@/services/api', () => ({
     getTaskById: vi.fn(),
     getTaskSubtasks: vi.fn(),
     createTaskSubtask: vi.fn(),
-    getComments: vi.fn()
+    getComments: vi.fn(),
+    getMentionableUsers: vi.fn()
   }
 }));
 
@@ -44,6 +45,7 @@ describe('TasksPage - deep link ?taskId=', () => {
     });
     (apiService.getTaskSubtasks as any).mockResolvedValue([]);
     (apiService.getComments as any).mockResolvedValue([]);
+    (apiService.getMentionableUsers as any).mockResolvedValue([]);
   });
 
   it('abre el modal de edición de la tarea indicada por ?taskId=', async () => {

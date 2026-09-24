@@ -30,7 +30,6 @@ export interface CommentRow {
 interface CommentsThreadProps {
   entityType: 'task' | 'project';
   entityId: number;
-  users: CommentThreadUser[];
 }
 
 export function renderContentWithMentions(content: string): React.ReactNode {
@@ -42,7 +41,7 @@ export function renderContentWithMentions(content: string): React.ReactNode {
   );
 }
 
-export const CommentsThread: React.FC<CommentsThreadProps> = ({ entityType, entityId, users }) => {
+export const CommentsThread: React.FC<CommentsThreadProps> = ({ entityType, entityId }) => {
   const { user: currentUser } = useAuthStore();
   const [comments, setComments] = useState<CommentRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,6 +49,7 @@ export const CommentsThread: React.FC<CommentsThreadProps> = ({ entityType, enti
   const [posting, setPosting] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingContent, setEditingContent] = useState('');
+  const [mentionableUsers, setMentionableUsers] = useState<CommentThreadUser[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,7 +61,15 @@ export const CommentsThread: React.FC<CommentsThreadProps> = ({ entityType, enti
     return () => { cancelled = true; };
   }, [entityType, entityId]);
 
-  const mentionOptions = users
+  useEffect(() => {
+    let cancelled = false;
+    apiService.getMentionableUsers(entityType, entityId)
+      .then((data) => { if (!cancelled) setMentionableUsers(data); })
+      .catch(() => { if (!cancelled) setMentionableUsers([]); });
+    return () => { cancelled = true; };
+  }, [entityType, entityId]);
+
+  const mentionOptions = mentionableUsers
     .filter((u) => !!u.username)
     .map((u) => ({ value: u.username as string, label: u.full_name }));
 

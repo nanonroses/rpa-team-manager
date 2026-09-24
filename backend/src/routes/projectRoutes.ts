@@ -89,6 +89,7 @@ router.get('/:id/comments', projectController.getProjectComments);
 router.post('/:id/comments', projectController.createProjectComment);
 router.patch('/:id/comments/:commentId', projectController.updateProjectComment);
 router.delete('/:id/comments/:commentId', projectController.deleteProjectComment);
+router.get('/:id/mentionable-users', projectController.getProjectMentionableUsers);
 
 // POST /api/projects/:id/baseline - Freeze project baseline (irreversible, team_lead only)
 router.post('/:id/baseline', authorize(['team_lead']), projectController.freezeBaseline);

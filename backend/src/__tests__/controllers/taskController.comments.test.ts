@@ -13,7 +13,8 @@ jest.mock('../../services/commentService', () => ({
         create: jest.fn(),
         findById: jest.fn(),
         update: jest.fn(),
-        delete: jest.fn()
+        delete: jest.fn(),
+        getMentionableUsers: jest.fn()
     }
 }));
 
@@ -97,6 +98,16 @@ describe('TaskController - comentarios', () => {
             expect(res.status).toHaveBeenCalledWith(404);
             expect(commentService.create).not.toHaveBeenCalled();
         });
+
+        it('devuelve 400 si el contenido no es un string (por ejemplo un numero)', async () => {
+            const req = { params: { taskId: '55' }, body: { content: 123 }, user: { id: 3 } } as unknown as AuthenticatedRequest;
+            const res = mockRes();
+
+            await controller.createTaskComment(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(db.get).not.toHaveBeenCalled();
+        });
     });
 
     describe('updateTaskComment', () => {
@@ -156,6 +167,16 @@ describe('TaskController - comentarios', () => {
             expect(res.status).toHaveBeenCalledWith(404);
             expect(commentService.findById).not.toHaveBeenCalled();
         });
+
+        it('devuelve 400 si el contenido no es un string (por ejemplo un numero)', async () => {
+            const req = { params: { taskId: '55', commentId: '7' }, body: { content: 123 }, user: { id: 3 } } as unknown as AuthenticatedRequest;
+            const res = mockRes();
+
+            await controller.updateTaskComment(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(db.get).not.toHaveBeenCalled();
+        });
     });
 
     describe('deleteTaskComment', () => {
@@ -192,6 +213,31 @@ describe('TaskController - comentarios', () => {
 
             expect(res.status).toHaveBeenCalledWith(404);
             expect(commentService.delete).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('getTaskMentionableUsers', () => {
+        it('devuelve los usuarios mencionables si el usuario tiene acceso a la tarea', async () => {
+            (db.get as jest.Mock).mockResolvedValue({ id: 55 });
+            (commentService.getMentionableUsers as jest.Mock).mockResolvedValue([{ id: 9, username: 'dev1', full_name: 'Dev Uno' }]);
+            const req = { params: { taskId: '55' }, user: { id: 3 } } as unknown as AuthenticatedRequest;
+            const res = mockRes();
+
+            await controller.getTaskMentionableUsers(req, res);
+
+            expect(commentService.getMentionableUsers).toHaveBeenCalledWith('task', 55);
+            expect(res.json).toHaveBeenCalledWith([{ id: 9, username: 'dev1', full_name: 'Dev Uno' }]);
+        });
+
+        it('devuelve 404 si el usuario no tiene acceso a la tarea', async () => {
+            (db.get as jest.Mock).mockResolvedValue(undefined);
+            const req = { params: { taskId: '999' }, user: { id: 3 } } as unknown as AuthenticatedRequest;
+            const res = mockRes();
+
+            await controller.getTaskMentionableUsers(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(404);
+            expect(commentService.getMentionableUsers).not.toHaveBeenCalled();
         });
     });
 });

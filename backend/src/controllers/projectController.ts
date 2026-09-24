@@ -542,7 +542,7 @@ export class ProjectController {
             const userId = req.user?.id as number;
             const { content } = req.body;
 
-            if (!content || !content.trim()) {
+            if (!content || typeof content !== 'string' || !content.trim()) {
                 res.status(400).json({ error: 'Content is required' });
                 return;
             }
@@ -573,7 +573,7 @@ export class ProjectController {
             const userId = req.user?.id;
             const { content } = req.body;
 
-            if (!content || !content.trim()) {
+            if (!content || typeof content !== 'string' || !content.trim()) {
                 res.status(400).json({ error: 'Content is required' });
                 return;
             }
@@ -638,6 +638,29 @@ export class ProjectController {
         } catch (error) {
             logger.error('Delete project comment error:', error);
             res.status(500).json({ error: 'Failed to delete comment' });
+        }
+    };
+
+    // GET /api/projects/:id/mentionable-users - Users who can be @mentioned in comments on this project
+    getProjectMentionableUsers = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.id);
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [projectId]);
+
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
+
+            const users = await commentService.getMentionableUsers('project', projectId);
+            res.json(users);
+        } catch (error) {
+            logger.error('Get project mentionable users error:', error);
+            res.status(500).json({ error: 'Failed to get mentionable users' });
         }
     };
 

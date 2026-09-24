@@ -15,6 +15,12 @@ export interface CommentRow {
     updated_at: string;
 }
 
+export interface MentionableUser {
+    id: number;
+    username: string;
+    full_name: string;
+}
+
 const SELECT_COMMENT_FIELDS = `
     c.id, c.entity_type, c.entity_id, c.user_id, u.full_name as author_name, c.content, c.created_at, c.updated_at
 `;
@@ -67,6 +73,55 @@ export class CommentService {
         await db.run(`DELETE FROM comments WHERE id = ?`, [commentId]);
     }
 
+    async getMentionableUsers(entityType: CommentEntityType, entityId: number): Promise<MentionableUser[]> {
+        const ids = await this.getAccessibleUserIds(entityType, entityId);
+        if (ids.size === 0) return [];
+
+        const placeholders = [...ids].map(() => '?').join(', ');
+        return db.query(
+            `SELECT id, username, full_name FROM users WHERE is_active = 1 AND id IN (${placeholders}) ORDER BY full_name`,
+            [...ids]
+        );
+    }
+
+    private async getAccessibleUserIds(entityType: CommentEntityType, entityId: number): Promise<Set<number>> {
+        if (entityType === 'task') {
+            const row = await db.get(`
+                SELECT t.assignee_id, p.assigned_to, p.created_by
+                FROM tasks t
+                LEFT JOIN task_boards tb ON t.board_id = tb.id
+                LEFT JOIN projects p ON tb.project_id = p.id
+                WHERE t.id = ?
+            `, [entityId]);
+            if (!row) return new Set();
+            return this.filterActiveUserIds([row.assignee_id, row.assigned_to, row.created_by]);
+        }
+
+        const row = await db.get(`SELECT assigned_to, created_by FROM projects WHERE id = ?`, [entityId]);
+        if (!row) return new Set();
+
+        const roleUsers = await db.query(
+            `SELECT id FROM users WHERE is_active = 1 AND role IN ('team_lead', 'rpa_operations', 'it_support')`,
+            []
+        );
+        const ids = new Set<number>(roleUsers.map((u: { id: number }) => u.id));
+        const specific = await this.filterActiveUserIds([row.assigned_to, row.created_by]);
+        specific.forEach((id) => ids.add(id));
+        return ids;
+    }
+
+    private async filterActiveUserIds(candidateIds: (number | null | undefined)[]): Promise<Set<number>> {
+        const ids = [...new Set(candidateIds.filter((id): id is number => id != null))];
+        if (ids.length === 0) return new Set();
+
+        const placeholders = ids.map(() => '?').join(', ');
+        const rows = await db.query(
+            `SELECT id FROM users WHERE is_active = 1 AND id IN (${placeholders})`,
+            ids
+        );
+        return new Set(rows.map((r: { id: number }) => r.id));
+    }
+
     private async notifyMentions(entityType: CommentEntityType, entityId: number, authorId: number, content: string): Promise<void> {
         try {
             const usernames = this.extractMentionedUsernames(content);
@@ -78,8 +133,12 @@ export class CommentService {
                 usernames
             );
 
-            const uniqueUserIds = [...new Set(mentioned.map((row: { id: number }) => row.id))]
+            const candidateIds = [...new Set(mentioned.map((row: { id: number }) => row.id))]
                 .filter((id) => id !== authorId);
+            if (candidateIds.length === 0) return;
+
+            const accessibleIds = await this.getAccessibleUserIds(entityType, entityId);
+            const uniqueUserIds = candidateIds.filter((id) => accessibleIds.has(id));
 
             for (const userId of uniqueUserIds) {
                 await notificationService.notify({
