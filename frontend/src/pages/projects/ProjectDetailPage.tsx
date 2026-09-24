@@ -37,11 +37,13 @@ import {
   PictureOutlined,
   FundOutlined,
   RobotOutlined,
-  RocketOutlined
+  RocketOutlined,
+  MessageOutlined
 } from '@ant-design/icons';
 import { ProjectROICard } from '@/components/projects/ProjectROICard';
 import { ProjectHealthCard } from '@/components/projects/ProjectHealthCard';
 import { ActivityTimeline } from '@/components/activity/ActivityTimeline';
+import { CommentsThread } from '@/components/comments/CommentsThread';
 import { ProjectPMOView } from '@/components/projects/ProjectPMOView';
 import { ProjectMLAnalytics } from '@/components/projects/ProjectMLAnalytics';
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal';
@@ -62,6 +64,7 @@ export const ProjectDetailPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<any[]>([]);
+  const [users, setUsers] = useState<{ id: number; full_name: string; username?: string }[]>([]);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
   
@@ -72,6 +75,7 @@ export const ProjectDetailPage: React.FC = () => {
     if (id) {
       loadProjectData();
     }
+    apiService.get('/auth/users').then(setUsers).catch(() => setUsers([]));
   }, [id]);
 
   const loadProjectData = async () => {
@@ -624,6 +628,24 @@ export const ProjectDetailPage: React.FC = () => {
               ),
               children: (
                 <ProjectLifecyclePage />
+              )
+            },
+            {
+              key: 'comments',
+              label: (
+                <span>
+                  <MessageOutlined />
+                  Comentarios
+                </span>
+              ),
+              children: (
+                <div style={{ padding: '8px 0', maxWidth: '720px' }}>
+                  <CommentsThread
+                    entityType="project"
+                    entityId={project.id}
+                    users={users}
+                  />
+                </div>
               )
             }
           ]}
