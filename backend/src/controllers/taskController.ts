@@ -10,6 +10,7 @@ import {
 } from '../utils/batch-deletion.utils';
 import { activityLogService } from '../services/activityLogService';
 import { notificationService } from '../services/notificationService';
+import { commentService } from '../services/commentService';
 
 export class TaskController {
 
@@ -1205,6 +1206,146 @@ export class TaskController {
     } catch (error) {
       logger.error('Get task activity error:', error);
       res.status(500).json({ error: 'Failed to get task activity' });
+    }
+  };
+
+  // GET /api/tasks/:taskId/comments - List comments for a task
+  getTaskComments = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const comments = await commentService.getForEntity('task', parseInt(taskId));
+      res.json(comments);
+    } catch (error) {
+      logger.error('Get task comments error:', error);
+      res.status(500).json({ error: 'Failed to get comments' });
+    }
+  };
+
+  // POST /api/tasks/:taskId/comments - Create a comment on a task
+  createTaskComment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id as number;
+      const { content } = req.body;
+
+      if (!content || !content.trim()) {
+        res.status(400).json({ error: 'Content is required' });
+        return;
+      }
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const comment = await commentService.create('task', parseInt(taskId), userId, content);
+      res.status(201).json(comment);
+    } catch (error) {
+      logger.error('Create task comment error:', error);
+      res.status(500).json({ error: 'Failed to create comment' });
+    }
+  };
+
+  // PATCH /api/tasks/:taskId/comments/:commentId - Update own comment on a task
+  updateTaskComment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId, commentId } = req.params;
+      const userId = req.user?.id;
+      const { content } = req.body;
+
+      if (!content || !content.trim()) {
+        res.status(400).json({ error: 'Content is required' });
+        return;
+      }
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const comment = await commentService.findById(parseInt(commentId));
+      if (!comment || comment.entity_type !== 'task' || comment.entity_id !== parseInt(taskId)) {
+        res.status(404).json({ error: 'Comment not found' });
+        return;
+      }
+      if (comment.user_id !== userId) {
+        res.status(403).json({ error: 'You can only edit your own comments' });
+        return;
+      }
+
+      const updated = await commentService.update(parseInt(commentId), content);
+      res.json(updated);
+    } catch (error) {
+      logger.error('Update task comment error:', error);
+      res.status(500).json({ error: 'Failed to update comment' });
+    }
+  };
+
+  // DELETE /api/tasks/:taskId/comments/:commentId - Delete own comment on a task
+  deleteTaskComment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId, commentId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const comment = await commentService.findById(parseInt(commentId));
+      if (!comment || comment.entity_type !== 'task' || comment.entity_id !== parseInt(taskId)) {
+        res.status(404).json({ error: 'Comment not found' });
+        return;
+      }
+      if (comment.user_id !== userId) {
+        res.status(403).json({ error: 'You can only delete your own comments' });
+        return;
+      }
+
+      await commentService.delete(parseInt(commentId));
+      res.json({ success: true, deletedId: parseInt(commentId) });
+    } catch (error) {
+      logger.error('Delete task comment error:', error);
+      res.status(500).json({ error: 'Failed to delete comment' });
     }
   };
 }

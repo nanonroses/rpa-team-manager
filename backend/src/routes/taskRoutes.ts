@@ -34,6 +34,12 @@ router.post('/tasks/:taskId/subtasks', authenticate, taskController.createTaskSu
 router.patch('/tasks/:taskId/subtasks/:subtaskId', authenticate, taskController.updateTaskSubtask);
 router.delete('/tasks/:taskId/subtasks/:subtaskId', authenticate, taskController.deleteTaskSubtask);
 
+// Comentarios con @menciones - path de 3 segmentos, no colisiona con /tasks/:id
+router.get('/tasks/:taskId/comments', authenticate, taskController.getTaskComments);
+router.post('/tasks/:taskId/comments', authenticate, taskController.createTaskComment);
+router.patch('/tasks/:taskId/comments/:commentId', authenticate, taskController.updateTaskComment);
+router.delete('/tasks/:taskId/comments/:commentId', authenticate, taskController.deleteTaskComment);
+
 router.get('/tasks/my-tasks', authenticate, taskController.getMyTasks);
 router.get('/tasks/project/:projectId', authenticate, taskController.getProjectTasks);
 
