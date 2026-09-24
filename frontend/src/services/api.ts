@@ -641,6 +641,21 @@ class ApiService {
     return response.data;
   }
 
+  async getTaskTags(taskId: number): Promise<any[]> {
+    const response = await this.api.get(`/tasks/${taskId}/tags`);
+    return response.data;
+  }
+
+  async createTaskTag(taskId: number, tag: string): Promise<any> {
+    const response = await this.api.post(`/tasks/${taskId}/tags`, { tag });
+    return response.data;
+  }
+
+  async deleteTaskTag(taskId: number, tagId: number): Promise<any> {
+    const response = await this.api.delete(`/tasks/${taskId}/tags/${tagId}`);
+    return response.data;
+  }
+
   async getProjectGantt(id: number): Promise<{ tasks: any[]; dependencies: any[]; milestones: any[] }> {
     const response = await this.api.get(`/pmo/projects/${id}/gantt`);
     return response.data;

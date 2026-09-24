@@ -47,6 +47,11 @@ router.patch('/tasks/:taskId/comments/:commentId', authenticate, taskController.
 router.delete('/tasks/:taskId/comments/:commentId', authenticate, taskController.deleteTaskComment);
 router.get('/tasks/:taskId/mentionable-users', authenticate, taskController.getTaskMentionableUsers);
 
+// Etiquetas de texto libre - mismo patrón de 3 segmentos que subtareas
+router.get('/tasks/:taskId/tags', authenticate, taskController.getTaskTags);
+router.post('/tasks/:taskId/tags', authenticate, taskController.createTaskTag);
+router.delete('/tasks/:taskId/tags/:tagId', authenticate, taskController.deleteTaskTag);
+
 router.get('/tasks/my-tasks', authenticate, taskController.getMyTasks);
 router.get('/tasks/project/:projectId', authenticate, taskController.getProjectTasks);
 
