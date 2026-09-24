@@ -6,6 +6,7 @@ import { LLMService, QuoteData } from '../services/llmService';
 import { DocumentParserService } from '../services/documentParserService';
 import { projectHealthService } from '../services/projectHealthService';
 import { activityLogService } from '../services/activityLogService';
+import { commentService } from '../services/commentService';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -510,6 +511,135 @@ export class ProjectController {
         }
         return true;
     }
+
+    // GET /api/projects/:id/comments
+    getProjectComments = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.id);
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [projectId]);
+
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
+
+            const comments = await commentService.getForEntity('project', projectId);
+            res.json(comments);
+        } catch (error) {
+            logger.error('Get project comments error:', error);
+            res.status(500).json({ error: 'Failed to get comments' });
+        }
+    };
+
+    // POST /api/projects/:id/comments
+    createProjectComment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.id);
+            const userId = req.user?.id as number;
+            const { content } = req.body;
+
+            if (!content || !content.trim()) {
+                res.status(400).json({ error: 'Content is required' });
+                return;
+            }
+
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [projectId]);
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
+
+            const comment = await commentService.create('project', projectId, userId, content);
+            res.status(201).json(comment);
+        } catch (error) {
+            logger.error('Create project comment error:', error);
+            res.status(500).json({ error: 'Failed to create comment' });
+        }
+    };
+
+    // PATCH /api/projects/:id/comments/:commentId
+    updateProjectComment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.id);
+            const commentId = parseInt(req.params.commentId);
+            const userId = req.user?.id;
+            const { content } = req.body;
+
+            if (!content || !content.trim()) {
+                res.status(400).json({ error: 'Content is required' });
+                return;
+            }
+
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [projectId]);
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
+
+            const comment = await commentService.findById(commentId);
+            if (!comment || comment.entity_type !== 'project' || comment.entity_id !== projectId) {
+                res.status(404).json({ error: 'Comment not found' });
+                return;
+            }
+            if (comment.user_id !== userId) {
+                res.status(403).json({ error: 'You can only edit your own comments' });
+                return;
+            }
+
+            const updated = await commentService.update(commentId, content);
+            res.json(updated);
+        } catch (error) {
+            logger.error('Update project comment error:', error);
+            res.status(500).json({ error: 'Failed to update comment' });
+        }
+    };
+
+    // DELETE /api/projects/:id/comments/:commentId
+    deleteProjectComment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.id);
+            const commentId = parseInt(req.params.commentId);
+            const userId = req.user?.id;
+
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [projectId]);
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
+
+            const comment = await commentService.findById(commentId);
+            if (!comment || comment.entity_type !== 'project' || comment.entity_id !== projectId) {
+                res.status(404).json({ error: 'Comment not found' });
+                return;
+            }
+            if (comment.user_id !== userId) {
+                res.status(403).json({ error: 'You can only delete your own comments' });
+                return;
+            }
+
+            await commentService.delete(commentId);
+            res.json({ success: true, deletedId: commentId });
+        } catch (error) {
+            logger.error('Delete project comment error:', error);
+            res.status(500).json({ error: 'Failed to delete comment' });
+        }
+    };
 
     // DEBUG: Temporary endpoint to check financial data
     debugFinancialData = async (req: AuthenticatedRequest, res: Response): Promise<void> => {

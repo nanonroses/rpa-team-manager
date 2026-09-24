@@ -84,6 +84,12 @@ router.get('/:id/health', projectController.getProjectHealth);
 // GET /api/projects/:id/activity - Combined activity timeline (project + its tasks)
 router.get('/:id/activity', projectController.getProjectActivity);
 
+// GET/POST/PATCH/DELETE /api/projects/:id/comments - Comments with @mentions
+router.get('/:id/comments', projectController.getProjectComments);
+router.post('/:id/comments', projectController.createProjectComment);
+router.patch('/:id/comments/:commentId', projectController.updateProjectComment);
+router.delete('/:id/comments/:commentId', projectController.deleteProjectComment);
+
 // POST /api/projects/:id/baseline - Freeze project baseline (irreversible, team_lead only)
 router.post('/:id/baseline', authorize(['team_lead']), projectController.freezeBaseline);
 
