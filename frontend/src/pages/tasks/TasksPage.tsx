@@ -29,7 +29,8 @@ import {
   DeleteOutlined,
   ClockCircleOutlined,
   DollarOutlined,
-  CheckSquareOutlined
+  CheckSquareOutlined,
+  TeamOutlined
 } from '@ant-design/icons';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { useSearchParams } from 'react-router-dom';
@@ -37,6 +38,7 @@ import { apiService } from '@/services/api';
 import { TaskSubtasksChecklist } from '@/components/tasks/TaskSubtasksChecklist';
 import { CommentsThread } from '@/components/comments/CommentsThread';
 import { TaskTagsEditor } from '@/components/tasks/TaskTagsEditor';
+import { TaskCollaboratorsEditor } from '@/components/tasks/TaskCollaboratorsEditor';
 import { getPriorityColor } from '@/utils';
 import dayjs from 'dayjs';
 
@@ -87,6 +89,8 @@ interface Task {
   subtasks_total?: number;
   subtasks_done?: number;
   tags?: string | null;
+  collaborators_count?: number;
+  collaborators_names?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -644,6 +648,14 @@ export const TasksPage: React.FC = () => {
                   {task.tags && task.tags.split('||').map((tag) => (
                     <Tag key={tag} color="blue">{tag}</Tag>
                   ))}
+
+                  {!!task.collaborators_count && (
+                    <Tooltip title={`Colaboradores: ${(task.collaborators_names || '').split('||').join(', ')}`}>
+                      <Tag icon={<TeamOutlined />}>
+                        +{task.collaborators_count}
+                      </Tag>
+                    </Tooltip>
+                  )}
                 </Space>
               </div>
 
@@ -1199,6 +1211,12 @@ export const TasksPage: React.FC = () => {
               <Divider />
               <TaskTagsEditor
                 taskId={editingTask.id}
+                onChange={() => selectedBoard && loadBoard(selectedBoard.id)}
+              />
+              <Divider />
+              <TaskCollaboratorsEditor
+                taskId={editingTask.id}
+                users={users}
                 onChange={() => selectedBoard && loadBoard(selectedBoard.id)}
               />
               <Divider />

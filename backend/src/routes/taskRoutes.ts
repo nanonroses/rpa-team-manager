@@ -52,6 +52,11 @@ router.get('/tasks/:taskId/tags', authenticate, taskController.getTaskTags);
 router.post('/tasks/:taskId/tags', authenticate, taskController.createTaskTag);
 router.delete('/tasks/:taskId/tags/:tagId', authenticate, taskController.deleteTaskTag);
 
+// Colaboradores adicionales (multi-asignados aditivo) - mismo patrón de 3 segmentos
+router.get('/tasks/:taskId/collaborators', authenticate, taskController.getTaskCollaborators);
+router.post('/tasks/:taskId/collaborators', authenticate, taskController.addTaskCollaborator);
+router.delete('/tasks/:taskId/collaborators/:collaboratorId', authenticate, taskController.removeTaskCollaborator);
+
 router.get('/tasks/my-tasks', authenticate, taskController.getMyTasks);
 router.get('/tasks/project/:projectId', authenticate, taskController.getProjectTasks);
 

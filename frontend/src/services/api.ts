@@ -656,6 +656,21 @@ class ApiService {
     return response.data;
   }
 
+  async getTaskCollaborators(taskId: number): Promise<any[]> {
+    const response = await this.api.get(`/tasks/${taskId}/collaborators`);
+    return response.data;
+  }
+
+  async addTaskCollaborator(taskId: number, userId: number): Promise<any> {
+    const response = await this.api.post(`/tasks/${taskId}/collaborators`, { user_id: userId });
+    return response.data;
+  }
+
+  async removeTaskCollaborator(taskId: number, collaboratorId: number): Promise<any> {
+    const response = await this.api.delete(`/tasks/${taskId}/collaborators/${collaboratorId}`);
+    return response.data;
+  }
+
   async getProjectGantt(id: number): Promise<{ tasks: any[]; dependencies: any[]; milestones: any[] }> {
     const response = await this.api.get(`/pmo/projects/${id}/gantt`);
     return response.data;

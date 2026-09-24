@@ -93,7 +93,9 @@ export class TaskController {
           te.total_value,
           COALESCE(st.subtasks_total, 0) as subtasks_total,
           COALESCE(st.subtasks_done, 0) as subtasks_done,
-          tg.tags as tags
+          tg.tags as tags,
+          COALESCE(col.collaborators_count, 0) as collaborators_count,
+          col.collaborators_names as collaborators_names
         FROM tasks t
         LEFT JOIN users u_assignee ON t.assignee_id = u_assignee.id
         LEFT JOIN users u_reporter ON t.reporter_id = u_reporter.id
@@ -121,6 +123,15 @@ export class TaskController {
           FROM task_tags
           GROUP BY task_id
         ) tg ON t.id = tg.task_id
+        LEFT JOIN (
+          SELECT
+            tc.task_id,
+            COUNT(*) as collaborators_count,
+            GROUP_CONCAT(u.full_name, '||') as collaborators_names
+          FROM task_collaborators tc
+          JOIN users u ON tc.user_id = u.id
+          GROUP BY tc.task_id
+        ) col ON t.id = col.task_id
         WHERE t.board_id = ?
         ORDER BY t.position ASC
       `, [id]);
@@ -1148,6 +1159,136 @@ export class TaskController {
     } catch (error) {
       logger.error('Delete task tag error:', error);
       res.status(500).json({ error: 'Failed to delete tag' });
+    }
+  };
+
+  // GET /api/tasks/:taskId/collaborators - List a task's additional collaborators
+  getTaskCollaborators = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const collaborators = await db.query(`
+        SELECT tc.id, tc.task_id, tc.user_id, u.full_name, u.avatar_url
+        FROM task_collaborators tc
+        JOIN users u ON tc.user_id = u.id
+        WHERE tc.task_id = ?
+        ORDER BY tc.id ASC
+      `, [taskId]);
+
+      res.json(collaborators);
+    } catch (error) {
+      logger.error('Get task collaborators error:', error);
+      res.status(500).json({ error: 'Failed to get collaborators' });
+    }
+  };
+
+  // POST /api/tasks/:taskId/collaborators - Add a collaborator to a task
+  addTaskCollaborator = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+      const { user_id } = req.body;
+
+      if (!user_id) {
+        res.status(400).json({ error: 'user_id is required' });
+        return;
+      }
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const targetUser = await db.get(`
+        SELECT id, full_name, avatar_url FROM users WHERE id = ?
+      `, [user_id]);
+
+      if (!targetUser) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      const existing = await db.get(`
+        SELECT id FROM task_collaborators WHERE task_id = ? AND user_id = ?
+      `, [taskId, user_id]);
+
+      if (existing) {
+        res.status(409).json({ error: 'User is already a collaborator on this task' });
+        return;
+      }
+
+      const result = await db.run(`
+        INSERT INTO task_collaborators (task_id, user_id)
+        VALUES (?, ?)
+      `, [taskId, user_id]);
+
+      res.status(201).json({
+        id: result.id,
+        task_id: Number(taskId),
+        user_id: targetUser.id,
+        full_name: targetUser.full_name,
+        avatar_url: targetUser.avatar_url
+      });
+    } catch (error) {
+      logger.error('Add task collaborator error:', error);
+      res.status(500).json({ error: 'Failed to add collaborator' });
+    }
+  };
+
+  // DELETE /api/tasks/:taskId/collaborators/:collaboratorId - Remove a collaborator from a task
+  removeTaskCollaborator = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId, collaboratorId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const result = await db.run(`
+        DELETE FROM task_collaborators WHERE id = ? AND task_id = ?
+      `, [collaboratorId, taskId]);
+
+      if (result.changes === 0) {
+        res.status(404).json({ error: 'Collaborator not found' });
+        return;
+      }
+
+      res.json({ success: true, deletedId: collaboratorId });
+    } catch (error) {
+      logger.error('Remove task collaborator error:', error);
+      res.status(500).json({ error: 'Failed to remove collaborator' });
     }
   };
 

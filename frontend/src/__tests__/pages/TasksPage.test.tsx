@@ -15,7 +15,10 @@ vi.mock('@/services/api', () => ({
     getMentionableUsers: vi.fn(),
     getTaskTags: vi.fn(),
     createTaskTag: vi.fn(),
-    deleteTaskTag: vi.fn()
+    deleteTaskTag: vi.fn(),
+    getTaskCollaborators: vi.fn(),
+    addTaskCollaborator: vi.fn(),
+    removeTaskCollaborator: vi.fn()
   }
 }));
 
@@ -50,6 +53,7 @@ describe('TasksPage - deep link ?taskId=', () => {
     (apiService.getComments as any).mockResolvedValue([]);
     (apiService.getMentionableUsers as any).mockResolvedValue([]);
     (apiService.getTaskTags as any).mockResolvedValue([]);
+    (apiService.getTaskCollaborators as any).mockResolvedValue([]);
   });
 
   it('abre el modal de edición de la tarea indicada por ?taskId=', async () => {
