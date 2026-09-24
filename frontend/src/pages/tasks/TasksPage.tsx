@@ -106,6 +106,32 @@ interface Board {
   tasks: Task[];
 }
 
+const TASKS_FILTERS_STORAGE_KEY = 'tasksPage:filters';
+
+interface PersistedTaskFilters {
+  priority?: string;
+  taskType?: string;
+  assigneeId?: number;
+}
+
+function loadPersistedFilters(): PersistedTaskFilters {
+  try {
+    const raw = localStorage.getItem(TASKS_FILTERS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePersistedFilters(filters: PersistedTaskFilters): void {
+  try {
+    localStorage.setItem(TASKS_FILTERS_STORAGE_KEY, JSON.stringify(filters));
+  } catch {
+    // localStorage no disponible (modo privado, cuota excedida, etc.) - los filtros
+    // simplemente no sobreviven al recargo, sin romper la página.
+  }
+}
+
 export const TasksPage: React.FC = () => {
   console.log('🚀 TasksPage component loaded - VERSION 2.0 - INTERACTIVE BUTTONS ENABLED');
 
@@ -126,10 +152,24 @@ export const TasksPage: React.FC = () => {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [selectedColumn, setSelectedColumn] = useState<number | null>(null);
 
-  // Filtros del board
-  const [filterPriority, setFilterPriority] = useState<string | undefined>(undefined);
-  const [filterTaskType, setFilterTaskType] = useState<string | undefined>(undefined);
-  const [filterAssigneeId, setFilterAssigneeId] = useState<number | undefined>(undefined);
+  // Filtros del board (persistidos en localStorage para que sobrevivan a un recargo de pagina)
+  const [filterPriority, setFilterPriority] = useState<string | undefined>(
+    () => loadPersistedFilters().priority
+  );
+  const [filterTaskType, setFilterTaskType] = useState<string | undefined>(
+    () => loadPersistedFilters().taskType
+  );
+  const [filterAssigneeId, setFilterAssigneeId] = useState<number | undefined>(
+    () => loadPersistedFilters().assigneeId
+  );
+
+  useEffect(() => {
+    savePersistedFilters({
+      priority: filterPriority,
+      taskType: filterTaskType,
+      assigneeId: filterAssigneeId
+    });
+  }, [filterPriority, filterTaskType, filterAssigneeId]);
 
   // Edición masiva
   const [selectionMode, setSelectionMode] = useState(false);

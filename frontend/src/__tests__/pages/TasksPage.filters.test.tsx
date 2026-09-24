@@ -53,6 +53,7 @@ async function selectBoard() {
 describe('TasksPage - filtros', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
     (apiService.getProjects as any).mockResolvedValue([{ id: 7, name: 'AGROSUPER' }]);
     (apiService.get as any).mockImplementation((url: string) => {
       if (url.startsWith('/auth/users')) return Promise.resolve([{ id: 9, full_name: 'Ana' }]);
@@ -109,5 +110,29 @@ describe('TasksPage - filtros', () => {
       expect(screen.getByText('Tarea Board 2')).toBeInTheDocument();
     });
     expect(screen.queryByRole('button', { name: /limpiar filtros/i })).not.toBeInTheDocument();
+  }, 30000);
+
+  it('guarda el filtro elegido en localStorage', async () => {
+    renderPage();
+    await selectBoard();
+
+    await userEvent.click(screen.getByRole('combobox', { name: /filtrar por prioridad/i }));
+    await userEvent.click(await screen.findByText('🔴 Crítica'));
+
+    await waitFor(() => {
+      const stored = localStorage.getItem('tasksPage:filters');
+      expect(stored).toContain('"priority":"critical"');
+    });
+  }, 30000);
+
+  it('aplica al cargar un filtro de prioridad ya guardado en localStorage', async () => {
+    localStorage.setItem('tasksPage:filters', JSON.stringify({ priority: 'critical' }));
+
+    renderPage();
+    await selectBoard();
+
+    expect(screen.getByText('Tarea Critica')).toBeInTheDocument();
+    expect(screen.queryByText('Tarea Media')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /limpiar filtros/i })).toBeInTheDocument();
   }, 30000);
 });
