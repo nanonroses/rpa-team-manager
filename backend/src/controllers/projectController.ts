@@ -399,6 +399,18 @@ export class ProjectController {
         try {
             const { id } = req.params;
 
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [id]);
+
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
+
             // Get all tasks for the project with dependencies
             const tasks = await db.query(`
                 SELECT 
@@ -462,6 +474,18 @@ export class ProjectController {
     getProjectHealth = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             const projectId = parseInt(req.params.id);
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [projectId]);
+
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
+
             const health = await projectHealthService.getProjectHealth(projectId);
             res.json(health);
         } catch (error) {
@@ -726,6 +750,18 @@ export class ProjectController {
     getProjectAssignments = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             const { id } = req.params;
+
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [id]);
+
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
 
             const assignments = await db.query(`
                 SELECT 
