@@ -21,6 +21,7 @@ import {
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import { NotificationBell } from './NotificationBell';
+import { GlobalSearch } from './GlobalSearch';
 import { RoleLabels, RoleColors } from '@/types/auth';
 
 const { Header, Sider, Content } = Layout;
@@ -247,6 +248,7 @@ export const AppLayout: React.FC = () => {
           </Space>
 
           <Space align="center">
+            <GlobalSearch />
             <NotificationBell />
 
             <Dropdown

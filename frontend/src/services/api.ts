@@ -413,6 +413,11 @@ class ApiService {
     return response.data;
   }
 
+  async searchTasks(search: string): Promise<any[]> {
+    const response = await this.api.get('/tasks', { params: { search, limit: 10 } });
+    return response.data;
+  }
+
   // Billing endpoints (Fase 2 - Cobros e hitos de pago)
   async getBillingDashboard(projectId?: number): Promise<any> {
     const url = projectId ? `/billing/dashboard?project_id=${projectId}` : '/billing/dashboard';
