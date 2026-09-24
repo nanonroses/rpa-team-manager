@@ -1575,5 +1575,22 @@ export const migrations: Migration[] = [
 
       `CREATE INDEX IF NOT EXISTS idx_task_subtasks_task ON task_subtasks(task_id)`
     ]
+  },
+
+  {
+    version: 34,
+    description: 'Etiquetas de texto libre para tasks - Fase 5',
+    up: [
+      `CREATE TABLE IF NOT EXISTS task_tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id INTEGER NOT NULL,
+        tag VARCHAR(50) NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+        UNIQUE (task_id, tag)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_task_tags_task ON task_tags(task_id)`
+    ]
   }
 ];

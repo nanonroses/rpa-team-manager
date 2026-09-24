@@ -34,6 +34,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautif
 import { useSearchParams } from 'react-router-dom';
 import { apiService } from '@/services/api';
 import { TaskSubtasksChecklist } from '@/components/tasks/TaskSubtasksChecklist';
+import { TaskTagsEditor } from '@/components/tasks/TaskTagsEditor';
 import { getPriorityColor } from '@/utils';
 import dayjs from 'dayjs';
 
@@ -82,6 +83,7 @@ interface Task {
   total_value?: number;
   subtasks_total?: number;
   subtasks_done?: number;
+  tags?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -559,6 +561,10 @@ export const TasksPage: React.FC = () => {
                       </Tag>
                     </Tooltip>
                   )}
+
+                  {task.tags && task.tags.split('||').map((tag) => (
+                    <Tag key={tag} color="blue">{tag}</Tag>
+                  ))}
                 </Space>
               </div>
 
@@ -969,6 +975,11 @@ export const TasksPage: React.FC = () => {
 
           {editingTask && (
             <>
+              <Divider />
+              <TaskTagsEditor
+                taskId={editingTask.id}
+                onChange={() => selectedBoard && loadBoard(selectedBoard.id)}
+              />
               <Divider />
               <TaskSubtasksChecklist
                 taskId={editingTask.id}

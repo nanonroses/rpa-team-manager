@@ -34,6 +34,11 @@ router.post('/tasks/:taskId/subtasks', authenticate, taskController.createTaskSu
 router.patch('/tasks/:taskId/subtasks/:subtaskId', authenticate, taskController.updateTaskSubtask);
 router.delete('/tasks/:taskId/subtasks/:subtaskId', authenticate, taskController.deleteTaskSubtask);
 
+// Etiquetas de texto libre - mismo patrón de 3 segmentos que subtareas
+router.get('/tasks/:taskId/tags', authenticate, taskController.getTaskTags);
+router.post('/tasks/:taskId/tags', authenticate, taskController.createTaskTag);
+router.delete('/tasks/:taskId/tags/:tagId', authenticate, taskController.deleteTaskTag);
+
 router.get('/tasks/my-tasks', authenticate, taskController.getMyTasks);
 router.get('/tasks/project/:projectId', authenticate, taskController.getProjectTasks);
 

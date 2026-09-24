@@ -90,7 +90,8 @@ export class TaskController {
           te.total_hours,
           te.total_value,
           COALESCE(st.subtasks_total, 0) as subtasks_total,
-          COALESCE(st.subtasks_done, 0) as subtasks_done
+          COALESCE(st.subtasks_done, 0) as subtasks_done,
+          tg.tags as tags
         FROM tasks t
         LEFT JOIN users u_assignee ON t.assignee_id = u_assignee.id
         LEFT JOIN users u_reporter ON t.reporter_id = u_reporter.id
@@ -111,6 +112,13 @@ export class TaskController {
           FROM task_subtasks
           GROUP BY task_id
         ) st ON t.id = st.task_id
+        LEFT JOIN (
+          SELECT
+            task_id,
+            GROUP_CONCAT(tag, '||') as tags
+          FROM task_tags
+          GROUP BY task_id
+        ) tg ON t.id = tg.task_id
         WHERE t.board_id = ?
         ORDER BY t.position ASC
       `, [id]);
@@ -889,6 +897,132 @@ export class TaskController {
     } catch (error) {
       logger.error('Delete task subtask error:', error);
       res.status(500).json({ error: 'Failed to delete subtask' });
+    }
+  };
+
+  // GET /api/tasks/:taskId/tags - List a task's tags
+  getTaskTags = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const tags = await db.query(`
+        SELECT id, task_id, tag, created_at
+        FROM task_tags
+        WHERE task_id = ?
+        ORDER BY id ASC
+      `, [taskId]);
+
+      res.json(tags);
+    } catch (error) {
+      logger.error('Get task tags error:', error);
+      res.status(500).json({ error: 'Failed to get tags' });
+    }
+  };
+
+  // POST /api/tasks/:taskId/tags - Add a tag to a task
+  createTaskTag = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+      const { tag } = req.body;
+
+      const normalizedTag = (tag || '').trim().toLowerCase();
+
+      if (!normalizedTag) {
+        res.status(400).json({ error: 'Tag is required' });
+        return;
+      }
+
+      if (normalizedTag.length > 50) {
+        res.status(400).json({ error: 'Tag must be 50 characters or fewer' });
+        return;
+      }
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const existing = await db.get(`
+        SELECT id FROM task_tags WHERE task_id = ? AND tag = ?
+      `, [taskId, normalizedTag]);
+
+      if (existing) {
+        res.status(409).json({ error: 'Tag already exists on this task' });
+        return;
+      }
+
+      const result = await db.run(`
+        INSERT INTO task_tags (task_id, tag)
+        VALUES (?, ?)
+      `, [taskId, normalizedTag]);
+
+      const created = await db.get(`
+        SELECT id, task_id, tag, created_at
+        FROM task_tags WHERE id = ?
+      `, [result.id]);
+
+      res.status(201).json(created);
+    } catch (error) {
+      logger.error('Create task tag error:', error);
+      res.status(500).json({ error: 'Failed to create tag' });
+    }
+  };
+
+  // DELETE /api/tasks/:taskId/tags/:tagId - Remove a tag from a task
+  deleteTaskTag = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId, tagId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const result = await db.run(`
+        DELETE FROM task_tags WHERE id = ? AND task_id = ?
+      `, [tagId, taskId]);
+
+      if (result.changes === 0) {
+        res.status(404).json({ error: 'Tag not found' });
+        return;
+      }
+
+      res.json({ success: true, deletedId: tagId });
+    } catch (error) {
+      logger.error('Delete task tag error:', error);
+      res.status(500).json({ error: 'Failed to delete tag' });
     }
   };
 
