@@ -39,6 +39,13 @@ router.get('/tasks/:taskId/dependencies', authenticate, taskController.getTaskDe
 router.post('/tasks/:taskId/dependencies', authenticate, taskController.createTaskDependency);
 router.delete('/tasks/:taskId/dependencies/:dependencyId', authenticate, taskController.deleteTaskDependency);
 
+// Comentarios con @menciones - path de 3 segmentos, no colisiona con /tasks/:id
+router.get('/tasks/:taskId/comments', authenticate, taskController.getTaskComments);
+router.post('/tasks/:taskId/comments', authenticate, taskController.createTaskComment);
+router.patch('/tasks/:taskId/comments/:commentId', authenticate, taskController.updateTaskComment);
+router.delete('/tasks/:taskId/comments/:commentId', authenticate, taskController.deleteTaskComment);
+router.get('/tasks/:taskId/mentionable-users', authenticate, taskController.getTaskMentionableUsers);
+
 router.get('/tasks/my-tasks', authenticate, taskController.getMyTasks);
 router.get('/tasks/project/:projectId', authenticate, taskController.getProjectTasks);
 

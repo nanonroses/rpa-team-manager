@@ -37,11 +37,13 @@ import {
   PictureOutlined,
   FundOutlined,
   RobotOutlined,
-  RocketOutlined
+  RocketOutlined,
+  MessageOutlined
 } from '@ant-design/icons';
 import { ProjectROICard } from '@/components/projects/ProjectROICard';
 import { ProjectHealthCard } from '@/components/projects/ProjectHealthCard';
 import { ActivityTimeline } from '@/components/activity/ActivityTimeline';
+import { CommentsThread } from '@/components/comments/CommentsThread';
 import { ProjectPMOView } from '@/components/projects/ProjectPMOView';
 import { ProjectMLAnalytics } from '@/components/projects/ProjectMLAnalytics';
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal';
@@ -624,6 +626,23 @@ export const ProjectDetailPage: React.FC = () => {
               ),
               children: (
                 <ProjectLifecyclePage />
+              )
+            },
+            {
+              key: 'comments',
+              label: (
+                <span>
+                  <MessageOutlined />
+                  Comentarios
+                </span>
+              ),
+              children: (
+                <div style={{ padding: '8px 0', maxWidth: '720px' }}>
+                  <CommentsThread
+                    entityType="project"
+                    entityId={project.id}
+                  />
+                </div>
               )
             }
           ]}

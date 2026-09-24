@@ -10,7 +10,9 @@ vi.mock('@/services/api', () => ({
     put: vi.fn(),
     getTaskById: vi.fn(),
     getTaskSubtasks: vi.fn(),
-    createTaskSubtask: vi.fn()
+    createTaskSubtask: vi.fn(),
+    getComments: vi.fn(),
+    getMentionableUsers: vi.fn()
   }
 }));
 
@@ -42,6 +44,8 @@ describe('TasksPage - deep link ?taskId=', () => {
       return Promise.resolve(null);
     });
     (apiService.getTaskSubtasks as any).mockResolvedValue([]);
+    (apiService.getComments as any).mockResolvedValue([]);
+    (apiService.getMentionableUsers as any).mockResolvedValue([]);
   });
 
   it('abre el modal de edición de la tarea indicada por ?taskId=', async () => {
@@ -146,6 +150,31 @@ describe('TasksPage - deep link ?taskId=', () => {
     expect(await screen.findByText('Título')).toBeInTheDocument();
     expect(screen.queryByText(/^Subtareas/)).not.toBeInTheDocument();
     expect(apiService.getTaskSubtasks).not.toHaveBeenCalled();
+  });
+
+  it('muestra el hilo de comentarios en el modal de edicion de tarea', async () => {
+    (apiService.getTaskById as any).mockResolvedValue({ ...board.tasks[0], project_id: 7 });
+
+    renderWithTaskId('42');
+
+    expect(await screen.findByText(/^Comentarios/)).toBeInTheDocument();
+    expect(apiService.getComments).toHaveBeenCalledWith('task', 42);
+  });
+
+  it('no muestra el hilo de comentarios en el modal de "Nueva Tarea" (crear, no editar)', async () => {
+    render(
+      <MemoryRouter initialEntries={['/tasks']}>
+        <TasksPage />
+      </MemoryRouter>
+    );
+
+    const newTaskButton = await screen.findByRole('button', { name: /nueva tarea/i });
+    await waitFor(() => expect(newTaskButton).not.toBeDisabled());
+    await userEvent.click(newTaskButton);
+
+    expect(await screen.findByText('Título')).toBeInTheDocument();
+    expect(screen.queryByText(/^Comentarios/)).not.toBeInTheDocument();
+    expect(apiService.getComments).not.toHaveBeenCalled();
   });
 
   it('presionar Enter en "Agregar subtarea..." no envía el formulario de edición de tarea', async () => {

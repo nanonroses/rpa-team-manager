@@ -34,6 +34,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautif
 import { useSearchParams } from 'react-router-dom';
 import { apiService } from '@/services/api';
 import { TaskSubtasksChecklist } from '@/components/tasks/TaskSubtasksChecklist';
+import { CommentsThread } from '@/components/comments/CommentsThread';
 import { getPriorityColor } from '@/utils';
 import dayjs from 'dayjs';
 
@@ -50,6 +51,7 @@ interface User {
   id: number;
   full_name: string;
   avatar_url?: string;
+  username?: string;
 }
 
 interface TaskColumn {
@@ -1058,6 +1060,11 @@ export const TasksPage: React.FC = () => {
               <TaskSubtasksChecklist
                 taskId={editingTask.id}
                 onChange={() => selectedBoard && loadBoard(selectedBoard.id)}
+              />
+              <Divider />
+              <CommentsThread
+                entityType="task"
+                entityId={editingTask.id}
               />
             </>
           )}
