@@ -10,6 +10,7 @@ import {
 } from '../utils/batch-deletion.utils';
 import { activityLogService } from '../services/activityLogService';
 import { notificationService } from '../services/notificationService';
+import { taskDependencyService, TaskDependencyError } from '../services/taskDependencyService';
 
 export class TaskController {
 
@@ -896,6 +897,122 @@ export class TaskController {
     } catch (error) {
       logger.error('Delete task subtask error:', error);
       res.status(500).json({ error: 'Failed to delete subtask' });
+    }
+  };
+
+  // GET /api/tasks/:taskId/dependencies - List dependencies for a task (depends_on / blocks)
+  getTaskDependencies = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const dependencies = await taskDependencyService.getDependenciesForTask(Number(taskId));
+
+      res.json(dependencies);
+    } catch (error) {
+      logger.error('Get task dependencies error:', error);
+      res.status(500).json({ error: 'Failed to get dependencies' });
+    }
+  };
+
+  // POST /api/tasks/:taskId/dependencies - Create a dependency (:taskId depends on depends_on_task_id)
+  createTaskDependency = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+      const { depends_on_task_id, dependency_type, lag_days } = req.body;
+
+      if (!depends_on_task_id) {
+        res.status(400).json({ error: 'depends_on_task_id is required' });
+        return;
+      }
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const dependsOnTask = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [depends_on_task_id, userId, userId, userId]);
+
+      if (!dependsOnTask) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const dependency = await taskDependencyService.createDependency(
+        Number(taskId),
+        Number(depends_on_task_id),
+        dependency_type,
+        lag_days
+      );
+
+      res.status(201).json(dependency);
+    } catch (error) {
+      if (error instanceof TaskDependencyError) {
+        res.status(error.status).json({ error: error.message });
+        return;
+      }
+      logger.error('Create task dependency error:', error);
+      res.status(500).json({ error: 'Failed to create dependency' });
+    }
+  };
+
+  // DELETE /api/tasks/:taskId/dependencies/:dependencyId - Delete a dependency
+  deleteTaskDependency = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId, dependencyId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      await taskDependencyService.deleteDependency(Number(taskId), Number(dependencyId));
+
+      res.json({ success: true, deletedId: dependencyId });
+    } catch (error) {
+      if (error instanceof TaskDependencyError) {
+        res.status(error.status).json({ error: error.message });
+        return;
+      }
+      logger.error('Delete task dependency error:', error);
+      res.status(500).json({ error: 'Failed to delete dependency' });
     }
   };
 

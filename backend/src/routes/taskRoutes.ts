@@ -34,6 +34,11 @@ router.post('/tasks/:taskId/subtasks', authenticate, taskController.createTaskSu
 router.patch('/tasks/:taskId/subtasks/:subtaskId', authenticate, taskController.updateTaskSubtask);
 router.delete('/tasks/:taskId/subtasks/:subtaskId', authenticate, taskController.deleteTaskSubtask);
 
+// Dependencias entre tareas - path de 3 segmentos, no colisiona con /tasks/:id
+router.get('/tasks/:taskId/dependencies', authenticate, taskController.getTaskDependencies);
+router.post('/tasks/:taskId/dependencies', authenticate, taskController.createTaskDependency);
+router.delete('/tasks/:taskId/dependencies/:dependencyId', authenticate, taskController.deleteTaskDependency);
+
 router.get('/tasks/my-tasks', authenticate, taskController.getMyTasks);
 router.get('/tasks/project/:projectId', authenticate, taskController.getProjectTasks);
 
