@@ -19,6 +19,7 @@ router.post('/tasks', authenticate, validate({ body: createTaskSchema }), taskCo
 // Specific routes MUST come before parameterized routes
 router.post('/tasks/batch', authenticate, taskController.batchCreateTasks);
 router.delete('/tasks/batch', authenticate, taskController.batchDeleteTasks);
+router.patch('/tasks/batch', authenticate, taskController.batchUpdateTasks);
 
 // Parameterized routes come after specific routes
 router.put('/tasks/:id', authenticate, taskController.updateTask);
