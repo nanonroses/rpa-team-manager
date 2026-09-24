@@ -581,6 +581,11 @@ class ApiService {
     return response.data;
   }
 
+  async batchUpdateTasks(taskIds: number[], updates: { priority?: string; assignee_id?: number | null; column_id?: number }): Promise<any> {
+    const response = await this.api.patch('/tasks/batch', { taskIds, updates });
+    return response.data;
+  }
+
   async moveTask(taskId: number, moveData: { column_id: number; position: number }): Promise<any> {
     const response = await this.api.post(`/tasks/${taskId}/move`, moveData);
     return response.data;

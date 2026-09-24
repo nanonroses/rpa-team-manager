@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, 
-  Button, 
-  Select, 
-  Typography, 
-  Space, 
-  Row, 
-  Col, 
-  Tag, 
+import {
+  Card,
+  Button,
+  Select,
+  Typography,
+  Space,
+  Row,
+  Col,
+  Tag,
+  Checkbox,
   Avatar,
   Modal,
   Form,
@@ -123,6 +124,13 @@ export const TasksPage: React.FC = () => {
   const [filterPriority, setFilterPriority] = useState<string | undefined>(undefined);
   const [filterTaskType, setFilterTaskType] = useState<string | undefined>(undefined);
   const [filterAssigneeId, setFilterAssigneeId] = useState<number | undefined>(undefined);
+
+  // Edición masiva
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([]);
+  const [bulkPriority, setBulkPriority] = useState<string | undefined>(undefined);
+  const [bulkAssigneeId, setBulkAssigneeId] = useState<number | undefined>(undefined);
+  const [bulkColumnId, setBulkColumnId] = useState<number | undefined>(undefined);
 
   const [form] = Form.useForm();
   const [boardForm] = Form.useForm();
@@ -380,6 +388,53 @@ export const TasksPage: React.FC = () => {
     }
   };
 
+  const toggleSelectionMode = () => {
+    if (selectionMode) {
+      exitSelectionMode();
+    } else {
+      setSelectionMode(true);
+    }
+  };
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedTaskIds([]);
+    setBulkPriority(undefined);
+    setBulkAssigneeId(undefined);
+    setBulkColumnId(undefined);
+  };
+
+  const toggleTaskSelection = (taskId: number) => {
+    setSelectedTaskIds((prev) =>
+      prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId]
+    );
+  };
+
+  const handleBulkApply = async () => {
+    const updates: { priority?: string; assignee_id?: number; column_id?: number } = {};
+    if (bulkPriority !== undefined) updates.priority = bulkPriority;
+    if (bulkAssigneeId !== undefined) updates.assignee_id = bulkAssigneeId;
+    if (bulkColumnId !== undefined) updates.column_id = bulkColumnId;
+
+    if (Object.keys(updates).length === 0) {
+      message.warning('Elegí al menos un cambio para aplicar');
+      return;
+    }
+
+    try {
+      await apiService.batchUpdateTasks(selectedTaskIds, updates);
+      message.success('Tareas actualizadas exitosamente');
+      exitSelectionMode();
+
+      if (selectedBoard) {
+        loadBoard(selectedBoard.id);
+      }
+    } catch (error: any) {
+      console.error('Error en edición masiva:', error);
+      message.error(error.response?.data?.error || 'Error al actualizar tareas');
+    }
+  };
+
   const handleDragEnd = async (result: DropResult) => {
     if (!result.destination || !selectedBoard) return;
 
@@ -512,6 +567,15 @@ export const TasksPage: React.FC = () => {
                 position: 'relative'
               }}
             >
+              {selectionMode && (
+                <Checkbox
+                  aria-label={`Seleccionar tarea ${task.title}`}
+                  checked={selectedTaskIds.includes(task.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={() => toggleTaskSelection(task.id)}
+                  style={{ position: 'absolute', top: 8, right: 8, zIndex: 20 }}
+                />
+              )}
               {/* Drag handle area */}
               <div
                 {...provided.dragHandleProps}
@@ -741,6 +805,7 @@ export const TasksPage: React.FC = () => {
                 value={selectedProject}
                 onChange={(value) => {
                   clearFilters();
+                  exitSelectionMode();
                   setSelectedProject(value);
                 }}
                 placeholder="Seleccionar proyecto"
@@ -763,6 +828,7 @@ export const TasksPage: React.FC = () => {
                 value={selectedBoard?.id}
                 onChange={(value) => {
                   clearFilters();
+                  exitSelectionMode();
                   loadBoard(value);
                 }}
                 placeholder="Seleccionar board"
@@ -794,6 +860,14 @@ export const TasksPage: React.FC = () => {
                 disabled={!selectedBoard}
               >
                 Nueva Tarea
+              </Button>
+
+              <Button
+                type={selectionMode ? 'primary' : 'default'}
+                onClick={toggleSelectionMode}
+                disabled={!selectedBoard}
+              >
+                {selectionMode ? 'Salir de selección' : 'Selección múltiple'}
               </Button>
             </Space>
           </Col>
@@ -857,6 +931,66 @@ export const TasksPage: React.FC = () => {
                 <Button onClick={clearFilters}>Limpiar filtros</Button>
               </Col>
             )}
+          </Row>
+        </Card>
+      )}
+
+      {/* Edición masiva */}
+      {selectionMode && selectedTaskIds.length > 0 && (
+        <Card size="small" style={{ marginBottom: 16, backgroundColor: '#e6f4ff' }}>
+          <Row gutter={16} align="middle">
+            <Col>
+              <Text strong>{selectedTaskIds.length} tarea(s) seleccionada(s)</Text>
+            </Col>
+            <Col>
+              <Select
+                aria-label="Cambiar prioridad"
+                placeholder="Prioridad"
+                style={{ width: 160 }}
+                value={bulkPriority}
+                onChange={setBulkPriority}
+                allowClear
+              >
+                <Option value="critical">🔴 Crítica</Option>
+                <Option value="high">🟠 Alta</Option>
+                <Option value="medium">🔵 Media</Option>
+                <Option value="low">🟢 Baja</Option>
+              </Select>
+            </Col>
+            <Col>
+              <Select
+                aria-label="Reasignar a"
+                placeholder="Reasignar a"
+                style={{ width: 180 }}
+                value={bulkAssigneeId}
+                onChange={setBulkAssigneeId}
+                allowClear
+              >
+                {users.map((user) => (
+                  <Option key={user.id} value={user.id}>{user.full_name}</Option>
+                ))}
+              </Select>
+            </Col>
+            <Col>
+              <Select
+                aria-label="Mover a columna"
+                placeholder="Mover a columna"
+                style={{ width: 180 }}
+                value={bulkColumnId}
+                onChange={setBulkColumnId}
+                allowClear
+              >
+                {selectedBoard?.columns.map((column) => (
+                  <Option key={column.id} value={column.id}>{column.name}</Option>
+                ))}
+              </Select>
+            </Col>
+            <Col>
+              <Button type="primary" onClick={handleBulkApply}>Aplicar</Button>
+            </Col>
+            <Col>
+              <Button onClick={exitSelectionMode}>Cancelar selección</Button>
+            </Col>
           </Row>
         </Card>
       )}

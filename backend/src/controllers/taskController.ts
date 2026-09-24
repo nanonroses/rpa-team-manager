@@ -1257,6 +1257,141 @@ export class TaskController {
     }
   };
 
+  // PATCH /api/tasks/batch - Bulk update priority/assignee_id/column_id for multiple tasks
+  batchUpdateTasks = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      const { taskIds, updates } = req.body;
+
+      const validation = validateBatchDeletionInput(taskIds);
+      if (!validation.isValid) {
+        res.status(400).json({ error: validation.error, code: 'INVALID_INPUT' });
+        return;
+      }
+      const validTaskIds = validation.validIds;
+
+      if (!updates || typeof updates !== 'object' || Array.isArray(updates)) {
+        res.status(400).json({ error: 'updates object is required' });
+        return;
+      }
+
+      const { priority, assignee_id, column_id } = updates;
+      const hasField = priority !== undefined || assignee_id !== undefined || column_id !== undefined;
+      if (!hasField) {
+        res.status(400).json({ error: 'At least one field to update is required (priority, assignee_id, column_id)' });
+        return;
+      }
+
+      const validPriorities = ['critical', 'high', 'medium', 'low'];
+      if (priority !== undefined && !validPriorities.includes(priority)) {
+        res.status(400).json({ error: 'Invalid priority value' });
+        return;
+      }
+
+      const placeholders = validTaskIds.map(() => '?').join(', ');
+      const accessibleTasks = await db.query(`
+        SELECT t.id, t.column_id, t.position, t.assignee_id, tb.id as board_id, tb.project_id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id IN (${placeholders}) AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+      `, [...validTaskIds, userId, userId, userId]);
+
+      const accessibleIds = accessibleTasks.map((t: any) => t.id);
+      const skipped = validTaskIds.filter((id: number) => !accessibleIds.includes(id));
+
+      if (accessibleTasks.length === 0) {
+        res.json({ success: true, updated: [], updatedCount: 0, skipped });
+        return;
+      }
+
+      let targetColumnId: number | undefined;
+      if (column_id !== undefined) {
+        const targetColumn = await db.get(`SELECT id, board_id FROM task_columns WHERE id = ?`, [column_id]);
+        if (!targetColumn) {
+          res.status(400).json({ error: 'Target column not found' });
+          return;
+        }
+        const boardIds = new Set(accessibleTasks.map((t: any) => t.board_id));
+        if (boardIds.size > 1 || !boardIds.has(targetColumn.board_id)) {
+          res.status(400).json({ error: 'Target column must belong to the same board as the selected tasks' });
+          return;
+        }
+        targetColumnId = column_id;
+      }
+
+      const projectCounts: Map<number, number> = new Map();
+      for (const task of accessibleTasks) {
+        projectCounts.set(task.project_id, (projectCounts.get(task.project_id) || 0) + 1);
+      }
+
+      await db.beginTransaction('IMMEDIATE');
+
+      try {
+        if (priority !== undefined || assignee_id !== undefined) {
+          const setClauses: string[] = [];
+          const params: any[] = [];
+          if (priority !== undefined) { setClauses.push('priority = ?'); params.push(priority); }
+          if (assignee_id !== undefined) { setClauses.push('assignee_id = ?'); params.push(assignee_id); }
+          setClauses.push('updated_at = CURRENT_TIMESTAMP');
+          const idPlaceholders = accessibleIds.map(() => '?').join(', ');
+          await db.run(
+            `UPDATE tasks SET ${setClauses.join(', ')} WHERE id IN (${idPlaceholders})`,
+            [...params, ...accessibleIds]
+          );
+        }
+
+        if (targetColumnId !== undefined) {
+          const maxPosRow = await db.get(`SELECT MAX(position) as max_position FROM tasks WHERE column_id = ?`, [targetColumnId]);
+          let nextPosition = maxPosRow?.max_position || 0;
+
+          for (const task of accessibleTasks) {
+            if (task.column_id === targetColumnId) continue;
+            nextPosition += 1;
+            await db.run(
+              `UPDATE tasks SET column_id = ?, position = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+              [targetColumnId, nextPosition, task.id]
+            );
+          }
+        }
+
+        for (const [projectId, count] of projectCounts) {
+          await activityLogService.logActivity(
+            userId, 'project', projectId, 'tasks_batch_updated', null,
+            { count, fields: Object.keys(updates) }
+          );
+        }
+
+        await db.commit();
+      } catch (transactionError) {
+        await db.rollback();
+        logger.error('Batch update tasks transaction error:', transactionError);
+        throw transactionError;
+      }
+
+      if (assignee_id !== undefined && assignee_id !== null && assignee_id !== userId) {
+        const reassignedCount = accessibleTasks.filter((t: any) => t.assignee_id !== assignee_id).length;
+        if (reassignedCount > 0) {
+          await notificationService.notify({
+            userId: assignee_id,
+            eventKey: 'task_assigned',
+            title: 'Te asignaron tareas',
+            message: `Se te asignaron ${reassignedCount} tarea(s)`,
+            entityType: 'task',
+            senderId: userId,
+            link: '/tasks'
+          });
+        }
+      }
+
+      logger.info(`Batch update completed: ${accessibleIds.length} tasks updated by user ${userId}`);
+      res.json({ success: true, updated: accessibleIds, updatedCount: accessibleIds.length, skipped });
+    } catch (error) {
+      logger.error('Batch update tasks error:', error);
+      res.status(500).json({ error: 'Failed to update tasks in batch' });
+    }
+  };
+
   // GET /api/tasks/project/:projectId - Get recent tasks for a specific project
   getProjectTasks = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
