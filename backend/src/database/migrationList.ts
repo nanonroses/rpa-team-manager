@@ -1575,5 +1575,23 @@ export const migrations: Migration[] = [
 
       `CREATE INDEX IF NOT EXISTS idx_task_subtasks_task ON task_subtasks(task_id)`
     ]
+  },
+
+  {
+    version: 34,
+    description: 'Colaboradores adicionales en tasks (multi-asignados aditivo) - Fase 5',
+    up: [
+      `CREATE TABLE IF NOT EXISTS task_collaborators (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        UNIQUE (task_id, user_id)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_task_collaborators_task ON task_collaborators(task_id)`
+    ]
   }
 ];

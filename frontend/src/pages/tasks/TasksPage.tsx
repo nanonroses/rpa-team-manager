@@ -28,12 +28,14 @@ import {
   DeleteOutlined,
   ClockCircleOutlined,
   DollarOutlined,
-  CheckSquareOutlined
+  CheckSquareOutlined,
+  TeamOutlined
 } from '@ant-design/icons';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { useSearchParams } from 'react-router-dom';
 import { apiService } from '@/services/api';
 import { TaskSubtasksChecklist } from '@/components/tasks/TaskSubtasksChecklist';
+import { TaskCollaboratorsEditor } from '@/components/tasks/TaskCollaboratorsEditor';
 import { getPriorityColor } from '@/utils';
 import dayjs from 'dayjs';
 
@@ -82,6 +84,8 @@ interface Task {
   total_value?: number;
   subtasks_total?: number;
   subtasks_done?: number;
+  collaborators_count?: number;
+  collaborators_names?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -559,6 +563,14 @@ export const TasksPage: React.FC = () => {
                       </Tag>
                     </Tooltip>
                   )}
+
+                  {!!task.collaborators_count && (
+                    <Tooltip title={`Colaboradores: ${(task.collaborators_names || '').split('||').join(', ')}`}>
+                      <Tag icon={<TeamOutlined />}>
+                        +{task.collaborators_count}
+                      </Tag>
+                    </Tooltip>
+                  )}
                 </Space>
               </div>
 
@@ -969,6 +981,12 @@ export const TasksPage: React.FC = () => {
 
           {editingTask && (
             <>
+              <Divider />
+              <TaskCollaboratorsEditor
+                taskId={editingTask.id}
+                users={users}
+                onChange={() => selectedBoard && loadBoard(selectedBoard.id)}
+              />
               <Divider />
               <TaskSubtasksChecklist
                 taskId={editingTask.id}

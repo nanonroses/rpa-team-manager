@@ -34,6 +34,11 @@ router.post('/tasks/:taskId/subtasks', authenticate, taskController.createTaskSu
 router.patch('/tasks/:taskId/subtasks/:subtaskId', authenticate, taskController.updateTaskSubtask);
 router.delete('/tasks/:taskId/subtasks/:subtaskId', authenticate, taskController.deleteTaskSubtask);
 
+// Colaboradores adicionales (multi-asignados aditivo) - mismo patrón de 3 segmentos
+router.get('/tasks/:taskId/collaborators', authenticate, taskController.getTaskCollaborators);
+router.post('/tasks/:taskId/collaborators', authenticate, taskController.addTaskCollaborator);
+router.delete('/tasks/:taskId/collaborators/:collaboratorId', authenticate, taskController.removeTaskCollaborator);
+
 router.get('/tasks/my-tasks', authenticate, taskController.getMyTasks);
 router.get('/tasks/project/:projectId', authenticate, taskController.getProjectTasks);
 
