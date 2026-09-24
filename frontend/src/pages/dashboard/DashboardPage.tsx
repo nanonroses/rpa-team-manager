@@ -148,7 +148,7 @@ export const DashboardPage: React.FC = () => {
       }
     },
     {
-      title: 'Progress',
+      title: 'Avance por tareas',
       dataIndex: 'progress_percentage',
       key: 'progress',
       render: (progress: number) => (

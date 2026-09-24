@@ -127,9 +127,9 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
         {/* Progress */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-            <Text style={{ fontSize: '12px' }}>Progress</Text>
+            <Text style={{ fontSize: '12px' }}>Avance por tareas</Text>
             <Text style={{ fontSize: '12px' }}>
-              {project.completed_tasks || 0}/{project.total_tasks || 0} tasks
+              {project.completed_tasks || 0}/{project.total_tasks || 0} tareas
             </Text>
           </div>
           <Progress 

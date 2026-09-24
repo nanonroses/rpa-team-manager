@@ -1351,14 +1351,14 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                       ),
                     },
                     {
-                      title: 'Progreso',
+                      title: 'Avance del cronograma',
                       dataIndex: 'completion_percentage',
                       key: 'progress',
                       width: 120,
                       render: (value: number) => (
-                        <Progress 
-                          percent={value || 0} 
-                          size="small" 
+                        <Progress
+                          percent={value || 0}
+                          size="small"
                           strokeColor={value > 80 ? '#52c41a' : value > 50 ? '#faad14' : '#ff4d4f'}
                         />
                       ),
@@ -1589,7 +1589,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                               PM: {project.project_manager || 'Sin asignar'}
                             </div>
                             <div style={{ fontSize: '10px', color: '#666' }}>
-                              Progreso: {project.completion_percentage || 0}%
+                              Cronograma: {project.completion_percentage || 0}%
                             </div>
                           </div>
                           <div style={{ textAlign: 'right' }}>
@@ -1646,7 +1646,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                               {project.planned_end ? `Deadline: ${dayjs(project.planned_end).format('DD/MM/YY')}` : 'Sin deadline'}
                             </div>
                             <div style={{ fontSize: '10px', color: '#666' }}>
-                              Progreso: {project.completion_percentage || 0}%
+                              Cronograma: {project.completion_percentage || 0}%
                             </div>
                           </div>
                           <div style={{ textAlign: 'right' }}>
@@ -2074,9 +2074,9 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                       key: 'status',
                       render: (status: string) => <Tag color="blue">{status}</Tag>
                     },
-                    { 
-                      title: 'Progreso', 
-                      dataIndex: 'completion_percentage', 
+                    {
+                      title: 'Avance del cronograma',
+                      dataIndex: 'completion_percentage',
                       key: 'progress',
                       render: (value: number) => <Progress percent={value || 0} size="small" />
                     },
@@ -2152,7 +2152,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                             📊 {ganttData.project?.name || 'Proyecto'}
                           </Title>
                           <Tag color="blue">
-                            {ganttData.project?.completion_percentage || 0}% completado
+                            {ganttData.project?.completion_percentage || 0}% del cronograma completado
                           </Tag>
                         </Space>
                       </Col>
