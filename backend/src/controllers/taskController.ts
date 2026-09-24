@@ -200,14 +200,15 @@ export class TaskController {
   getTasks = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const userId = req.user?.id;
-      const { 
-        board_id, 
-        project_id, 
-        assignee_id, 
-        status, 
+      const {
+        board_id,
+        project_id,
+        assignee_id,
+        status,
         priority,
-        limit = 100, 
-        offset = 0 
+        search,
+        limit = 100,
+        offset = 0
       } = req.query;
 
       let query = `
@@ -264,6 +265,12 @@ export class TaskController {
       if (priority) {
         query += ' AND t.priority = ?';
         params.push(priority);
+      }
+
+      if (search) {
+        query += ' AND (t.title LIKE ? OR t.description LIKE ?)';
+        const likeSearch = `%${search}%`;
+        params.push(likeSearch, likeSearch);
       }
 
       query += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
