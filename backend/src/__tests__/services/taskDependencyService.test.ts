@@ -99,6 +99,22 @@ describe('TaskDependencyService', () => {
             await expect(service.createDependency(30, 10)).rejects.toMatchObject({ status: 400 });
             expect(db.run).not.toHaveBeenCalled();
         });
+
+        it('traduce violacion de UNIQUE constraint a TaskDependencyError 409 (condicion de carrera)', async () => {
+            (db.query as jest.Mock)
+                .mockResolvedValueOnce([{ id: 10, project_id: 1 }, { id: 20, project_id: 1 }])
+                .mockResolvedValueOnce([]);
+            const uniqueError = Object.assign(
+                new Error('UNIQUE constraint failed: task_dependencies.predecessor_id, task_dependencies.successor_id'),
+                { code: 'SQLITE_CONSTRAINT' }
+            );
+            (db.run as jest.Mock).mockRejectedValue(uniqueError);
+
+            await expect(service.createDependency(10, 20)).rejects.toMatchObject({
+                message: 'Esta dependencia ya existe',
+                status: 409
+            });
+        });
     });
 
     describe('getDependenciesForTask', () => {

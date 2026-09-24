@@ -76,10 +76,18 @@ export class TaskDependencyService {
             throw new TaskDependencyError('Esta dependencia generaria un ciclo entre tareas', 400);
         }
 
-        const result = await db.run(`
-            INSERT INTO task_dependencies (predecessor_id, successor_id, dependency_type, lag_days)
-            VALUES (?, ?, ?, ?)
-        `, [dependsOnTaskId, taskId, dependencyType, lagDays]);
+        let result;
+        try {
+            result = await db.run(`
+                INSERT INTO task_dependencies (predecessor_id, successor_id, dependency_type, lag_days)
+                VALUES (?, ?, ?, ?)
+            `, [dependsOnTaskId, taskId, dependencyType, lagDays]);
+        } catch (error: any) {
+            if (error.code === 'SQLITE_CONSTRAINT' || error.message?.includes('UNIQUE constraint failed')) {
+                throw new TaskDependencyError('Esta dependencia ya existe', 409);
+            }
+            throw error;
+        }
 
         return db.get(`
             SELECT id, predecessor_id, successor_id, dependency_type, lag_days, created_at
