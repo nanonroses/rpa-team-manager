@@ -259,7 +259,7 @@ export class FileController {
               SELECT t.id FROM tasks t
               LEFT JOIN task_boards tb ON t.board_id = tb.id
               LEFT JOIN projects p ON tb.project_id = p.id
-              WHERE t.assignee_id = ? OR p.assigned_to = ? OR p.created_by = ?
+              WHERE EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?) OR p.assigned_to = ? OR p.created_by = ?
             ))
           )
         ))`;
@@ -340,12 +340,12 @@ export class FileController {
         LEFT JOIN users u ON f.uploaded_by = u.id
         WHERE f.id = ? AND f.is_deleted = 0
         AND (
-          f.uploaded_by = ? 
+          f.uploaded_by = ?
           OR f.is_public = 1
           OR f.id IN (
-            SELECT DISTINCT fa.file_id 
+            SELECT DISTINCT fa.file_id
             FROM file_associations fa
-            WHERE fa.entity_type IN ('project', 'task') 
+            WHERE fa.entity_type IN ('project', 'task')
             AND (
               (fa.entity_type = 'project' AND fa.entity_id IN (
                 SELECT id FROM projects WHERE assigned_to = ? OR created_by = ?
@@ -355,7 +355,7 @@ export class FileController {
                 SELECT t.id FROM tasks t
                 LEFT JOIN task_boards tb ON t.board_id = tb.id
                 LEFT JOIN projects p ON tb.project_id = p.id
-                WHERE t.assignee_id = ? OR p.assigned_to = ? OR p.created_by = ?
+                WHERE EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?) OR p.assigned_to = ? OR p.created_by = ?
               ))
             )
           )
@@ -416,12 +416,12 @@ export class FileController {
         FROM files f
         WHERE f.id = ? AND f.is_deleted = 0
         AND (
-          f.uploaded_by = ? 
+          f.uploaded_by = ?
           OR f.is_public = 1
           OR f.id IN (
-            SELECT DISTINCT fa.file_id 
+            SELECT DISTINCT fa.file_id
             FROM file_associations fa
-            WHERE fa.entity_type IN ('project', 'task') 
+            WHERE fa.entity_type IN ('project', 'task')
             AND (
               (fa.entity_type = 'project' AND fa.entity_id IN (
                 SELECT id FROM projects WHERE assigned_to = ? OR created_by = ?
@@ -431,7 +431,7 @@ export class FileController {
                 SELECT t.id FROM tasks t
                 LEFT JOIN task_boards tb ON t.board_id = tb.id
                 LEFT JOIN projects p ON tb.project_id = p.id
-                WHERE t.assignee_id = ? OR p.assigned_to = ? OR p.created_by = ?
+                WHERE EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?) OR p.assigned_to = ? OR p.created_by = ?
               ))
             )
           )
@@ -583,7 +583,7 @@ export class FileController {
             SELECT t.id FROM tasks t
             LEFT JOIN task_boards tb ON t.board_id = tb.id
             LEFT JOIN projects p ON tb.project_id = p.id
-            WHERE t.id = ? AND (t.assignee_id = ? OR p.assigned_to = ? OR p.created_by = ?)
+            WHERE t.id = ? AND (EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?) OR p.assigned_to = ? OR p.created_by = ?)
           `, [entity_id, userId, userId, userId]);
           return !!task;
 
