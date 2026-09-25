@@ -258,7 +258,7 @@ export class TaskController {
           WHERE task_id IS NOT NULL 
           GROUP BY task_id
         ) te ON t.id = te.task_id
-        WHERE (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `;
 
       const params: any[] = [userId, userId, userId];
@@ -274,7 +274,7 @@ export class TaskController {
       }
 
       if (assignee_id) {
-        query += ' AND t.assignee_id = ?';
+        query += ' AND EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?)';
         params.push(assignee_id);
       }
 
@@ -414,7 +414,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [id, userId, userId, userId]);
 
       if (!task) {
@@ -455,7 +455,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [id, userId, userId, userId]);
 
       if (!task) {
@@ -693,7 +693,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [id, userId, userId, userId]);
 
       if (!task) {
@@ -776,7 +776,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -815,7 +815,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -852,7 +852,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -896,7 +896,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -931,7 +931,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -965,7 +965,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -978,7 +978,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [depends_on_task_id, userId, userId, userId]);
 
       if (!dependsOnTask) {
@@ -1015,7 +1015,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -1047,7 +1047,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -1093,7 +1093,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -1138,7 +1138,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -1173,7 +1173,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -1213,7 +1213,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -1268,7 +1268,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -1309,7 +1309,7 @@ export class TaskController {
         LEFT JOIN projects p ON tb.project_id = p.id
         LEFT JOIN task_columns tc ON t.column_id = tc.id
         LEFT JOIN users u_reporter ON t.reporter_id = u_reporter.id
-        WHERE t.assignee_id = ? AND t.status != 'done'
+        WHERE EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?) AND t.status != 'done'
         ORDER BY 
           CASE t.priority 
             WHEN 'critical' THEN 1 
@@ -1569,7 +1569,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id IN (${placeholders}) AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id IN (${placeholders}) AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [...validTaskIds, userId, userId, userId]);
 
       const accessibleIds = accessibleTasks.map((t: any) => t.id);
@@ -1722,7 +1722,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [id, userId, userId, userId]);
 
       if (!task) {
@@ -1754,7 +1754,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -1787,7 +1787,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -1820,7 +1820,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -1857,7 +1857,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -1894,7 +1894,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {

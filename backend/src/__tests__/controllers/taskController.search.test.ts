@@ -61,7 +61,7 @@ describe('TaskController.getTasks - busqueda por texto', () => {
         await controller.getTasks(req, res);
 
         const [query, params] = (db.query as jest.Mock).mock.calls[0];
-        expect(query).toContain('p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?');
+        expect(query).toContain('p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?)');
         expect(params.slice(0, 3)).toEqual([9, 9, 9]);
     });
 });
