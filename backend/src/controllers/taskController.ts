@@ -337,6 +337,7 @@ export class TaskController {
         task_type = 'task',
         priority = 'medium',
         assignee_id,
+        assignee_ids,
         estimated_hours,
         story_points,
         due_date
@@ -362,24 +363,33 @@ export class TaskController {
 
       // Get next position in column
       const lastTask = await db.get(`
-        SELECT MAX(position) as max_position 
-        FROM tasks 
+        SELECT MAX(position) as max_position
+        FROM tasks
         WHERE column_id = ?
       `, [column_id]);
 
       const position = (lastTask?.max_position || 0) + 1;
 
+      const resolvedAssigneeIds: number[] = Array.isArray(assignee_ids)
+        ? assignee_ids
+        : (assignee_id !== undefined && assignee_id !== null ? [assignee_id] : []);
+      const principalAssigneeId = resolvedAssigneeIds[0] ?? null;
+
       // Create task
       const result = await db.run(`
         INSERT INTO tasks (
           board_id, column_id, title, description, task_type, priority,
-          assignee_id, reporter_id, estimated_hours, story_points, 
+          assignee_id, reporter_id, estimated_hours, story_points,
           due_date, position, created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
       `, [
         board_id, column_id, title, description, task_type, priority,
-        assignee_id, userId, estimated_hours, story_points, due_date, position
+        principalAssigneeId, userId, estimated_hours, story_points, due_date, position
       ]);
+
+      for (const uid of resolvedAssigneeIds) {
+        await db.run(`INSERT INTO task_assignees (task_id, user_id) VALUES (?, ?)`, [result.id, uid]);
+      }
 
       // Get created task with related data
       const newTask = await db.get(`
@@ -403,17 +413,19 @@ export class TaskController {
         { title, task_type, priority, column_id, board_id }
       );
 
-      if (assignee_id !== undefined && assignee_id !== null && assignee_id !== userId) {
-        await notificationService.notify({
-          userId: assignee_id,
-          eventKey: 'task_assigned',
-          title: 'Te asignaron una tarea',
-          message: title,
-          entityType: 'task',
-          entityId: result.id!,
-          senderId: userId,
-          link: `/tasks?taskId=${result.id}`
-        });
+      for (const uid of resolvedAssigneeIds) {
+        if (uid !== userId) {
+          await notificationService.notify({
+            userId: uid,
+            eventKey: 'task_assigned',
+            title: 'Te asignaron una tarea',
+            message: title,
+            entityType: 'task',
+            entityId: result.id!,
+            senderId: userId,
+            link: `/tasks?taskId=${result.id}`
+          });
+        }
       }
 
       res.status(201).json(newTask);
@@ -472,6 +484,7 @@ export class TaskController {
         status,
         priority,
         assignee_id,
+        assignee_ids,
         estimated_hours,
         story_points,
         start_date,
@@ -520,9 +533,31 @@ export class TaskController {
         `, [column_id, newPosition, id]);
       }
 
+      const resolvedAssigneeIds: number[] | undefined = Array.isArray(assignee_ids)
+        ? assignee_ids
+        : undefined;
+      let newlyAddedAssigneeIds: number[] = [];
+
+      if (resolvedAssigneeIds !== undefined) {
+        const currentRows = await db.query(`SELECT user_id FROM task_assignees WHERE task_id = ?`, [id]);
+        const currentIds: number[] = currentRows.map((r: any) => r.user_id);
+        newlyAddedAssigneeIds = resolvedAssigneeIds.filter((uid) => !currentIds.includes(uid));
+
+        await db.run(`DELETE FROM task_assignees WHERE task_id = ?`, [id]);
+        for (const uid of resolvedAssigneeIds) {
+          await db.run(`INSERT INTO task_assignees (task_id, user_id) VALUES (?, ?)`, [id, uid]);
+        }
+
+        const principalAssigneeId = resolvedAssigneeIds[0] ?? null;
+        await db.run(`UPDATE tasks SET assignee_id = ? WHERE id = ?`, [principalAssigneeId, id]);
+      } else if (assignee_id !== undefined && assignee_id !== null && assignee_id !== task.assignee_id) {
+        // Compatibilidad con llamadores viejos que solo mandan assignee_id (sin assignee_ids[])
+        newlyAddedAssigneeIds = [assignee_id];
+      }
+
       // Update other fields
       await db.run(`
-        UPDATE tasks 
+        UPDATE tasks
         SET title = COALESCE(?, title),
             description = COALESCE(?, description),
             task_type = COALESCE(?, task_type),
@@ -569,17 +604,19 @@ export class TaskController {
       const taskId = parseInt(id);
       const taskLink = `/tasks?taskId=${id}`;
 
-      if (assignee_id !== undefined && assignee_id !== null && assignee_id !== task.assignee_id && assignee_id !== userId) {
-        await notificationService.notify({
-          userId: assignee_id,
-          eventKey: 'task_assigned',
-          title: 'Te asignaron una tarea',
-          message: updatedTask.title,
-          entityType: 'task',
-          entityId: taskId,
-          senderId: userId,
-          link: taskLink
-        });
+      for (const uid of newlyAddedAssigneeIds) {
+        if (uid !== userId) {
+          await notificationService.notify({
+            userId: uid,
+            eventKey: 'task_assigned',
+            title: 'Te asignaron una tarea',
+            message: updatedTask.title,
+            entityType: 'task',
+            entityId: taskId,
+            senderId: userId,
+            link: taskLink
+          });
+        }
       }
 
       if (status !== undefined && status !== task.status && task.reporter_id && task.reporter_id !== userId) {
@@ -1581,8 +1618,8 @@ export class TaskController {
         return;
       }
 
-      const { priority, assignee_id, column_id } = updates;
-      const hasField = priority !== undefined || assignee_id !== undefined || column_id !== undefined;
+      const { priority, assignee_id, assignee_ids, column_id } = updates;
+      const hasField = priority !== undefined || assignee_id !== undefined || assignee_ids !== undefined || column_id !== undefined;
       if (!hasField) {
         res.status(400).json({ error: 'At least one field to update is required (priority, assignee_id, column_id)' });
         return;
@@ -1631,6 +1668,8 @@ export class TaskController {
         projectCounts.set(task.project_id, (projectCounts.get(task.project_id) || 0) + 1);
       }
 
+      let usersNewlyAssigned: Map<number, number> = new Map();
+
       await db.beginTransaction('IMMEDIATE');
 
       try {
@@ -1661,6 +1700,24 @@ export class TaskController {
           }
         }
 
+        if (Array.isArray(assignee_ids)) {
+          for (const task of accessibleTasks) {
+            const currentRows = await db.query(`SELECT user_id FROM task_assignees WHERE task_id = ?`, [task.id]);
+            const currentIds: number[] = currentRows.map((r: any) => r.user_id);
+
+            await db.run(`DELETE FROM task_assignees WHERE task_id = ?`, [task.id]);
+            for (const uid of assignee_ids) {
+              await db.run(`INSERT INTO task_assignees (task_id, user_id) VALUES (?, ?)`, [task.id, uid]);
+              if (!currentIds.includes(uid)) {
+                usersNewlyAssigned.set(uid, (usersNewlyAssigned.get(uid) || 0) + 1);
+              }
+            }
+
+            const principalAssigneeId = assignee_ids[0] ?? null;
+            await db.run(`UPDATE tasks SET assignee_id = ? WHERE id = ?`, [principalAssigneeId, task.id]);
+          }
+        }
+
         for (const [projectId, count] of projectCounts) {
           await activityLogService.logActivity(
             userId, 'project', projectId, 'tasks_batch_updated', null,
@@ -1683,6 +1740,20 @@ export class TaskController {
             eventKey: 'task_assigned',
             title: 'Te asignaron tareas',
             message: `Se te asignaron ${reassignedCount} tarea(s)`,
+            entityType: 'task',
+            senderId: userId,
+            link: '/tasks'
+          });
+        }
+      }
+
+      for (const [uid, count] of usersNewlyAssigned) {
+        if (uid !== userId) {
+          await notificationService.notify({
+            userId: uid,
+            eventKey: 'task_assigned',
+            title: 'Te asignaron tareas',
+            message: `Se te asignaron ${count} tarea(s)`,
             entityType: 'task',
             senderId: userId,
             link: '/tasks'
