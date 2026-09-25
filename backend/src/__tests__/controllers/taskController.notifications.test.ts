@@ -1,5 +1,8 @@
 jest.mock('../../database/database', () => ({
-    db: { get: jest.fn(), run: jest.fn(), query: jest.fn() }
+    db: {
+        get: jest.fn(), run: jest.fn(), query: jest.fn(),
+        beginTransaction: jest.fn(), commit: jest.fn(), rollback: jest.fn()
+    }
 }));
 jest.mock('../../services/activityLogService', () => ({
     activityLogService: { logActivity: jest.fn(), getTaskActivity: jest.fn() }

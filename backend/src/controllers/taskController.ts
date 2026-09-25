@@ -375,20 +375,30 @@ export class TaskController {
         : (assignee_id !== undefined && assignee_id !== null ? [assignee_id] : []);
       const principalAssigneeId = resolvedAssigneeIds[0] ?? null;
 
-      // Create task
-      const result = await db.run(`
-        INSERT INTO tasks (
+      // Create task + task_assignees rows atomically
+      let result: { id?: number; changes: number };
+      await db.beginTransaction('IMMEDIATE');
+      try {
+        result = await db.run(`
+          INSERT INTO tasks (
+            board_id, column_id, title, description, task_type, priority,
+            assignee_id, reporter_id, estimated_hours, story_points,
+            due_date, position, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `, [
           board_id, column_id, title, description, task_type, priority,
-          assignee_id, reporter_id, estimated_hours, story_points,
-          due_date, position, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `, [
-        board_id, column_id, title, description, task_type, priority,
-        principalAssigneeId, userId, estimated_hours, story_points, due_date, position
-      ]);
+          principalAssigneeId, userId, estimated_hours, story_points, due_date, position
+        ]);
 
-      for (const uid of resolvedAssigneeIds) {
-        await db.run(`INSERT INTO task_assignees (task_id, user_id) VALUES (?, ?)`, [result.id, uid]);
+        for (const uid of resolvedAssigneeIds) {
+          await db.run(`INSERT INTO task_assignees (task_id, user_id) VALUES (?, ?)`, [result.id, uid]);
+        }
+
+        await db.commit();
+      } catch (transactionError) {
+        await db.rollback();
+        logger.error('Create task transaction error:', transactionError);
+        throw transactionError;
       }
 
       // Get created task with related data
@@ -539,17 +549,26 @@ export class TaskController {
       let newlyAddedAssigneeIds: number[] = [];
 
       if (resolvedAssigneeIds !== undefined) {
-        const currentRows = await db.query(`SELECT user_id FROM task_assignees WHERE task_id = ?`, [id]);
-        const currentIds: number[] = currentRows.map((r: any) => r.user_id);
-        newlyAddedAssigneeIds = resolvedAssigneeIds.filter((uid) => !currentIds.includes(uid));
+        await db.beginTransaction('IMMEDIATE');
+        try {
+          const currentRows = await db.query(`SELECT user_id FROM task_assignees WHERE task_id = ?`, [id]);
+          const currentIds: number[] = currentRows.map((r: any) => r.user_id);
+          newlyAddedAssigneeIds = resolvedAssigneeIds.filter((uid) => !currentIds.includes(uid));
 
-        await db.run(`DELETE FROM task_assignees WHERE task_id = ?`, [id]);
-        for (const uid of resolvedAssigneeIds) {
-          await db.run(`INSERT INTO task_assignees (task_id, user_id) VALUES (?, ?)`, [id, uid]);
+          await db.run(`DELETE FROM task_assignees WHERE task_id = ?`, [id]);
+          for (const uid of resolvedAssigneeIds) {
+            await db.run(`INSERT INTO task_assignees (task_id, user_id) VALUES (?, ?)`, [id, uid]);
+          }
+
+          const principalAssigneeId = resolvedAssigneeIds[0] ?? null;
+          await db.run(`UPDATE tasks SET assignee_id = ? WHERE id = ?`, [principalAssigneeId, id]);
+
+          await db.commit();
+        } catch (transactionError) {
+          await db.rollback();
+          logger.error('Update task assignees transaction error:', transactionError);
+          throw transactionError;
         }
-
-        const principalAssigneeId = resolvedAssigneeIds[0] ?? null;
-        await db.run(`UPDATE tasks SET assignee_id = ? WHERE id = ?`, [principalAssigneeId, id]);
       } else if (assignee_id !== undefined && assignee_id !== null && assignee_id !== task.assignee_id) {
         // Compatibilidad con llamadores viejos que solo mandan assignee_id (sin assignee_ids[])
         newlyAddedAssigneeIds = [assignee_id];
@@ -594,7 +613,7 @@ export class TaskController {
 
       const updatePayload = {
         title, description, task_type, status, priority,
-        assignee_id, estimated_hours, story_points, start_date, due_date, column_id, position
+        assignee_id, assignee_ids, estimated_hours, story_points, start_date, due_date, column_id, position
       };
       const hasChanges = Object.values(updatePayload).some((value) => value !== undefined);
       if (hasChanges) {
@@ -1732,7 +1751,10 @@ export class TaskController {
         throw transactionError;
       }
 
-      if (assignee_id !== undefined && assignee_id !== null && assignee_id !== userId) {
+      // assignee_ids (nuevo, lista) y assignee_id (legacy, unico) son mutuamente excluyentes:
+      // si el caller manda assignee_ids, esa es la fuente de verdad y el bloque legacy no debe
+      // notificar de nuevo (evita doble notificacion si un caller manda ambos campos).
+      if (!Array.isArray(assignee_ids) && assignee_id !== undefined && assignee_id !== null && assignee_id !== userId) {
         const reassignedCount = accessibleTasks.filter((t: any) => t.assignee_id !== assignee_id).length;
         if (reassignedCount > 0) {
           await notificationService.notify({
