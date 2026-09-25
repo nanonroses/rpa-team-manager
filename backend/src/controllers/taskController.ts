@@ -95,7 +95,8 @@ export class TaskController {
           COALESCE(st.subtasks_done, 0) as subtasks_done,
           tg.tags as tags,
           COALESCE(col.collaborators_count, 0) as collaborators_count,
-          col.collaborators_names as collaborators_names
+          col.collaborators_names as collaborators_names,
+          tas.assignee_ids, tas.assignee_names
         FROM tasks t
         LEFT JOIN users u_assignee ON t.assignee_id = u_assignee.id
         LEFT JOIN users u_reporter ON t.reporter_id = u_reporter.id
@@ -132,6 +133,15 @@ export class TaskController {
           JOIN users u ON tc.user_id = u.id
           GROUP BY tc.task_id
         ) col ON t.id = col.task_id
+        LEFT JOIN (
+          SELECT
+            ta.task_id,
+            GROUP_CONCAT(ta.user_id, '||') as assignee_ids,
+            GROUP_CONCAT(u_ta.full_name, '||') as assignee_names
+          FROM task_assignees ta
+          JOIN users u_ta ON ta.user_id = u_ta.id
+          GROUP BY ta.task_id
+        ) tas ON t.id = tas.task_id
         WHERE t.board_id = ?
         ORDER BY t.position ASC
       `, [id]);
@@ -242,7 +252,8 @@ export class TaskController {
           u_assignee.avatar_url as assignee_avatar,
           u_reporter.full_name as reporter_name,
           te.total_hours,
-          te.total_value
+          te.total_value,
+          tas.assignee_ids, tas.assignee_names
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
@@ -250,14 +261,23 @@ export class TaskController {
         LEFT JOIN users u_assignee ON t.assignee_id = u_assignee.id
         LEFT JOIN users u_reporter ON t.reporter_id = u_reporter.id
         LEFT JOIN (
-          SELECT 
-            task_id, 
+          SELECT
+            task_id,
             SUM(hours) as total_hours,
             SUM(hours * hourly_rate) as total_value
-          FROM time_entries 
-          WHERE task_id IS NOT NULL 
+          FROM time_entries
+          WHERE task_id IS NOT NULL
           GROUP BY task_id
         ) te ON t.id = te.task_id
+        LEFT JOIN (
+          SELECT
+            ta.task_id,
+            GROUP_CONCAT(ta.user_id, '||') as assignee_ids,
+            GROUP_CONCAT(u_ta.full_name, '||') as assignee_names
+          FROM task_assignees ta
+          JOIN users u_ta ON ta.user_id = u_ta.id
+          GROUP BY ta.task_id
+        ) tas ON t.id = tas.task_id
         WHERE (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `;
 
@@ -410,10 +430,21 @@ export class TaskController {
       const userId = req.user?.id;
 
       const task = await db.get(`
-        SELECT t.*, tb.project_id
+        SELECT
+          t.*, tb.project_id,
+          ta2.assignee_ids, ta2.assignee_names
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
+        LEFT JOIN (
+          SELECT
+            ta2.task_id,
+            GROUP_CONCAT(ta2.user_id, '||') as assignee_ids,
+            GROUP_CONCAT(u_ta.full_name, '||') as assignee_names
+          FROM task_assignees ta2
+          JOIN users u_ta ON ta2.user_id = u_ta.id
+          GROUP BY ta2.task_id
+        ) ta2 ON t.id = ta2.task_id
         WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [id, userId, userId, userId]);
 
