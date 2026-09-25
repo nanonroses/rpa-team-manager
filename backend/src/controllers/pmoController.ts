@@ -178,16 +178,27 @@ export class PMOController {
 
             // Get all tasks for the project
             const tasks = await db.query(`
-                SELECT 
+                SELECT
                     t.*,
                     tc.name as column_name,
                     u.full_name as assignee_name,
+                    tas.assignee_ids,
+                    tas.assignee_names,
                     COALESCE(SUM(te.hours), 0) as actual_hours,
                     t.estimated_hours as planned_hours
                 FROM tasks t
                 LEFT JOIN task_columns tc ON t.column_id = tc.id
                 LEFT JOIN users u ON t.assignee_id = u.id
                 LEFT JOIN time_entries te ON t.id = te.task_id
+                LEFT JOIN (
+                    SELECT
+                        ta.task_id,
+                        GROUP_CONCAT(ta.user_id, '||') as assignee_ids,
+                        GROUP_CONCAT(u_ta.full_name, '||') as assignee_names
+                    FROM task_assignees ta
+                    JOIN users u_ta ON ta.user_id = u_ta.id
+                    GROUP BY ta.task_id
+                ) tas ON t.id = tas.task_id
                 WHERE t.board_id IN (SELECT id FROM task_boards WHERE project_id = ?)
                 GROUP BY t.id
                 ORDER BY t.position

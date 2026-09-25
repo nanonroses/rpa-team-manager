@@ -46,6 +46,28 @@ const ganttResponse = {
   tasks: [ganttTask]
 };
 
+// Tarea con 2 responsables ya asignados via task_assignees, tal como la devuelve
+// ahora getProjectGantt (assignee_ids/assignee_names como string separado por '||').
+const ganttTaskWithAssignees = {
+  id: 202,
+  title: 'Tarea con 2 responsables',
+  status: 'in_progress',
+  priority: 'high',
+  start_date: '2026-02-01',
+  due_date: '2026-02-15',
+  created_at: '2026-01-15',
+  assignee_id: 5,
+  assignee_name: 'Ana',
+  assignee_ids: '5||9',
+  assignee_names: 'Ana||Beto'
+};
+
+const ganttResponseWithAssignees = {
+  project: { id: 7, name: 'AGROSUPER', completion_percentage: 40 },
+  milestones: [],
+  tasks: [ganttTaskWithAssignees]
+};
+
 function renderDashboard() {
   return render(
     <MemoryRouter initialEntries={['/pmo/gantt/7']}>
@@ -126,6 +148,32 @@ describe('PMODashboard - multi-asignado', () => {
     await waitFor(() => {
       expect(apiService.updateTask).toHaveBeenCalledWith(
         101,
+        expect.objectContaining({ assignee_ids: [5, 9] })
+      );
+    }, { timeout: 15000 });
+  }, 40000);
+
+  it('el formulario de editar tarea precarga assignee_ids con los responsables existentes (regresion: no debe quedar vacio)', async () => {
+    (apiService.getPMOProjectGantt as any).mockResolvedValue(ganttResponseWithAssignees);
+    renderDashboard();
+
+    await waitFor(() => expect(screen.getByText('Tarea con 2 responsables')).toBeInTheDocument(), { timeout: 10000 });
+
+    const editIcon = screen.getAllByRole('img', { name: 'edit' })[0];
+    await userEvent.click(editIcon);
+    await waitFor(() => expect(screen.getByText('Editar Tarea')).toBeInTheDocument());
+
+    // Precarga: ambos responsables ya deben verse seleccionados sin interaccion manual.
+    await waitFor(() => {
+      expect(screen.getByText('Ana')).toBeInTheDocument();
+      expect(screen.getByText('Beto')).toBeInTheDocument();
+    }, { timeout: 10000 });
+
+    await userEvent.click(screen.getByRole('button', { name: /guardar cambios/i }));
+
+    await waitFor(() => {
+      expect(apiService.updateTask).toHaveBeenCalledWith(
+        202,
         expect.objectContaining({ assignee_ids: [5, 9] })
       );
     }, { timeout: 15000 });

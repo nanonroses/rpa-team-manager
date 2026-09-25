@@ -735,7 +735,10 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       end_date: record.end_date ? dayjs(record.end_date) : null,
       actual_date: record.actual_date ? dayjs(record.actual_date) : null,
       start_date: record.start_date ? dayjs(record.start_date) : null,
-      due_date: record.due_date ? dayjs(record.due_date) : null
+      due_date: record.due_date ? dayjs(record.due_date) : null,
+      assignee_ids: record.assignee_ids
+        ? record.assignee_ids.split('||').map(Number)
+        : (record.assignee_id ? [record.assignee_id] : [])
     });
     setEditModalVisible(true);
   };
