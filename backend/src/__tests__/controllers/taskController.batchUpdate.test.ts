@@ -199,11 +199,13 @@ describe('TaskController - batchUpdateTasks (edicion masiva)', () => {
     });
 
     it('reasignar 3 tareas al mismo usuario nuevo dispara UNA sola notificacion agrupada', async () => {
-        (db.query as jest.Mock).mockResolvedValueOnce([
-            { id: 1, column_id: 10, position: 1, assignee_id: 5, board_id: 100, project_id: 7 },
-            { id: 2, column_id: 10, position: 2, assignee_id: 5, board_id: 100, project_id: 7 },
-            { id: 3, column_id: 10, position: 3, assignee_id: 6, board_id: 100, project_id: 7 }
-        ]);
+        (db.query as jest.Mock)
+            .mockResolvedValueOnce([
+                { id: 1, column_id: 10, position: 1, assignee_id: 5, board_id: 100, project_id: 7 },
+                { id: 2, column_id: 10, position: 2, assignee_id: 5, board_id: 100, project_id: 7 },
+                { id: 3, column_id: 10, position: 3, assignee_id: 6, board_id: 100, project_id: 7 }
+            ])
+            .mockResolvedValue([]); // responsables actuales de cada tarea (ninguna tenia al 8)
         (db.run as jest.Mock).mockResolvedValue({ changes: 3 });
         const res = mockRes();
 
@@ -217,9 +219,11 @@ describe('TaskController - batchUpdateTasks (edicion masiva)', () => {
     });
 
     it('no notifica si el nuevo assignee_id es el mismo usuario que hace el cambio', async () => {
-        (db.query as jest.Mock).mockResolvedValueOnce([
-            { id: 1, column_id: 10, position: 1, assignee_id: 5, board_id: 100, project_id: 7 }
-        ]);
+        (db.query as jest.Mock)
+            .mockResolvedValueOnce([
+                { id: 1, column_id: 10, position: 1, assignee_id: 5, board_id: 100, project_id: 7 }
+            ])
+            .mockResolvedValue([]);
         (db.run as jest.Mock).mockResolvedValue({ changes: 1 });
         const res = mockRes();
 
@@ -229,9 +233,11 @@ describe('TaskController - batchUpdateTasks (edicion masiva)', () => {
     });
 
     it('no notifica si ninguna tarea cambia realmente de assignee_id', async () => {
-        (db.query as jest.Mock).mockResolvedValueOnce([
-            { id: 1, column_id: 10, position: 1, assignee_id: 8, board_id: 100, project_id: 7 }
-        ]);
+        (db.query as jest.Mock)
+            .mockResolvedValueOnce([
+                { id: 1, column_id: 10, position: 1, assignee_id: 8, board_id: 100, project_id: 7 }
+            ])
+            .mockResolvedValueOnce([{ user_id: 8 }]); // 8 ya era responsable via task_assignees
         (db.run as jest.Mock).mockResolvedValue({ changes: 1 });
         const res = mockRes();
 

@@ -83,6 +83,7 @@ export const createTaskSchema = z.object({
     task_type: z.enum(['task', 'bug', 'feature', 'research', 'documentation']).optional(),
     priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
     assignee_id: z.number().int().positive().optional(),
+    assignee_ids: z.array(z.number().int().positive()).optional(),
     story_points: z.number().int().min(0).max(100).optional(),
     estimated_hours: z.number().positive().max(9999.99).optional(),
     due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}/, 'Date must be in YYYY-MM-DD format').optional().nullable()

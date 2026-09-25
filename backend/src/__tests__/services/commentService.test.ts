@@ -269,13 +269,37 @@ describe('CommentService.getMentionableUsers', () => {
         ]);
     });
 
-    it('para una tarea sin assignee ni proyecto asociado, devuelve lista vacía sin consultar usuarios', async () => {
+    it('incluye a los co-responsables de task_assignees aunque no tengan el legacy assignee_id ni sean dueños del proyecto', async () => {
         (db.get as jest.Mock).mockResolvedValue({ assignee_id: null, assigned_to: null, created_by: null });
+        (db.query as jest.Mock).mockImplementation((sql: string) => {
+            if (sql.includes('FROM task_assignees')) {
+                return Promise.resolve([{ user_id: 7 }, { user_id: 8 }]);
+            }
+            if (sql.includes('id IN')) {
+                return Promise.resolve([
+                    { id: 7, username: 'dev7', full_name: 'Dev Siete' },
+                    { id: 8, username: 'dev8', full_name: 'Dev Ocho' }
+                ]);
+            }
+            return Promise.resolve([]);
+        });
+
+        const result = await service.getMentionableUsers('task', 55);
+
+        expect(db.query).toHaveBeenCalledWith(expect.stringContaining('FROM task_assignees'), [55]);
+        expect(result).toEqual([
+            { id: 7, username: 'dev7', full_name: 'Dev Siete' },
+            { id: 8, username: 'dev8', full_name: 'Dev Ocho' }
+        ]);
+    });
+
+    it('para una tarea sin assignee, proyecto ni co-responsables en task_assignees, devuelve lista vacía', async () => {
+        (db.get as jest.Mock).mockResolvedValue({ assignee_id: null, assigned_to: null, created_by: null });
+        (db.query as jest.Mock).mockResolvedValue([]); // sin filas en task_assignees
 
         const result = await service.getMentionableUsers('task', 55);
 
         expect(result).toEqual([]);
-        expect(db.query).not.toHaveBeenCalled();
     });
 
     it('devuelve lista vacía si la tarea no existe', async () => {

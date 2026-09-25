@@ -94,7 +94,17 @@ export class CommentService {
                 WHERE t.id = ?
             `, [entityId]);
             if (!row) return new Set();
-            return this.filterActiveUserIds([row.assignee_id, row.assigned_to, row.created_by]);
+
+            // Co-responsables (task_assignees): tienen acceso completo a la tarea en el resto
+            // del codebase, asi que tambien deben poder ser @mencionados/notificados aqui,
+            // no solo el legacy assignee_id.
+            const coAssigneeRows = await db.query(
+                `SELECT user_id FROM task_assignees WHERE task_id = ?`,
+                [entityId]
+            );
+            const coAssigneeIds = coAssigneeRows.map((r: { user_id: number }) => r.user_id);
+
+            return this.filterActiveUserIds([row.assignee_id, row.assigned_to, row.created_by, ...coAssigneeIds]);
         }
 
         const row = await db.get(`SELECT assigned_to, created_by FROM projects WHERE id = ?`, [entityId]);

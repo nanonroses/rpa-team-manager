@@ -88,6 +88,7 @@ describe('TaskController - notificaciones', () => {
         (db.get as jest.Mock)
             .mockResolvedValueOnce(previousTask)
             .mockResolvedValueOnce({ id: 55, title: 'Tarea' });
+        (db.query as jest.Mock).mockResolvedValueOnce([{ user_id: 4 }]); // responsables actuales (solo 4)
         (db.run as jest.Mock).mockResolvedValue({ id: 55, changes: 1 });
         const req = {
             params: { id: '55' }, body: { assignee_id: 9 }, user: { id: 3 }
@@ -106,6 +107,7 @@ describe('TaskController - notificaciones', () => {
         (db.get as jest.Mock)
             .mockResolvedValueOnce(previousTask)
             .mockResolvedValueOnce({ id: 55, title: 'Tarea' });
+        (db.query as jest.Mock).mockResolvedValueOnce([{ user_id: 9 }]); // 9 ya era responsable
         (db.run as jest.Mock).mockResolvedValue({ id: 55, changes: 1 });
         const req = {
             params: { id: '55' }, body: { assignee_id: 9 }, user: { id: 3 }
@@ -169,6 +171,7 @@ describe('TaskController - notificaciones', () => {
         (db.get as jest.Mock)
             .mockResolvedValueOnce(previousTask)
             .mockResolvedValueOnce({ id: 55, title: 'Tarea' });
+        (db.query as jest.Mock).mockResolvedValueOnce([{ user_id: 4 }]);
         (db.run as jest.Mock).mockResolvedValue({ id: 55, changes: 1 });
         const req = {
             params: { id: '55' }, body: { assignee_id: 3 }, user: { id: 3 }
@@ -199,6 +202,7 @@ describe('TaskController - notificaciones', () => {
         (db.get as jest.Mock)
             .mockResolvedValueOnce(previousTask)
             .mockResolvedValueOnce({ id: 55, title: 'Tarea' });
+        (db.query as jest.Mock).mockResolvedValueOnce([{ user_id: 4 }]);
         (db.run as jest.Mock).mockResolvedValue({ id: 55, changes: 1 });
         const req = {
             params: { id: '55' }, body: { assignee_id: 9, status: 'done' }, user: { id: 3 }

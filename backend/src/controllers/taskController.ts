@@ -370,9 +370,15 @@ export class TaskController {
 
       const position = (lastTask?.max_position || 0) + 1;
 
-      const resolvedAssigneeIds: number[] = Array.isArray(assignee_ids)
+      // assignee_ids (nuevo, lista) y assignee_id (legacy, unico) se normalizan a una sola
+      // lista de ids unicos y numericos antes de usarse: evita duplicados que violan el
+      // UNIQUE(task_id, user_id) y strings sin coercion que rompen las comparaciones de
+      // "recien agregado" usadas para notificar.
+      const effectiveAssigneeIds: number[] = Array.isArray(assignee_ids)
         ? assignee_ids
         : (assignee_id !== undefined && assignee_id !== null ? [assignee_id] : []);
+      const resolvedAssigneeIds: number[] = [...new Set(effectiveAssigneeIds.map(Number))]
+        .filter((n) => Number.isInteger(n) && n > 0);
       const principalAssigneeId = resolvedAssigneeIds[0] ?? null;
 
       // Create task + task_assignees rows atomically
@@ -543,24 +549,34 @@ export class TaskController {
         `, [column_id, newPosition, id]);
       }
 
-      const resolvedAssigneeIds: number[] | undefined = Array.isArray(assignee_ids)
+      // assignee_ids (nuevo, lista) y assignee_id (legacy, unico) se normalizan a una sola
+      // lista antes de usarse: si el caller manda assignee_ids, esa es la fuente de verdad;
+      // si solo manda el legacy assignee_id, se trata como lista de un elemento y reusa la
+      // misma logica de sync (delete-then-insert en task_assignees + tasks.assignee_id como
+      // el primero de la lista), en vez de duplicarla. La lista tambien se dedupe y coerciona
+      // a numeros: ids repetidos violarian el UNIQUE(task_id, user_id) y strings sin coercion
+      // rompen las comparaciones de "recien agregado" de mas abajo.
+      const effectiveAssigneeIds: number[] | undefined = Array.isArray(assignee_ids)
         ? assignee_ids
+        : (assignee_id !== undefined && assignee_id !== null ? [assignee_id] : undefined);
+      const normalizedAssigneeIds: number[] | undefined = effectiveAssigneeIds !== undefined
+        ? [...new Set(effectiveAssigneeIds.map(Number))].filter((n) => Number.isInteger(n) && n > 0)
         : undefined;
       let newlyAddedAssigneeIds: number[] = [];
 
-      if (resolvedAssigneeIds !== undefined) {
+      if (normalizedAssigneeIds !== undefined) {
         await db.beginTransaction('IMMEDIATE');
         try {
           const currentRows = await db.query(`SELECT user_id FROM task_assignees WHERE task_id = ?`, [id]);
           const currentIds: number[] = currentRows.map((r: any) => r.user_id);
-          newlyAddedAssigneeIds = resolvedAssigneeIds.filter((uid) => !currentIds.includes(uid));
+          newlyAddedAssigneeIds = normalizedAssigneeIds.filter((uid) => !currentIds.includes(uid));
 
           await db.run(`DELETE FROM task_assignees WHERE task_id = ?`, [id]);
-          for (const uid of resolvedAssigneeIds) {
+          for (const uid of normalizedAssigneeIds) {
             await db.run(`INSERT INTO task_assignees (task_id, user_id) VALUES (?, ?)`, [id, uid]);
           }
 
-          const principalAssigneeId = resolvedAssigneeIds[0] ?? null;
+          const principalAssigneeId = normalizedAssigneeIds[0] ?? null;
           await db.run(`UPDATE tasks SET assignee_id = ? WHERE id = ?`, [principalAssigneeId, id]);
 
           await db.commit();
@@ -569,12 +585,10 @@ export class TaskController {
           logger.error('Update task assignees transaction error:', transactionError);
           throw transactionError;
         }
-      } else if (assignee_id !== undefined && assignee_id !== null && assignee_id !== task.assignee_id) {
-        // Compatibilidad con llamadores viejos que solo mandan assignee_id (sin assignee_ids[])
-        newlyAddedAssigneeIds = [assignee_id];
       }
 
-      // Update other fields
+      // Update other fields (assignee_id ya se sincronizo arriba cuando corresponde -no se
+      // vuelve a tocar aqui para no pisarlo con un valor sin normalizar/deduplicar).
       await db.run(`
         UPDATE tasks
         SET title = COALESCE(?, title),
@@ -582,7 +596,6 @@ export class TaskController {
             task_type = COALESCE(?, task_type),
             status = COALESCE(?, status),
             priority = COALESCE(?, priority),
-            assignee_id = COALESCE(?, assignee_id),
             estimated_hours = COALESCE(?, estimated_hours),
             story_points = COALESCE(?, story_points),
             start_date = COALESCE(?, start_date),
@@ -591,7 +604,7 @@ export class TaskController {
         WHERE id = ?
       `, [
         title, description, task_type, status, priority,
-        assignee_id, estimated_hours, story_points, start_date, due_date, id
+        estimated_hours, story_points, start_date, due_date, id
       ]);
 
       // Get updated task
@@ -1558,6 +1571,7 @@ export class TaskController {
             task_type = 'task',
             priority = 'medium',
             assignee_id,
+            assignee_ids,
             estimated_hours,
             story_points,
             start_date,
@@ -1568,6 +1582,16 @@ export class TaskController {
             continue; // Skip invalid tasks
           }
 
+          // assignee_ids (nuevo, lista) y assignee_id (legacy, unico) se normalizan a una
+          // sola lista, igual que en createTask: evita que las tareas creadas en batch (ej.
+          // import de Mermaid) queden sin fila en task_assignees para su responsable.
+          const effectiveAssigneeIds: number[] = Array.isArray(assignee_ids)
+            ? assignee_ids
+            : (assignee_id !== undefined && assignee_id !== null ? [assignee_id] : []);
+          const normalizedAssigneeIds: number[] = [...new Set(effectiveAssigneeIds.map(Number))]
+            .filter((n) => Number.isInteger(n) && n > 0);
+          const principalAssigneeId = normalizedAssigneeIds[0] ?? null;
+
           // Get next position for this column
           const currentMaxPos = columnMap.get(column_id) || 0;
           const position = currentMaxPos + 1;
@@ -1577,13 +1601,17 @@ export class TaskController {
           const result = await db.run(`
             INSERT INTO tasks (
               board_id, column_id, title, description, task_type, priority,
-              assignee_id, reporter_id, estimated_hours, story_points, 
+              assignee_id, reporter_id, estimated_hours, story_points,
               start_date, due_date, position, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           `, [
             board_id, column_id, title, description, task_type, priority,
-            assignee_id, userId, estimated_hours, story_points, start_date, due_date, position
+            principalAssigneeId, userId, estimated_hours, story_points, start_date, due_date, position
           ]);
+
+          for (const uid of normalizedAssigneeIds) {
+            await db.run(`INSERT INTO task_assignees (task_id, user_id) VALUES (?, ?)`, [result.id, uid]);
+          }
 
           createdTasks.push({
             id: result.id,
@@ -1687,21 +1715,29 @@ export class TaskController {
         projectCounts.set(task.project_id, (projectCounts.get(task.project_id) || 0) + 1);
       }
 
+      // assignee_ids (nuevo, lista) y assignee_id (legacy, unico) se normalizan a una sola
+      // lista: si el caller manda assignee_ids, esa es la fuente de verdad; si solo manda el
+      // legacy assignee_id, se trata como lista de un elemento y reusa la misma logica de
+      // sync (delete-then-insert en task_assignees + tasks.assignee_id como el primero de la
+      // lista) en vez de duplicarla. Tambien se dedupe y coerciona a numeros para evitar
+      // choques con el UNIQUE(task_id, user_id) y comparaciones rotas por ids como string.
+      const effectiveAssigneeIds: number[] | undefined = Array.isArray(assignee_ids)
+        ? assignee_ids
+        : (assignee_id !== undefined && assignee_id !== null ? [assignee_id] : undefined);
+      const normalizedAssigneeIds: number[] | undefined = effectiveAssigneeIds !== undefined
+        ? [...new Set(effectiveAssigneeIds.map(Number))].filter((n) => Number.isInteger(n) && n > 0)
+        : undefined;
+
       let usersNewlyAssigned: Map<number, number> = new Map();
 
       await db.beginTransaction('IMMEDIATE');
 
       try {
-        if (priority !== undefined || assignee_id !== undefined) {
-          const setClauses: string[] = [];
-          const params: any[] = [];
-          if (priority !== undefined) { setClauses.push('priority = ?'); params.push(priority); }
-          if (assignee_id !== undefined) { setClauses.push('assignee_id = ?'); params.push(assignee_id); }
-          setClauses.push('updated_at = CURRENT_TIMESTAMP');
+        if (priority !== undefined) {
           const idPlaceholders = accessibleIds.map(() => '?').join(', ');
           await db.run(
-            `UPDATE tasks SET ${setClauses.join(', ')} WHERE id IN (${idPlaceholders})`,
-            [...params, ...accessibleIds]
+            `UPDATE tasks SET priority = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (${idPlaceholders})`,
+            [priority, ...accessibleIds]
           );
         }
 
@@ -1719,20 +1755,20 @@ export class TaskController {
           }
         }
 
-        if (Array.isArray(assignee_ids)) {
+        if (normalizedAssigneeIds !== undefined) {
           for (const task of accessibleTasks) {
             const currentRows = await db.query(`SELECT user_id FROM task_assignees WHERE task_id = ?`, [task.id]);
             const currentIds: number[] = currentRows.map((r: any) => r.user_id);
 
             await db.run(`DELETE FROM task_assignees WHERE task_id = ?`, [task.id]);
-            for (const uid of assignee_ids) {
+            for (const uid of normalizedAssigneeIds) {
               await db.run(`INSERT INTO task_assignees (task_id, user_id) VALUES (?, ?)`, [task.id, uid]);
               if (!currentIds.includes(uid)) {
                 usersNewlyAssigned.set(uid, (usersNewlyAssigned.get(uid) || 0) + 1);
               }
             }
 
-            const principalAssigneeId = assignee_ids[0] ?? null;
+            const principalAssigneeId = normalizedAssigneeIds[0] ?? null;
             await db.run(`UPDATE tasks SET assignee_id = ? WHERE id = ?`, [principalAssigneeId, task.id]);
           }
         }
@@ -1751,24 +1787,10 @@ export class TaskController {
         throw transactionError;
       }
 
-      // assignee_ids (nuevo, lista) y assignee_id (legacy, unico) son mutuamente excluyentes:
-      // si el caller manda assignee_ids, esa es la fuente de verdad y el bloque legacy no debe
-      // notificar de nuevo (evita doble notificacion si un caller manda ambos campos).
-      if (!Array.isArray(assignee_ids) && assignee_id !== undefined && assignee_id !== null && assignee_id !== userId) {
-        const reassignedCount = accessibleTasks.filter((t: any) => t.assignee_id !== assignee_id).length;
-        if (reassignedCount > 0) {
-          await notificationService.notify({
-            userId: assignee_id,
-            eventKey: 'task_assigned',
-            title: 'Te asignaron tareas',
-            message: `Se te asignaron ${reassignedCount} tarea(s)`,
-            entityType: 'task',
-            senderId: userId,
-            link: '/tasks'
-          });
-        }
-      }
-
+      // El bloque legacy de assignee_id ahora se normaliza junto con assignee_ids arriba y
+      // comparte la misma logica de sync (task_assignees) y de conteo de "recien asignados"
+      // (usersNewlyAssigned), asi que una unica notificacion agrupada por usuario cubre
+      // ambos casos sin duplicar el envio.
       for (const [uid, count] of usersNewlyAssigned) {
         if (uid !== userId) {
           await notificationService.notify({
