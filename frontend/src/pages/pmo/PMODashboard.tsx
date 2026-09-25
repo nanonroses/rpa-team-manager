@@ -3012,8 +3012,8 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                   <Select.Option value="blocked">Bloqueado</Select.Option>
                 </Select>
               </Form.Item>
-              <Form.Item name="assignee_id" label="Asignado a">
-                <Select placeholder="Seleccionar usuario">
+              <Form.Item name="assignee_ids" label="Responsables">
+                <Select mode="multiple" placeholder="Seleccionar responsables">
                   {users.map((user: any) => (
                     <Select.Option key={user.id} value={user.id}>
                       {user.full_name}
@@ -3292,8 +3292,8 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
 
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="assignee_id" label="Asignado a">
-                <Select placeholder="Seleccionar usuario">
+              <Form.Item name="assignee_ids" label="Responsables">
+                <Select mode="multiple" placeholder="Seleccionar responsables">
                   {users.map((user: any) => (
                     <Select.Option key={user.id} value={user.id}>
                       {user.full_name}
