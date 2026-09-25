@@ -120,7 +120,7 @@ export class NotificationService {
         try {
             const tasks = await db.query(`
                 SELECT id, title FROM tasks
-                WHERE assignee_id = ?
+                WHERE EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = tasks.id AND ta.user_id = ?)
                   AND status NOT IN ('done', 'blocked')
                   AND due_date IS NOT NULL
                   AND date(due_date) BETWEEN date('now') AND date('now', '+' || ? || ' days')

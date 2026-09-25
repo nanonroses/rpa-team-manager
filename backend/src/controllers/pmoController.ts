@@ -101,7 +101,8 @@ export class PMOController {
                     u.role,
                     COUNT(t.id) as active_tasks
                 FROM users u
-                JOIN tasks t ON t.assignee_id = u.id AND t.status != 'done'
+                JOIN tasks t ON 1=1
+                JOIN task_assignees ta ON ta.task_id = t.id AND t.status != 'done' AND ta.user_id = u.id
                 WHERE u.is_active = 1
                 GROUP BY u.id, u.full_name, u.role
                 HAVING COUNT(t.id) > 0
