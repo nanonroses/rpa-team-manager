@@ -9,7 +9,6 @@ import {
   Col,
   Tag,
   Checkbox,
-  Avatar,
   Modal,
   Form,
   Input,
@@ -79,6 +78,8 @@ interface Task {
   assignee_id?: number;
   assignee_name?: string;
   assignee_avatar?: string;
+  assignee_ids?: string | null;
+  assignee_names?: string | null;
   reporter_name?: string;
   estimated_hours?: number;
   story_points?: number;
@@ -457,9 +458,9 @@ export const TasksPage: React.FC = () => {
   };
 
   const handleBulkApply = async () => {
-    const updates: { priority?: string; assignee_id?: number; column_id?: number } = {};
+    const updates: { priority?: string; assignee_ids?: number[]; column_id?: number } = {};
     if (bulkPriority !== undefined) updates.priority = bulkPriority;
-    if (bulkAssigneeId !== undefined) updates.assignee_id = bulkAssigneeId;
+    if (bulkAssigneeId !== undefined) updates.assignee_ids = [bulkAssigneeId];
     if (bulkColumnId !== undefined) updates.column_id = bulkColumnId;
 
     if (Object.keys(updates).length === 0) {
@@ -570,7 +571,7 @@ export const TasksPage: React.FC = () => {
       description: task.description,
       task_type: task.task_type,
       priority: task.priority,
-      assignee_id: task.assignee_id,
+      assignee_ids: task.assignee_ids ? task.assignee_ids.split('||').map(Number) : (task.assignee_id ? [task.assignee_id] : []),
       estimated_hours: task.estimated_hours,
       story_points: task.story_points,
       due_date: task.due_date ? dayjs(task.due_date) : null,
@@ -647,11 +648,16 @@ export const TasksPage: React.FC = () => {
                 )}
 
                 <Space wrap size="small">
-                  {task.assignee_name && (
-                    <Tooltip title={task.assignee_name}>
-                      <Avatar size="small" icon={<UserOutlined />} />
-                    </Tooltip>
-                  )}
+                  {task.assignee_names && (() => {
+                    const names = task.assignee_names!.split('||');
+                    return (
+                      <Tooltip title={`Responsables: ${names.join(', ')}`}>
+                        <Tag icon={<UserOutlined />}>
+                          +{names.length}
+                        </Tag>
+                      </Tooltip>
+                    );
+                  })()}
 
                   {task.due_date && (
                     <Tooltip title={`Vence: ${dayjs(task.due_date).format('DD/MM/YYYY')}`}>
@@ -723,6 +729,7 @@ export const TasksPage: React.FC = () => {
                     size="small"
                     type="text"
                     icon={<EditOutlined />}
+                    aria-label="Editar tarea"
                     onClick={(e) => {
                       console.log('✏️ Edit button clicked for task:', task.id);
                       e.stopPropagation();
@@ -773,7 +780,7 @@ export const TasksPage: React.FC = () => {
       .filter(task => task.column_id === column.id)
       .filter(task => !filterPriority || task.priority === filterPriority)
       .filter(task => !filterTaskType || task.task_type === filterTaskType)
-      .filter(task => filterAssigneeId === undefined || task.assignee_id === filterAssigneeId);
+      .filter(task => filterAssigneeId === undefined || (task.assignee_ids ?? '').split('||').map(Number).includes(filterAssigneeId));
 
     // Debug log
     if (selectedBoard) {
@@ -1214,8 +1221,8 @@ export const TasksPage: React.FC = () => {
           
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="assignee_id" label="Asignado a">
-                <Select placeholder="Seleccionar usuario" allowClear>
+              <Form.Item name="assignee_ids" label="Responsables">
+                <Select mode="multiple" placeholder="Seleccionar responsables" allowClear optionFilterProp="children">
                   {users.map(user => (
                     <Option key={user.id} value={user.id}>
                       {user.full_name}
