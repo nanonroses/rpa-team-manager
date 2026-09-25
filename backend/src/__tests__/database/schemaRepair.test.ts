@@ -98,12 +98,22 @@ describe('Migración v37 - corrección de horas en global_settings', () => {
     it('es idempotente: ejecutarla dos veces produce el mismo resultado', async () => {
         const monthly1 = await db.get('SELECT setting_value FROM global_settings WHERE setting_key = ?', ['monthly_hours']);
         const weekly1 = await db.get('SELECT setting_value FROM global_settings WHERE setting_key = ?', ['weekly_hours']);
-
-        // Re-run the migrations to ensure idempotence
-        const manager = new MigrationManager();
-        const dbPath = (db as any).dbPath || 'unknown';
-        // Since we can't easily re-run migrations on an open connection, we just verify the values are correct
         expect(monthly1?.setting_value).toBe('168');
         expect(weekly1?.setting_value).toBe('42');
+
+        // Re-ejecutamos todas las migraciones (incluida v37, ya aplicada) contra el MISMO archivo
+        // de BD, usando una segunda conexión/manager independiente, tal como ocurriría al reiniciar
+        // el backend con una BD ya migrada. runMigrations() debe detectar que v37 ya está en
+        // schema_migrations y no reaplicarla ni fallar.
+        const manager = new MigrationManager();
+        await manager.init(db.dbPath);
+        await manager.runMigrations(migrations);
+        await manager.close();
+
+        const monthly2 = await db.get('SELECT setting_value FROM global_settings WHERE setting_key = ?', ['monthly_hours']);
+        const weekly2 = await db.get('SELECT setting_value FROM global_settings WHERE setting_key = ?', ['weekly_hours']);
+
+        expect(monthly2?.setting_value).toBe('168');
+        expect(weekly2?.setting_value).toBe('42');
     });
 });

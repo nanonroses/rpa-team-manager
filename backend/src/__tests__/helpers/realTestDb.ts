@@ -6,6 +6,7 @@ import { MigrationManager } from '../../database/migrations';
 import { migrations } from '../../database/migrationList';
 
 export interface RealTestDb {
+    dbPath: string;
     query(sql: string, params?: any[]): Promise<any[]>;
     get(sql: string, params?: any[]): Promise<any>;
     run(sql: string, params?: any[]): Promise<{ id?: number; changes: number }>;
@@ -58,6 +59,7 @@ export async function createRealTestDb(): Promise<RealTestDb> {
     await exec('PRAGMA foreign_keys = ON');
 
     return {
+        dbPath,
         query: (sql, params = []) =>
             new Promise((resolve, reject) => conn.all(sql, params, (err, rows) => (err ? reject(err) : resolve(rows)))),
         get: (sql, params = []) =>
