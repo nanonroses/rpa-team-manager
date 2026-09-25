@@ -1630,5 +1630,19 @@ export const migrations: Migration[] = [
 
       `INSERT OR IGNORE INTO task_assignees (task_id, user_id) SELECT id, assignee_id FROM tasks WHERE assignee_id IS NOT NULL`
     ]
+  },
+
+  {
+    version: 37,
+    description: 'Corrige monthly_hours/weekly_hours en global_settings (168h = 42h x 4 semanas) - Fase 6a',
+    up: [
+      `INSERT INTO global_settings (setting_key, setting_value, setting_type)
+       VALUES ('monthly_hours', '168', 'number')
+       ON CONFLICT(setting_key) DO UPDATE SET setting_value = '168'`,
+
+      `INSERT INTO global_settings (setting_key, setting_value, setting_type)
+       VALUES ('weekly_hours', '42', 'number')
+       ON CONFLICT(setting_key) DO UPDATE SET setting_value = '42'`
+    ]
   }
 ];
