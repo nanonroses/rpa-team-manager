@@ -780,7 +780,13 @@ export const TasksPage: React.FC = () => {
       .filter(task => task.column_id === column.id)
       .filter(task => !filterPriority || task.priority === filterPriority)
       .filter(task => !filterTaskType || task.task_type === filterTaskType)
-      .filter(task => filterAssigneeId === undefined || (task.assignee_ids ?? '').split('||').map(Number).includes(filterAssigneeId));
+      .filter(task => {
+        if (filterAssigneeId === undefined) return true;
+        const assigneeIds = task.assignee_ids
+          ? task.assignee_ids.split('||').map(Number)
+          : (task.assignee_id ? [task.assignee_id] : []);
+        return assigneeIds.includes(filterAssigneeId);
+      });
 
     // Debug log
     if (selectedBoard) {
