@@ -1610,5 +1610,25 @@ export const migrations: Migration[] = [
 
       `CREATE INDEX IF NOT EXISTS idx_task_collaborators_task ON task_collaborators(task_id)`
     ]
+  },
+
+  {
+    version: 36,
+    description: 'Multi-asignado completo: lista de responsables por tarea (task_assignees) - Fase 5',
+    up: [
+      `CREATE TABLE IF NOT EXISTS task_assignees (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id),
+        UNIQUE (task_id, user_id)
+      )`,
+
+      `CREATE INDEX IF NOT EXISTS idx_task_assignees_task ON task_assignees(task_id)`,
+
+      `INSERT OR IGNORE INTO task_assignees (task_id, user_id) SELECT id, assignee_id FROM tasks WHERE assignee_id IS NOT NULL`
+    ]
   }
 ];
