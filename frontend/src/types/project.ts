@@ -32,7 +32,7 @@ export interface Project {
   sale_price?: number;
 }
 
-export type ProjectStatus = 'planning' | 'active' | 'on_hold' | 'completed' | 'cancelled';
+export type ProjectStatus = 'active' | 'on_hold' | 'completed' | 'cancelled';
 
 export type Priority = 'critical' | 'high' | 'medium' | 'low';
 
@@ -104,7 +104,6 @@ export interface TaskDependency {
 }
 
 export const ProjectStatusLabels: Record<ProjectStatus, string> = {
-  planning: 'Planning',
   active: 'Active',
   on_hold: 'On Hold',
   completed: 'Completed',

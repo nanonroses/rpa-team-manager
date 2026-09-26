@@ -130,7 +130,6 @@ export const ProjectsPage: React.FC = () => {
 
   const statusOptions = [
     { label: 'All Status', value: 'all' },
-    { label: 'Planning', value: 'planning' },
     { label: 'Active', value: 'active' },
     { label: 'On Hold', value: 'on_hold' },
     { label: 'Completed', value: 'completed' },

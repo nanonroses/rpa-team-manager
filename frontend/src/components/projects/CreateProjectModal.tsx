@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, DatePicker, InputNumber, message } from 'antd';
+import { Modal, Form, Input, Select, DatePicker, InputNumber, Alert, message } from 'antd';
 import { Project } from '@/types/project';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/store/authStore';
 import { apiService } from '@/services/api';
+import { buildUserAssignments } from './projectAssignments';
 import dayjs from 'dayjs';
 
 const { TextArea } = Input;
@@ -84,7 +85,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         // Reset form for new project
         form.resetFields();
         form.setFieldsValue({
-          status: 'planning',
+          status: 'active',
           priority: 'medium',
           default_allocation: 100
         });
@@ -133,6 +134,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       console.log('Submit called with values:', values);
       console.log('isEdit:', isEdit, 'editProject:', editProject);
 
+      const isOperations = user?.role === 'rpa_operations';
+
       const projectData = {
         name: values.name,
         description: values.description,
@@ -141,7 +144,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         budget: values.budget,
         start_date: values.dates?.[0]?.format('YYYY-MM-DD'),
         end_date: values.dates?.[1]?.format('YYYY-MM-DD'),
-        assigned_to: values.assigned_users?.[0] || null,
+        assigned_to: isOperations ? null : (values.assigned_users?.[0] || null),
         // Financial data
         sale_price: values.sale_price,
         hours_budgeted: values.hours_budgeted
@@ -159,13 +162,9 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         message.success('Project created successfully');
       }
 
-      // Handle multiple user assignments
-      if (values.assigned_users && values.assigned_users.length > 0) {
-        const userAssignments = values.assigned_users.map((userId: number) => ({
-          user_id: userId,
-          allocation_percentage: values.default_allocation || 100,
-          role: userId === values.assigned_users[0] ? 'lead' : 'member'
-        }));
+      // Handle multiple user assignments (el servidor auto-asigna a rpa_operations, no hace falta mandar nada)
+      if (!isOperations && values.assigned_users && values.assigned_users.length > 0) {
+        const userAssignments = buildUserAssignments(values.assigned_users, values.default_allocation);
 
         try {
           await apiService.post(`/projects/${result.id}/assignments`, {
@@ -189,7 +188,6 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   };
 
   const statusOptions = [
-    { label: 'Planning', value: 'planning' },
     { label: 'Active', value: 'active' },
     { label: 'On Hold', value: 'on_hold' },
     { label: 'Completed', value: 'completed' },
@@ -234,7 +232,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           sale_price: editProject.sale_price || undefined,
           hours_budgeted: editProject.hours_budgeted || undefined
         } : {
-          status: 'planning',
+          status: 'active',
           priority: 'medium'
         }}
       >
@@ -318,38 +316,44 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           />
         </Form.Item>
 
-        <Form.Item
-          name="assigned_users"
-          label="Assigned Team Members"
-          rules={[{ required: true, message: 'Please assign at least one team member' }]}
-        >
-          <Select 
-            mode="multiple"
-            options={teamMembers.map(member => ({
-              ...member,
-              label: `${member.label} (${getTeamMemberRole(member.value)})`
-            }))} 
-            placeholder="Select team members"
-            allowClear
-            maxTagCount="responsive"
-            optionFilterProp="label"
-          />
-        </Form.Item>
+        {user?.role === 'rpa_operations' ? (
+          <Alert type="info" message="Quedarás asignado a este proyecto" showIcon style={{ marginBottom: 24 }} />
+        ) : (
+          <>
+            <Form.Item
+              name="assigned_users"
+              label="Assigned Team Members"
+              rules={[{ required: true, message: 'Please assign at least one team member' }]}
+            >
+              <Select
+                mode="multiple"
+                options={teamMembers.map(member => ({
+                  ...member,
+                  label: `${member.label} (${getTeamMemberRole(member.value)})`
+                }))}
+                placeholder="Select team members"
+                allowClear
+                maxTagCount="responsive"
+                optionFilterProp="label"
+              />
+            </Form.Item>
 
-        <Form.Item
-          name="default_allocation"
-          label="Default Allocation per Member (%)"
-          tooltip="Default percentage of time each team member will dedicate to this project"
-        >
-          <InputNumber
-            min={1}
-            max={100}
-            placeholder="100"
-            formatter={(value) => `${value}%`}
-            parser={(value) => parseInt(value!.replace('%', '')) as 1 | 100}
-            style={{ width: '100%' }}
-          />
-        </Form.Item>
+            <Form.Item
+              name="default_allocation"
+              label="Default Allocation per Member (%)"
+              tooltip="Default percentage of time each team member will dedicate to this project"
+            >
+              <InputNumber
+                min={1}
+                max={100}
+                placeholder="100"
+                formatter={(value) => `${value}%`}
+                parser={(value) => parseInt(value!.replace('%', '')) as 1 | 100}
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+          </>
+        )}
 
         {user?.role === 'team_lead' && (
           <>

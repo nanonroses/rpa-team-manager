@@ -817,18 +817,24 @@ export class ProjectController {
                 ORDER BY pa.created_at ASC
             `, [id]);
 
-            res.json(assignments);
+            if (req.user?.role === 'team_lead') {
+                res.json(assignments);
+                return;
+            }
+            res.json(assignments.map(({ monthly_cost, hourly_rate, ...rest }: any) => rest));
         } catch (error) {
             logger.error('Get project assignments error:', error);
             res.status(500).json({ error: 'Failed to get project assignments' });
         }
     };
 
+    private static readonly ASSIGNMENT_ROLES = ['lead', 'contributor', 'reviewer', 'observer'];
+
     // POST /api/projects/:id/assignments
     addProjectAssignments = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             const { id } = req.params;
-            const { user_assignments } = req.body; // Array of {user_id, allocation_percentage, role}
+            const { user_assignments } = req.body;
             const userId = req.user?.id;
 
             if (!userId) {
@@ -841,42 +847,63 @@ export class ProjectController {
                 return;
             }
 
-            // Start transaction
+            const project = await db.get('SELECT id FROM projects WHERE id = ?', [id]);
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+
+            // Validar todo ANTES de borrar: un payload inválido nunca debe dejar el proyecto sin equipo.
+            const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+            const seen = new Set<number>();
+            const normalized: Array<{ user_id: number; role: string; allocation_percentage: number; start_date: string | null; end_date: string | null }> = [];
+
+            for (const assignment of user_assignments) {
+                const { user_id, allocation_percentage = 100, role = 'contributor', start_date = null, end_date = null } = assignment || {};
+
+                if (!Number.isInteger(user_id) || user_id <= 0) {
+                    res.status(400).json({ error: 'Cada asignación requiere un user_id válido' });
+                    return;
+                }
+                if (seen.has(user_id)) {
+                    res.status(400).json({ error: `El usuario ${user_id} está repetido en la asignación` });
+                    return;
+                }
+                if (!ProjectController.ASSIGNMENT_ROLES.includes(role)) {
+                    res.status(400).json({ error: `Rol de asignación inválido: ${role}` });
+                    return;
+                }
+                if (!Number.isInteger(allocation_percentage) || allocation_percentage < 0 || allocation_percentage > 100) {
+                    res.status(400).json({ error: 'La dedicación debe ser un entero entre 0 y 100' });
+                    return;
+                }
+                if ((start_date !== null && !datePattern.test(start_date)) || (end_date !== null && !datePattern.test(end_date))) {
+                    res.status(400).json({ error: 'Las fechas deben tener formato YYYY-MM-DD' });
+                    return;
+                }
+                const userExists = await db.get('SELECT id FROM users WHERE id = ? AND is_active = 1', [user_id]);
+                if (!userExists) {
+                    res.status(400).json({ error: `El usuario ${user_id} no existe o está inactivo` });
+                    return;
+                }
+
+                seen.add(user_id);
+                normalized.push({ user_id, role, allocation_percentage, start_date, end_date });
+            }
+
             await db.beginTransaction();
-
             try {
-                // Delete existing assignments to avoid unique constraint conflicts
-                await db.run(`
-                    DELETE FROM project_assignments 
-                    WHERE project_id = ?
-                `, [id]);
+                await db.run('DELETE FROM project_assignments WHERE project_id = ?', [id]);
 
-                // Add new assignments
                 const newAssignments = [];
-                for (const assignment of user_assignments) {
-                    const { user_id, allocation_percentage = 100, role = 'member' } = assignment;
-
-                    // Validate user exists
-                    const userExists = await db.get(`SELECT id FROM users WHERE id = ?`, [user_id]);
-                    if (!userExists) {
-                        throw new Error(`User with id ${user_id} not found`);
-                    }
-
+                for (const a of normalized) {
                     const result = await db.run(`
                         INSERT INTO project_assignments (
-                            project_id, user_id, role, allocation_percentage, created_by, is_active
-                        ) VALUES (?, ?, ?, ?, ?, 1)
-                    `, [id, user_id, role, allocation_percentage, userId]);
+                            project_id, user_id, role, allocation_percentage, start_date, end_date, assigned_by, is_active
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+                    `, [id, a.user_id, a.role, a.allocation_percentage, a.start_date, a.end_date, userId]);
 
-                    newAssignments.push({
-                        id: result.id,
-                        project_id: id,
-                        user_id,
-                        role,
-                        allocation_percentage,
-                        created_by: userId,
-                        is_active: 1
-                    });
+                    newAssignments.push({ id: result.id, project_id: Number(id), ...a, assigned_by: userId, is_active: 1 });
                 }
 
                 await db.commit();
@@ -886,12 +913,10 @@ export class ProjectController {
                     message: 'Project assignments updated successfully',
                     assignments: newAssignments
                 });
-
             } catch (error) {
                 await db.rollback();
                 throw error;
             }
-
         } catch (error) {
             logger.error('Add project assignments error:', error);
             res.status(500).json({ error: 'Failed to update project assignments' });
