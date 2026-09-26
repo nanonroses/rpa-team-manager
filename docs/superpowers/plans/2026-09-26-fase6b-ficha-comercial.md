@@ -1,5 +1,7 @@
 # Fase 6 · Sub-proyecto B — Ficha comercial del proyecto Implementation Plan
 
+> **SUPERSEDIDO PARCIALMENTE (2026-09-26):** un rediseño UX/UI paralelo ya implementó, con otro diseño técnico (otros nombres de tabla/columna, migraciones hasta v41), la mayor parte de las Tasks 1-8 y 11 de este plan (clientes+contactos, comerciales, subir/aprobar cotización, etapa comercial, horas presupuestadas). **No ejecutar este plan tal cual — duplicaría trabajo y probablemente rompería el esquema real.** El trabajo pendiente genuino quedó en `docs/superpowers/plans/2026-09-26-fase6b-pendientes.md`. Ver memoria de sesión `fase6b_estado_real_vs_plan.md` para el diagnóstico completo de qué se implementó y con qué diferencias. Este documento se conserva solo como referencia histórica del diseño original acordado con el usuario.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Construir el alta comercial completa de un proyecto: clientes con contactos múltiples, comerciales, una etapa comercial separada del estado operativo (En cotización → En ejecución → Perdido), cotizaciones con historial y aprobación, documentos tipificados, horas presupuestadas por persona en el equipo, y un nuevo formulario de alta de proyecto en pasos que reemplaza el modal actual de un solo paso.
