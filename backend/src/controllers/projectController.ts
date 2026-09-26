@@ -71,18 +71,18 @@ export class ProjectController {
     getProjects = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             let query = `
-                SELECT p.*, 
+                SELECT p.*,
                        u1.full_name as created_by_name,
                        u2.full_name as assigned_to_name,
-                       COUNT(t.id) as total_tasks,
-                       SUM(CASE WHEN t.status = 'done' THEN 1 ELSE 0 END) as completed_tasks,
-                       SUM(te.hours) as total_hours_logged
+                       (SELECT COUNT(*) FROM tasks t JOIN task_boards tb ON t.board_id = tb.id
+                         WHERE tb.project_id = p.id) as total_tasks,
+                       (SELECT COUNT(*) FROM tasks t JOIN task_boards tb ON t.board_id = tb.id
+                         WHERE tb.project_id = p.id AND t.status = 'done') as completed_tasks,
+                       (SELECT COALESCE(SUM(te.hours), 0) FROM time_entries te
+                         WHERE te.project_id = p.id AND te.approval_status = 'approved') as total_hours_logged
                 FROM projects p
                 LEFT JOIN users u1 ON p.created_by = u1.id
                 LEFT JOIN users u2 ON p.assigned_to = u2.id
-                LEFT JOIN task_boards tb ON p.id = tb.project_id
-                LEFT JOIN tasks t ON tb.id = t.board_id
-                LEFT JOIN time_entries te ON p.id = te.project_id
             `;
 
             const params: any[] = [];
@@ -93,7 +93,7 @@ export class ProjectController {
                 params.push(req.user.id, req.user.id);
             }
 
-            query += ' GROUP BY p.id ORDER BY p.created_at DESC';
+            query += ' ORDER BY p.created_at DESC';
 
             const projects = await db.query(query, params);
 
@@ -1084,7 +1084,7 @@ export class ProjectController {
                     INSERT INTO projects (
                         name, description, status, priority,
                         start_date, end_date, created_by
-                    ) VALUES (?, ?, 'planning', ?, ?, ?, ?)
+                    ) VALUES (?, ?, 'active', ?, ?, ?, ?)
                 `, [
                     quote_data.project_name,
                     `${quote_data.description}\n\nClient: ${quote_data.client_name}`,
@@ -1158,8 +1158,8 @@ export class ProjectController {
                         await db.run(`
                             INSERT INTO tasks (
                                 board_id, column_id, title, description,
-                                status, priority, position, estimated_hours
-                            ) VALUES (?, ?, ?, ?, 'todo', ?, ?, ?)
+                                status, priority, position, estimated_hours, reporter_id
+                            ) VALUES (?, ?, ?, ?, 'todo', ?, ?, ?, ?)
                         `, [
                             boardId,
                             columnIds['To Do'],
@@ -1167,23 +1167,25 @@ export class ProjectController {
                             task.description || null,
                             task.priority || 'medium',
                             i,
-                            task.estimated_hours || null
+                            task.estimated_hours || null,
+                            userId
                         ]);
                     }
                 }
 
                 // 6. Create milestones from quote data
                 if (quote_data.milestones && quote_data.milestones.length > 0) {
+                    const fallbackDate = quote_data.estimated_end_date || new Date().toISOString().slice(0, 10);
                     for (const milestone of quote_data.milestones) {
                         await db.run(`
                             INSERT INTO project_milestones (
-                                project_id, name, description, target_date, status
+                                project_id, name, description, planned_date, status
                             ) VALUES (?, ?, ?, ?, 'pending')
                         `, [
                             projectId,
                             milestone.name,
                             milestone.description || null,
-                            milestone.target_date || null
+                            milestone.target_date || fallbackDate
                         ]);
                     }
                 }
@@ -1198,8 +1200,8 @@ export class ProjectController {
                     {
                         project_name: quote_data.project_name,
                         client: quote_data.client_name,
-                        tasks_count: quote_data.tasks.length,
-                        milestones_count: quote_data.milestones.length
+                        tasks_count: (quote_data.tasks ?? []).length,
+                        milestones_count: (quote_data.milestones ?? []).length
                     }
                 );
 
@@ -1222,8 +1224,8 @@ export class ProjectController {
                 res.status(201).json({
                     message: 'Project created successfully from quote',
                     project: createdProject,
-                    tasks_created: quote_data.tasks.length,
-                    milestones_created: quote_data.milestones.length
+                    tasks_created: (quote_data.tasks ?? []).length,
+                    milestones_created: (quote_data.milestones ?? []).length
                 });
 
             } catch (error) {
