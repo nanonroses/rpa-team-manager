@@ -90,6 +90,17 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
     }
   });
 
+  const requestRejectQuote = (quoteId: number) => modal.confirm({
+    title: 'Rechazar versión de cotización',
+    content: <Input.TextArea id="reject-reason" placeholder="Motivo del rechazo" rows={3} />,
+    okText: 'Rechazar versión', cancelText: 'Cancelar',
+    onOk: async () => {
+      const reason = (document.getElementById('reject-reason') as HTMLTextAreaElement | null)?.value.trim();
+      if (!reason) { message.error('Registra el motivo del rechazo'); throw new Error('reason required'); }
+      await save(`/commercial/quotes/${quoteId}/reject`, { reason }, 'Cotización rechazada');
+    }
+  });
+
   const logMeeting = async (values: Row) => {
     const done = await save(`${base}/meetings`, { ...values, meeting_date: values.meeting_date.toISOString(), has_pdd: Boolean(values.has_pdd), has_technical_commercial_proposal: Boolean(values.has_technical_commercial_proposal) }, 'Reunión registrada');
     if (done) setMeetingOpen(false);
@@ -125,7 +136,10 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
     ...(isLead ? [{ title: 'Monto', dataIndex: 'amount', render: (v: number, row: Row) => `${row.currency} ${Number(v).toLocaleString('es-CL')}` }, { title: 'Margen', dataIndex: 'margin_percent', render: (v: number | null) => v == null ? 'Por definir' : `${Number(v).toFixed(1)}%` }] : []),
     { title: 'Estado', dataIndex: 'status', render: (v: string) => <Tag color={v === 'approved' ? 'green' : v === 'replaced' ? 'default' : 'blue'}>{({ sent: 'Enviada', approved: 'Validada por jefatura', replaced: 'Reemplazada', rejected: 'Rechazada', draft: 'Borrador' } as Row)[v] || v}</Tag> },
     { title: 'Registrada', dataIndex: 'created_at', render: (v: string) => v ? dayjs(v).format('DD MMM YYYY') : '—' },
-    ...(isLead ? [{ title: 'Acción', key: 'action', render: (_: unknown, row: Row) => row.status === 'sent' ? <Button size="small" onClick={() => row.scope_change_id ? setScopeQuoteId(row.id) : void save(`/commercial/quotes/${row.id}/approve`, {}, 'Cotización validada por jefatura')}>Validar versión</Button> : null }] : [])
+    ...(isLead ? [{ title: 'Acción', key: 'action', render: (_: unknown, row: Row) => row.status === 'sent' ? <Space>
+      <Button size="small" onClick={() => row.scope_change_id ? setScopeQuoteId(row.id) : void save(`/commercial/quotes/${row.id}/approve`, {}, 'Cotización validada por jefatura')}>Validar versión</Button>
+      <Button size="small" danger onClick={() => requestRejectQuote(row.id)}>Rechazar</Button>
+    </Space> : null }] : [])
   ];
 
   const commercialContent = <div className="commercial-workspace">

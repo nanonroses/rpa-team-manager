@@ -153,6 +153,20 @@ export class CommercialController {
     res.json({ data: await db.get('SELECT * FROM project_quotes WHERE id = ?', [quoteId]) });
   };
 
+  rejectQuote = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    if (req.user?.role !== 'team_lead') { res.status(403).json({ error: 'Solo la jefatura puede rechazar una cotización' }); return; }
+    const reason = String(req.body.reason ?? '').trim();
+    if (!reason) { res.status(400).json({ error: 'Registra el motivo del rechazo' }); return; }
+    const quoteId = Number(req.params.quoteId);
+    const quote = await db.get('SELECT * FROM project_quotes WHERE id = ?', [quoteId]);
+    if (!quote) { res.status(404).json({ error: 'Cotización no encontrada' }); return; }
+    if (quote.status !== 'sent') { res.status(409).json({ error: 'Solo se pueden rechazar versiones enviadas al cliente' }); return; }
+    const combinedNotes = quote.notes ? `${quote.notes} | Rechazada: ${reason}` : `Rechazada: ${reason}`;
+    await db.run(`UPDATE project_quotes SET status = 'rejected', notes = ? WHERE id = ?`, [combinedNotes, quoteId]);
+    await activityLogService.logActivity(req.user.id, 'quote', quoteId, 'rejected', { status: 'sent' }, { status: 'rejected', reason });
+    res.json({ data: await db.get('SELECT * FROM project_quotes WHERE id = ?', [quoteId]) });
+  };
+
   approveClient = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const userId = req.user?.role === 'team_lead' ? req.user.id : undefined;
     if (!userId) { res.status(403).json({ error: 'Solo la jefatura puede registrar la aprobación comercial' }); return; }

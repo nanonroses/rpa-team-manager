@@ -9,6 +9,7 @@ router.post('/projects/:projectId/meetings', commercialController.createMeeting)
 router.get('/projects/:projectId/quotes', commercialController.getQuotes);
 router.post('/projects/:projectId/quotes', commercialController.createQuote);
 router.post('/quotes/:quoteId/approve', authorize(['team_lead']), commercialController.approveQuote);
+router.post('/quotes/:quoteId/reject', authorize(['team_lead']), commercialController.rejectQuote);
 router.post('/projects/:projectId/client-approval', authorize(['team_lead']), commercialController.approveClient);
 router.post('/projects/:projectId/start-execution', commercialController.startExecution);
 router.post('/projects/:projectId/lost', authorize(['team_lead']), commercialController.markLost);
