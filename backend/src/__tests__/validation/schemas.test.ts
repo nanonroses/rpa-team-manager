@@ -75,4 +75,13 @@ describe('createProjectSchema / updateProjectSchema - campos financieros y v27',
         const parsed = await updateProjectSchema.parseAsync({ budget: null, sale_price: null });
         expect(parsed).toMatchObject({ budget: null, sale_price: null });
     });
+
+    // Regresion: al editar un proyecto sin tocar la descripcion, CreateProjectModal.tsx manda
+    // description: null en el body de PUT /projects/:id. El schema solo tenia .optional() (sin
+    // .nullable()), asi que zod rechazaba el null con 400 y ni siquiera el cambio de nombre se
+    // guardaba.
+    it('acepta description en null al editar un proyecto', async () => {
+        const parsed = await updateProjectSchema.parseAsync({ name: 'P', description: null });
+        expect(parsed).toMatchObject({ name: 'P', description: null });
+    });
 });

@@ -23,7 +23,7 @@ const CURRENCIES = ['CLP', 'USD', 'UF'] as const;
 
 export const createProjectSchema = z.object({
     name: z.string().min(1, 'Project name is required').max(200),
-    description: z.string().max(1000).optional(),
+    description: z.string().max(1000).optional().nullable(),
     status: z.enum(PROJECT_STATUSES).optional(),
     priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
     budget: z.number().min(0, 'Budget must be positive').max(999999999.99).optional().nullable(),
