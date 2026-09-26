@@ -1,5 +1,5 @@
 import { validate } from '../../middleware/validation';
-import { createTaskSchema } from '../../validation/schemas';
+import { createTaskSchema, createProjectSchema, updateProjectSchema } from '../../validation/schemas';
 
 function mockRes(): any {
     const res: any = {};
@@ -52,5 +52,27 @@ describe('createTaskSchema - assignee_ids', () => {
 
         expect(parsed).toMatchObject({ assignee_id: 5 });
         expect(parsed.assignee_ids).toBeUndefined();
+    });
+});
+
+describe('createProjectSchema / updateProjectSchema - campos financieros y v27', () => {
+    it('conserva sale_price, hours_budgeted y los campos de v27 en vez de descartarlos', async () => {
+        const parsed = await createProjectSchema.parseAsync({
+            name: 'P', sale_price: 12000000, sale_price_currency: 'CLP', hours_budgeted: 300,
+            client_id: 4, area_id: 1, pm_user_id: 2, project_type: 'commercial', currency: 'UF'
+        });
+        expect(parsed).toMatchObject({
+            sale_price: 12000000, sale_price_currency: 'CLP', hours_budgeted: 300,
+            client_id: 4, area_id: 1, pm_user_id: 2, project_type: 'commercial', currency: 'UF'
+        });
+    });
+
+    it('rechaza el estado planning, que no existe en la BD', async () => {
+        await expect(createProjectSchema.parseAsync({ name: 'P', status: 'planning' })).rejects.toThrow();
+    });
+
+    it('acepta budget y sale_price en null (campo borrado en el formulario)', async () => {
+        const parsed = await updateProjectSchema.parseAsync({ budget: null, sale_price: null });
+        expect(parsed).toMatchObject({ budget: null, sale_price: null });
     });
 });

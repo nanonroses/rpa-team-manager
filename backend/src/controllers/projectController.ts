@@ -19,6 +19,54 @@ export class ProjectController {
         this.documentParserService = new DocumentParserService();
     }
 
+    // Campo del body -> columna de project_financials.
+    private static readonly FINANCIAL_FIELD_MAP: Record<string, string> = {
+        budget: 'budgeted_cost',
+        sale_price: 'sale_price',
+        sale_price_currency: 'sale_price_currency',
+        hours_budgeted: 'budgeted_hours'
+    };
+
+    // Solo team_lead fija precio/horas vendidas; el presupuesto (budget) lo puede fijar cualquier rol que edite el proyecto.
+    private static readonly TEAM_LEAD_ONLY_FINANCIAL_FIELDS = ['sale_price', 'sale_price_currency', 'hours_budgeted'];
+
+    private static readonly FINANCIAL_RESPONSE_FIELDS = ['budgeted_cost', 'budget_spent', 'delay_cost', 'penalty_cost', 'sale_price'];
+
+    private financialInputFor(user: AuthenticatedRequest['user'], body: Record<string, any>): Record<string, any> {
+        if (user?.role === 'team_lead') return body;
+        const filtered = { ...body };
+        for (const field of ProjectController.TEAM_LEAD_ONLY_FINANCIAL_FIELDS) delete filtered[field];
+        return filtered;
+    }
+
+    // UPSERT parcial: escribe solo las columnas recibidas y nunca borra la fila (hourly_rate y demás se conservan).
+    private async upsertProjectFinancials(projectId: number, input: Record<string, any>): Promise<void> {
+        const entries = Object.entries(ProjectController.FINANCIAL_FIELD_MAP)
+            .filter(([field]) => input[field] !== undefined)
+            .map(([field, column]) => [column, input[field]] as [string, any]);
+        if (entries.length === 0) return;
+
+        const existing = await db.get('SELECT id FROM project_financials WHERE project_id = ?', [projectId]);
+        if (existing) {
+            await db.run(
+                `UPDATE project_financials SET ${entries.map(([column]) => `${column} = ?`).join(', ')}, updated_at = datetime('now') WHERE project_id = ?`,
+                [...entries.map(([, value]) => value), projectId]
+            );
+        } else {
+            await db.run(
+                `INSERT INTO project_financials (project_id, ${entries.map(([column]) => column).join(', ')}) VALUES (?, ${entries.map(() => '?').join(', ')})`,
+                [projectId, ...entries.map(([, value]) => value)]
+            );
+        }
+    }
+
+    private stripFinancialFields<T extends Record<string, any> | null | undefined>(user: AuthenticatedRequest['user'], row: T): T {
+        if (!row || user?.role === 'team_lead') return row;
+        const copy: Record<string, any> = { ...row };
+        for (const field of ProjectController.FINANCIAL_RESPONSE_FIELDS) delete copy[field];
+        return copy as T;
+    }
+
     // GET /api/projects
     getProjects = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
@@ -127,7 +175,7 @@ export class ProjectController {
             `, [id]);
 
             res.json({
-                ...project,
+                ...this.stripFinancialFields(req.user, project),
                 tasks_summary: tasksSummary,
                 recent_activities: recentActivities
             });
@@ -140,35 +188,36 @@ export class ProjectController {
     // POST /api/projects
     createProject = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
-            const { 
-                name, 
-                description, 
-                status = 'planning',
+            const {
+                name,
+                description,
+                status = 'active',
                 priority = 'medium',
                 budget,
                 start_date,
                 end_date,
-                assigned_to
+                assigned_to,
+                client_id,
+                area_id,
+                pm_user_id,
+                project_type = 'commercial',
+                currency = 'CLP'
             } = req.body;
-
-            // Debug logging
-            logger.info('Creating project with data:', {
-                name, description, status, priority, budget, start_date, end_date, assigned_to,
-                user_id: req.user?.id,
-                user_role: req.user?.role
-            });
 
             if (!name) {
                 res.status(400).json({ error: 'Project name is required' });
                 return;
             }
 
+            // rpa_operations siempre se autoasigna al crear; se ignora cualquier assigned_to del body para este rol.
+            const isSelfAssigningOps = req.user?.role === 'rpa_operations';
+            const effectiveAssignedTo = isSelfAssigningOps ? req.user!.id : (assigned_to || null);
+
             // Validate assigned_to user exists if provided
-            if (assigned_to) {
-                const assignedUser = await db.get('SELECT id FROM users WHERE id = ?', [assigned_to]);
+            if (effectiveAssignedTo && !isSelfAssigningOps) {
+                const assignedUser = await db.get('SELECT id FROM users WHERE id = ?', [effectiveAssignedTo]);
                 if (!assignedUser) {
-                    logger.error(`Assigned user ${assigned_to} does not exist`);
-                    res.status(400).json({ error: `Assigned user with ID ${assigned_to} does not exist` });
+                    res.status(400).json({ error: `Assigned user with ID ${effectiveAssignedTo} does not exist` });
                     return;
                 }
             }
@@ -176,20 +225,26 @@ export class ProjectController {
             // Create project
             const result = await db.run(`
                 INSERT INTO projects (
-                    name, description, status, priority, budget, 
-                    start_date, end_date, assigned_to, created_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [name, description, status, priority, budget, start_date, end_date, assigned_to || null, req.user?.id]);
+                    name, description, status, priority, budget,
+                    start_date, end_date, assigned_to, created_by,
+                    client_id, area_id, pm_user_id, project_type, currency
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
+                name, description, status, priority, budget ?? null,
+                start_date ?? null, end_date ?? null, effectiveAssignedTo, req.user?.id,
+                client_id ?? null, area_id ?? null, pm_user_id ?? null, project_type, currency
+            ]);
 
             const projectId = result.id!;
 
-            // Create default financial record
-            if (budget) {
+            await this.upsertProjectFinancials(projectId, this.financialInputFor(req.user, req.body));
+
+            if (isSelfAssigningOps) {
                 await db.run(`
-                    INSERT INTO project_financials (
-                        project_id, budgeted_cost, budgeted_hours
-                    ) VALUES (?, ?, ?)
-                `, [projectId, budget, 0]);
+                    INSERT INTO project_assignments (
+                        project_id, user_id, role, allocation_percentage, start_date, end_date, assigned_by, is_active
+                    ) VALUES (?, ?, 'lead', 100, NULL, NULL, ?, 1)
+                `, [projectId, req.user!.id, req.user!.id]);
             }
 
             // Create default task board
@@ -231,13 +286,15 @@ export class ProjectController {
 
             // Get the created project with details
             const createdProject = await db.get(`
-                SELECT p.*, u.full_name as created_by_name
+                SELECT p.*, u.full_name as created_by_name,
+                       pf.budgeted_cost, pf.budgeted_hours as hours_budgeted, pf.sale_price
                 FROM projects p
                 LEFT JOIN users u ON p.created_by = u.id
+                LEFT JOIN project_financials pf ON p.id = pf.project_id
                 WHERE p.id = ?
             `, [projectId]);
 
-            res.status(201).json(createdProject);
+            res.status(201).json(this.stripFinancialFields(req.user, createdProject));
         } catch (error) {
             logger.error('Create project error:', error);
             res.status(500).json({ error: 'Failed to create project' });
@@ -249,9 +306,6 @@ export class ProjectController {
         try {
             const { id } = req.params;
             const updates = req.body;
-            
-            console.log('Received update request for project:', id);
-            console.log('Update data received:', updates);
 
             // Get current project
             const currentProject = await db.get('SELECT * FROM projects WHERE id = ?', [id]);
@@ -261,8 +315,8 @@ export class ProjectController {
             }
 
             // Check permissions
-            if (req.user?.role === 'rpa_developer' && 
-                currentProject.created_by !== req.user.id && 
+            if (req.user?.role === 'rpa_developer' &&
+                currentProject.created_by !== req.user.id &&
                 currentProject.assigned_to !== req.user.id) {
                 res.status(403).json({ error: 'Access denied' });
                 return;
@@ -272,54 +326,39 @@ export class ProjectController {
             const allowedFields = [
                 'name', 'description', 'status', 'priority', 'budget',
                 'start_date', 'end_date', 'actual_start_date', 'actual_end_date',
-                'assigned_to', 'progress_percentage'
+                'assigned_to', 'progress_percentage',
+                'client_id', 'area_id', 'pm_user_id', 'project_type', 'currency'
             ];
 
-            const updateFields = Object.keys(updates).filter(key => allowedFields.includes(key));
-            
-            if (updateFields.length === 0) {
+            // Solo team_lead puede reasignar el proyecto (assigned_to); otros roles lo ven descartado silenciosamente.
+            const updatesForFields = req.user?.role === 'team_lead' ? updates : (() => {
+                const { assigned_to, ...rest } = updates;
+                return rest;
+            })();
+
+            const updateFields = Object.keys(updatesForFields).filter(key => allowedFields.includes(key) && updatesForFields[key] !== undefined);
+            const financialInput = this.financialInputFor(req.user, updates);
+            const hasFinancialChanges = Object.keys(ProjectController.FINANCIAL_FIELD_MAP)
+                .some(field => financialInput[field] !== undefined);
+
+            if (updateFields.length === 0 && !hasFinancialChanges) {
                 res.status(400).json({ error: 'No valid fields to update' });
                 return;
             }
 
-            const setClause = updateFields.map(field => `${field} = ?`).join(', ');
-            const values = updateFields.map(field => updates[field]);
-            values.push(id);
+            if (updateFields.length > 0) {
+                const setClause = updateFields.map(field => `${field} = ?`).join(', ');
+                const values = updateFields.map(field => updatesForFields[field]);
+                values.push(id);
 
-            await db.run(`
-                UPDATE projects 
-                SET ${setClause}, updated_at = datetime('now')
-                WHERE id = ?
-            `, values);
-
-            // Update financial information if financial fields changed
-            if (updates.budget || updates.sale_price || updates.hours_budgeted) {
-                console.log('Updating financial data:', {
-                    project_id: id,
-                    budget: updates.budget,
-                    sale_price: updates.sale_price,
-                    budgeted_hours: updates.hours_budgeted
-                });
-                
-                // First, delete any existing financial records for this project
-                await db.run(`DELETE FROM project_financials WHERE project_id = ?`, [id]);
-                
-                // Then, insert the new financial data
                 await db.run(`
-                    INSERT INTO project_financials (
-                        project_id, 
-                        budgeted_cost, 
-                        sale_price, 
-                        budgeted_hours,
-                        updated_at
-                    ) VALUES (?, ?, ?, ?, datetime('now'))
-                `, [
-                    id, 
-                    updates.budget || null, 
-                    updates.sale_price || null, 
-                    updates.hours_budgeted || null
-                ]);
+                    UPDATE projects
+                    SET ${setClause}, updated_at = datetime('now')
+                    WHERE id = ?
+                `, values);
             }
+
+            await this.upsertProjectFinancials(parseInt(id), financialInput);
 
             // Log activity
             await activityLogService.logActivity(
@@ -327,13 +366,13 @@ export class ProjectController {
                 'project',
                 parseInt(id),
                 'updated',
-                currentProject,
-                updates
+                this.stripFinancialFields(req.user, currentProject),
+                this.stripFinancialFields(req.user, updates)
             );
 
             // Get updated project with financial data
             const updatedProject = await db.get(`
-                SELECT p.*, 
+                SELECT p.*,
                        u1.full_name as created_by_name,
                        u2.full_name as assigned_to_name,
                        pf.budgeted_cost,
@@ -350,7 +389,7 @@ export class ProjectController {
                 WHERE p.id = ?
             `, [id]);
 
-            res.json(updatedProject);
+            res.json(this.stripFinancialFields(req.user, updatedProject));
         } catch (error) {
             logger.error('Update project error:', error);
             res.status(500).json({ error: 'Failed to update project' });

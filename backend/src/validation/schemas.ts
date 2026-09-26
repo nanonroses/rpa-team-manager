@@ -17,15 +17,27 @@ export const createUserSchema = z.object({
 });
 
 // Project validation schemas
+// projects.status solo acepta estos 4 valores (CHECK de la migración 1); 'planning' nunca existió en la BD.
+const PROJECT_STATUSES = ['active', 'on_hold', 'completed', 'cancelled'] as const;
+const CURRENCIES = ['CLP', 'USD', 'UF'] as const;
+
 export const createProjectSchema = z.object({
     name: z.string().min(1, 'Project name is required').max(200),
     description: z.string().max(1000).optional(),
-    status: z.enum(['planning', 'active', 'on_hold', 'completed', 'cancelled']).optional(),
+    status: z.enum(PROJECT_STATUSES).optional(),
     priority: z.enum(['critical', 'high', 'medium', 'low']).optional(),
-    budget: z.number().positive('Budget must be positive').max(999999999.99).optional(),
+    budget: z.number().min(0, 'Budget must be positive').max(999999999.99).optional().nullable(),
     start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional().nullable(),
     end_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional().nullable(),
-    assigned_to: z.number().int().positive().optional().nullable()
+    assigned_to: z.number().int().positive().optional().nullable(),
+    client_id: z.number().int().positive().optional().nullable(),
+    area_id: z.number().int().positive().optional().nullable(),
+    pm_user_id: z.number().int().positive().optional().nullable(),
+    project_type: z.enum(['internal', 'commercial']).optional(),
+    currency: z.enum(CURRENCIES).optional(),
+    sale_price: z.number().min(0).max(999999999999.99).optional().nullable(),
+    sale_price_currency: z.enum(CURRENCIES).optional(),
+    hours_budgeted: z.number().min(0).max(99999).optional().nullable()
 });
 
 export const updateProjectSchema = createProjectSchema.extend({
