@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-var-requires
 jest.mock('../../database/database', () => ({ db: require('../helpers/realTestDb').realDbProxy }));
 
 import { Response } from 'express';
