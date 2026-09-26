@@ -33,6 +33,7 @@ import {
   FallOutlined
 } from '@ant-design/icons';
 import { apiService } from '@/services/api';
+import { useAuthStore } from '@/store/authStore';
 import dayjs from 'dayjs';
 import type { PhaseStatus, Responsibility, ProjectPhase, ROIAnalysis } from '@/types/lifecycle';
 
@@ -42,6 +43,7 @@ const { Option } = Select;
 
 export const ProjectLifecyclePage: React.FC = () => {
   const { projectId } = useParams<{ projectId: string }>();
+  const { user } = useAuthStore();
   const [loading, setLoading] = useState(true);
   const [phases, setPhases] = useState<ProjectPhase[]>([]);
   const [roiAnalysis, setRoiAnalysis] = useState<ROIAnalysis | null>(null);
@@ -61,8 +63,8 @@ export const ProjectLifecyclePage: React.FC = () => {
       const phasesData = await apiService.getProjectPhases(parseInt(projectId!));
       setPhases(phasesData);
 
-      // Load ROI analysis if phases exist
-      if (phasesData.length > 0) {
+      // El endpoint de ROI es solo team_lead (403 para el resto).
+      if (phasesData.length > 0 && user?.role === 'team_lead') {
         const roiData = await apiService.getProjectROIAnalysis(parseInt(projectId!));
         setRoiAnalysis(roiData);
       }
