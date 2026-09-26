@@ -146,6 +146,81 @@ describe('ProjectController - persistencia financiera (SQLite real)', () => {
         expect(jsonOf(resLead)).toMatchObject({ sale_price: 900, budgeted_cost: 300 });
     });
 
+    it('getProjects oculta budget a un rpa_developer y lo muestra a team_lead', async () => {
+        const created = await createAs(lead, { name: 'P-list', budget: 4200, assigned_to: users.dev });
+
+        const resDev = mockRes();
+        await controller.getProjects(makeReq(dev), resDev);
+        const devRow = jsonOf(resDev).find((p: any) => p.id === created.id);
+        expect(devRow).toBeDefined();
+        expect(devRow).not.toHaveProperty('budget');
+
+        const resLead = mockRes();
+        await controller.getProjects(makeReq(lead), resLead);
+        expect(jsonOf(resLead).find((p: any) => p.id === created.id)).toMatchObject({ budget: 4200 });
+    });
+
+    it('lo que team_lead guarda al editar (sale_price, budget) no llega a un rpa_developer vía recent_activities ni vía el endpoint de actividad', async () => {
+        const created = await createAs(lead, { name: 'P-log', budget: 3000, sale_price: 11000, assigned_to: users.dev });
+
+        const resUpd = mockRes();
+        await controller.updateProject(
+            makeReq(lead, { name: 'P-log editado', budget: 3500, sale_price: 11000, sale_price_currency: 'CLP', hours_budgeted: 50 }, { id: String(created.id) }),
+            resUpd
+        );
+        expect(resUpd.status).not.toHaveBeenCalled();
+
+        const stored = await testDb.get(
+            `SELECT old_values, new_values FROM activity_log WHERE entity_type = 'project' AND entity_id = ? AND action = 'updated'`,
+            [created.id]
+        );
+        const financialKeys = ['sale_price', 'sale_price_currency', 'hours_budgeted', 'budget', 'budgeted_cost'];
+        for (const key of financialKeys) {
+            expect(JSON.parse(stored.old_values)).not.toHaveProperty(key);
+            expect(JSON.parse(stored.new_values)).not.toHaveProperty(key);
+        }
+        expect(JSON.parse(stored.new_values).name).toBe('P-log editado');
+
+        // Fila heredada de antes del fix: la lectura debe enmascararla igual.
+        await testDb.run(
+            `INSERT INTO activity_log (user_id, entity_type, entity_id, action, old_values, new_values) VALUES (?, 'project', ?, 'updated', ?, ?)`,
+            [users.lead, created.id, JSON.stringify({ budget: 3000, name: 'viejo' }), JSON.stringify({ sale_price: 11000, name: 'nuevo' })]
+        );
+
+        const resDev = mockRes();
+        await controller.getProject(makeReq(dev, {}, { id: String(created.id) }), resDev);
+        const devView = jsonOf(resDev);
+        expect(devView).not.toHaveProperty('sale_price');
+        expect(devView).not.toHaveProperty('budget');
+        expect(devView.recent_activities.length).toBeGreaterThanOrEqual(2);
+        for (const activity of devView.recent_activities) {
+            for (const column of ['old_values', 'new_values']) {
+                const values = activity[column] ? JSON.parse(activity[column]) : {};
+                expect(values).not.toHaveProperty('sale_price');
+                expect(values).not.toHaveProperty('budget');
+            }
+        }
+
+        const resAct = mockRes();
+        await controller.getProjectActivity(
+            { user: dev, params: { id: String(created.id) }, query: {} } as unknown as AuthenticatedRequest,
+            resAct
+        );
+        const entries = jsonOf(resAct);
+        expect(entries.some((e: any) => e.old_values?.name === 'viejo')).toBe(true);
+        for (const entry of entries) {
+            expect(entry.old_values ?? {}).not.toHaveProperty('budget');
+            expect(entry.new_values ?? {}).not.toHaveProperty('sale_price');
+        }
+
+        const resLeadAct = mockRes();
+        await controller.getProjectActivity(
+            { user: lead, params: { id: String(created.id) }, query: {} } as unknown as AuthenticatedRequest,
+            resLeadAct
+        );
+        expect(jsonOf(resLeadAct).some((e: any) => e.new_values?.sale_price === 11000)).toBe(true);
+    });
+
     it('updateProject sin campos válidos responde 400', async () => {
         const created = await createAs(lead, { name: 'P6' });
         const res = mockRes();

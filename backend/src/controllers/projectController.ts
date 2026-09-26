@@ -30,7 +30,11 @@ export class ProjectController {
     // Solo team_lead fija precio/horas vendidas; el presupuesto (budget) lo puede fijar cualquier rol que edite el proyecto.
     private static readonly TEAM_LEAD_ONLY_FINANCIAL_FIELDS = ['sale_price', 'sale_price_currency', 'hours_budgeted'];
 
-    private static readonly FINANCIAL_RESPONSE_FIELDS = ['budgeted_cost', 'budget_spent', 'delay_cost', 'penalty_cost', 'sale_price'];
+    private static readonly FINANCIAL_RESPONSE_FIELDS = ['budget', 'budgeted_cost', 'budget_spent', 'delay_cost', 'penalty_cost', 'sale_price'];
+
+    private static readonly FINANCIAL_LOG_FIELDS = [
+        ...ProjectController.FINANCIAL_RESPONSE_FIELDS, 'sale_price_currency', 'hours_budgeted'
+    ];
 
     private financialInputFor(user: AuthenticatedRequest['user'], body: Record<string, any>): Record<string, any> {
         if (user?.role === 'team_lead') return body;
@@ -67,6 +71,31 @@ export class ProjectController {
         return copy as T;
     }
 
+    // activity_log lo leen todos los roles con acceso al proyecto: se limpia siempre, sin importar quién edita.
+    private stripFinancialFieldsForLog<T extends Record<string, any> | null | undefined>(values: T): T {
+        if (!values) return values;
+        const copy: Record<string, any> = { ...values };
+        for (const field of ProjectController.FINANCIAL_LOG_FIELDS) delete copy[field];
+        return copy as T;
+    }
+
+    // old_values/new_values pueden venir como JSON crudo (query directa) o ya parseados (activityLogService).
+    private stripFinancialFieldsFromActivity<T extends { old_values?: any; new_values?: any }>(
+        user: AuthenticatedRequest['user'],
+        entry: T
+    ): T {
+        if (user?.role === 'team_lead') return entry;
+        const clean = (value: any): any => {
+            if (typeof value !== 'string') return this.stripFinancialFieldsForLog(value);
+            try {
+                return JSON.stringify(this.stripFinancialFieldsForLog(JSON.parse(value)));
+            } catch {
+                return null;
+            }
+        };
+        return { ...entry, old_values: clean(entry.old_values), new_values: clean(entry.new_values) };
+    }
+
     // GET /api/projects
     getProjects = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
@@ -99,7 +128,7 @@ export class ProjectController {
 
             // Calculate progress percentage for each project
             const projectsWithProgress = projects.map(project => ({
-                ...project,
+                ...this.stripFinancialFields(req.user, project),
                 progress_percentage: project.total_tasks > 0 
                     ? Math.round((project.completed_tasks / project.total_tasks) * 100)
                     : 0,
@@ -177,7 +206,7 @@ export class ProjectController {
             res.json({
                 ...this.stripFinancialFields(req.user, project),
                 tasks_summary: tasksSummary,
-                recent_activities: recentActivities
+                recent_activities: recentActivities.map(activity => this.stripFinancialFieldsFromActivity(req.user, activity))
             });
         } catch (error) {
             logger.error('Get project error:', error);
@@ -366,8 +395,8 @@ export class ProjectController {
                 'project',
                 parseInt(id),
                 'updated',
-                this.stripFinancialFields(req.user, currentProject),
-                this.stripFinancialFields(req.user, updates)
+                this.stripFinancialFieldsForLog(currentProject),
+                this.stripFinancialFieldsForLog(updates)
             );
 
             // Get updated project with financial data
@@ -422,7 +451,7 @@ export class ProjectController {
                 'project',
                 parseInt(id),
                 'deleted',
-                project,
+                this.stripFinancialFieldsForLog(project),
                 null
             );
 
@@ -558,7 +587,7 @@ export class ProjectController {
             const offset = Math.max(Number.isNaN(parsedOffset) ? 0 : parsedOffset, 0);
 
             const activity = await activityLogService.getProjectActivity(projectId, { limit, offset });
-            res.json(activity);
+            res.json(activity.map(entry => this.stripFinancialFieldsFromActivity(req.user, entry)));
         } catch (error) {
             logger.error('Get project activity error:', error);
             res.status(500).json({ error: 'Failed to get project activity' });

@@ -153,7 +153,7 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({
             </Tooltip>
           )}
 
-          {project.budget && (
+          {user?.role === 'team_lead' && !!project.budget && (
             <Tooltip title={`Budget: $${project.budget.toLocaleString()}`}>
               <Space size={4}>
                 <DollarOutlined />

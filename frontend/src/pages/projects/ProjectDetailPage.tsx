@@ -315,11 +315,13 @@ export const ProjectDetailPage: React.FC = () => {
                               {project.end_date ? dayjs(project.end_date).format('MMM DD, YYYY') : 'Not set'}
                             </Descriptions.Item>
                             
-                            <Descriptions.Item 
-                              label={<><DollarOutlined /> Budget</>}
-                            >
-                              {project.budget ? `$${project.budget.toLocaleString()}` : 'Not set'}
-                            </Descriptions.Item>
+                            {user?.role === 'team_lead' && (
+                              <Descriptions.Item
+                                label={<><DollarOutlined /> Budget</>}
+                              >
+                                {project.budget ? `$${project.budget.toLocaleString()}` : 'Not set'}
+                              </Descriptions.Item>
+                            )}
                           </Descriptions>
                         </Col>
                         

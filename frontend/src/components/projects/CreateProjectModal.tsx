@@ -279,21 +279,23 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           <Select options={priorityOptions} placeholder="Select priority" />
         </Form.Item>
 
-        <Form.Item
-          name="budget"
-          label="Budget ($)"
-          rules={[
-            { type: 'number', min: 0, message: 'Budget must be a positive number' }
-          ]}
-        >
-          <InputNumber
-            style={{ width: '100%' }}
-            placeholder="Enter budget amount"
-            formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
-            parser={value => value!.replace(/\$\s?|(,*)/g, '')}
-            precision={2}
-          />
-        </Form.Item>
+        {user?.role === 'team_lead' && (
+          <Form.Item
+            name="budget"
+            label="Budget ($)"
+            rules={[
+              { type: 'number', min: 0, message: 'Budget must be a positive number' }
+            ]}
+          >
+            <InputNumber
+              style={{ width: '100%' }}
+              placeholder="Enter budget amount"
+              formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+              parser={value => value!.replace(/\$\s?|(,*)/g, '')}
+              precision={2}
+            />
+          </Form.Item>
+        )}
 
         <Form.Item
           name="dates"
