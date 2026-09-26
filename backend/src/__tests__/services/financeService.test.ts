@@ -192,4 +192,51 @@ describe('FinanceService', () => {
             await expect(financeService.calculateProjectFinancials(999)).rejects.toThrow('Project 999 not found');
         });
     });
+
+    describe('getMonthlyHours', () => {
+        it('devuelve 168 si el valor configurado no es un número positivo', async () => {
+            (db.get as jest.Mock).mockResolvedValue({ setting_value: '0' });
+            expect(await financeService.getMonthlyHours()).toBe(168);
+            (db.get as jest.Mock).mockResolvedValue({ setting_value: 'abc' });
+            expect(await financeService.getMonthlyHours()).toBe(168);
+            (db.get as jest.Mock).mockResolvedValue({ setting_value: '170' });
+            expect(await financeService.getMonthlyHours()).toBe(170);
+        });
+    });
+
+    describe('calculateProjectFinancials - precio de venta guardado', () => {
+        function mockWithFinancials(financials: any) {
+            (db.get as jest.Mock).mockImplementation((sql: string) => {
+                if (sql.includes('FROM projects WHERE id')) return Promise.resolve({ id: 1, name: 'P', assigned_to: null });
+                if (sql.includes('FROM project_financials')) return Promise.resolve(financials);
+                if (sql.includes('FROM exchange_rates')) return Promise.resolve({ rate_to_clp: 38000 });
+                if (sql.includes('FROM user_cost_rates')) return Promise.resolve({ hourly_rate: 10000, hourly_rate_currency: 'CLP' });
+                if (sql.includes('FROM project_milestones')) return Promise.resolve({ total_delay_hours: 0 });
+                if (sql.includes('FROM time_entries')) return Promise.resolve({ hours: 0, cost: 0 });
+                return Promise.resolve(undefined);
+            });
+            (db.query as jest.Mock).mockImplementation((sql: string) =>
+                Promise.resolve(sql.includes('FROM project_assignments')
+                    ? [{ user_id: 1, allocation_percentage: 100, full_name: 'Dev', role: 'rpa_developer' }]
+                    : []));
+        }
+
+        it('usa project_financials.sale_price en CLP aunque no haya tarifa por hora cargada', async () => {
+            mockWithFinancials({ budgeted_hours: 100, sale_price: 5000000, sale_price_currency: 'CLP', hourly_rate: null });
+
+            const result = await financeService.calculateProjectFinancials(1);
+
+            expect(result.sale_price).toBe(5000000);
+            expect(result.planned_cost).toBe(1000000);
+            expect(result.planned_profit).toBe(4000000);
+        });
+
+        it('convierte a CLP un sale_price guardado en UF', async () => {
+            mockWithFinancials({ budgeted_hours: 100, sale_price: 100, sale_price_currency: 'UF', hourly_rate: null });
+
+            const result = await financeService.calculateProjectFinancials(1);
+
+            expect(result.sale_price).toBe(3800000);
+        });
+    });
 });

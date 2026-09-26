@@ -34,6 +34,7 @@ export class FinancialController {
     };
 
     // POST /api/financial/user-costs - Solo para team_lead
+    // monthly_cost = costo empresa mensual (sueldo + leyes sociales + otros), en CLP.
     createUserCost = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             if (req.user?.role !== 'team_lead') {
@@ -41,38 +42,42 @@ export class FinancialController {
                 return;
             }
 
-            const { user_id, monthly_cost, effective_from } = req.body;
+            const { user_id, monthly_cost } = req.body;
+            const effective_from: string = req.body.effective_from || new Date().toISOString().slice(0, 10);
 
-            if (!user_id || !monthly_cost || !effective_from) {
-                res.status(400).json({ error: 'User ID, monthly cost, and effective date are required' });
+            if (!Number.isInteger(user_id) || typeof monthly_cost !== 'number' || !(monthly_cost > 0)) {
+                res.status(400).json({ error: 'user_id y un costo empresa mensual mayor a 0 son obligatorios' });
+                return;
+            }
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(effective_from)) {
+                res.status(400).json({ error: 'effective_from debe tener formato YYYY-MM-DD' });
                 return;
             }
 
-            // Calculate hourly rate (assuming 160 hours per month)
-            const hourly_rate = monthly_cost / 160;
+            const user = await db.get('SELECT id FROM users WHERE id = ? AND is_active = 1', [user_id]);
+            if (!user) {
+                res.status(400).json({ error: `El usuario ${user_id} no existe o está inactivo` });
+                return;
+            }
 
-            // Deactivate previous rates for this user
+            const monthlyHours = await financeService.getMonthlyHours();
+            const hourly_rate = Math.round((monthly_cost / monthlyHours) * 100) / 100;
+
             await db.run(`
-                UPDATE user_cost_rates 
+                UPDATE user_cost_rates
                 SET is_active = 0, effective_to = ?
                 WHERE user_id = ? AND is_active = 1
             `, [effective_from, user_id]);
 
-            // Create new rate
             const result = await db.run(`
                 INSERT INTO user_cost_rates (
-                    user_id, monthly_cost, hourly_rate, effective_from, 
+                    user_id, monthly_cost, hourly_rate, effective_from,
                     is_active, created_by
                 ) VALUES (?, ?, ?, ?, 1, ?)
             `, [user_id, monthly_cost, hourly_rate, effective_from, req.user?.id]);
 
-            // Get the created record with user info
             const newCost = await db.get(`
-                SELECT 
-                    ucr.*,
-                    u.full_name,
-                    u.email,
-                    u.role
+                SELECT ucr.*, u.full_name, u.email, u.role
                 FROM user_cost_rates ucr
                 JOIN users u ON ucr.user_id = u.id
                 WHERE ucr.id = ?
@@ -96,13 +101,13 @@ export class FinancialController {
             const { id } = req.params;
             const { monthly_cost } = req.body;
 
-            if (!monthly_cost) {
-                res.status(400).json({ error: 'Monthly cost is required' });
+            if (typeof monthly_cost !== 'number' || !(monthly_cost > 0)) {
+                res.status(400).json({ error: 'Monthly cost must be a number greater than 0' });
                 return;
             }
 
-            // Calculate new hourly rate
-            const hourly_rate = monthly_cost / 160;
+            const monthlyHours = await financeService.getMonthlyHours();
+            const hourly_rate = Math.round((monthly_cost / monthlyHours) * 100) / 100;
 
             await db.run(`
                 UPDATE user_cost_rates 
@@ -126,6 +131,30 @@ export class FinancialController {
         } catch (error) {
             logger.error('Update user cost error:', error);
             res.status(500).json({ error: 'Failed to update user cost' });
+        }
+    };
+
+    // GET /api/financial/team-costs - Solo para team_lead
+    // Todas las personas activas, tengan o no costo registrado, con su costo vigente más reciente.
+    getTeamCosts = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const monthly_hours = await financeService.getMonthlyHours();
+            const members = await db.query(`
+                SELECT u.id as user_id, u.full_name, u.email, u.role,
+                       ucr.id as cost_rate_id, ucr.monthly_cost, ucr.hourly_rate, ucr.effective_from
+                FROM users u
+                LEFT JOIN user_cost_rates ucr ON ucr.id = (
+                    SELECT id FROM user_cost_rates
+                    WHERE user_id = u.id AND is_active = 1
+                    ORDER BY effective_from DESC, id DESC LIMIT 1
+                )
+                WHERE u.is_active = 1
+                ORDER BY u.full_name
+            `);
+            res.json({ monthly_hours, members });
+        } catch (error) {
+            logger.error('Get team costs error:', error);
+            res.status(500).json({ error: 'Failed to get team costs' });
         }
     };
 

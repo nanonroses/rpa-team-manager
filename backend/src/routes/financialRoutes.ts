@@ -8,10 +8,14 @@ const financialController = new FinancialController();
 // All routes require authentication
 router.use(authenticate);
 
-// User cost management (solo team_lead)
-router.get('/user-costs', authorize(['team_lead']), financialController.getUserCosts);
-router.post('/user-costs', authorize(['team_lead']), financialController.createUserCost);
-router.put('/user-costs/:id', authorize(['team_lead']), financialController.updateUserCost);
+// Todo lo financiero (costos de personas, precio, utilidad, ROI) es solo para team_lead.
+router.use(authorize(['team_lead']));
+
+// User cost management
+router.get('/user-costs', financialController.getUserCosts);
+router.post('/user-costs', financialController.createUserCost);
+router.put('/user-costs/:id', financialController.updateUserCost);
+router.get('/team-costs', financialController.getTeamCosts);
 
 // Project financial data
 router.get('/project-roi/:projectId', financialController.getProjectROI);
