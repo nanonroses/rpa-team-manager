@@ -17,12 +17,7 @@ export interface PaymentStatementData {
     project_name: string;
     client_name: string;
     generated_at: string;
-    // Solo el precio de venta es información legítima para el cliente en este documento de cobranza.
-    // Costo real, margen y ROI son datos internos que no deben salir en un PDF que puede llegar al cliente
-    // (la plataforma no tiene portal de cliente; este es el único artefacto que podría "salir del edificio").
-    financials: {
-        sale_price: number;
-    };
+    financials?: { sale_price: number | null };
     milestones: PaymentStatementMilestone[];
     hours_summary: PaymentStatementHours[];
 }
@@ -39,7 +34,7 @@ function formatCLP(amount: number): string {
     return `$${Math.round(amount).toLocaleString('es-CL')}`;
 }
 
-/** Genera el PDF de estado de pago de un proyecto. Los montos ya vienen calculados por financeService/billingService. */
+/** Genera el estado de pago con importes originales y moneda explícita. */
 export function generatePaymentStatement(data: PaymentStatementData): Promise<Buffer> {
     return new Promise((resolve, reject) => {
         const doc = new PDFDocument({ margin: 50 });
@@ -57,12 +52,13 @@ export function generatePaymentStatement(data: PaymentStatementData): Promise<Bu
         doc.text(`Generado: ${data.generated_at}`);
         doc.moveDown();
 
-        doc.fontSize(13).text('Resumen financiero', { underline: true });
-        doc.fontSize(11);
-        doc.text(`Precio de venta: ${formatCLP(data.financials.sale_price)}`);
-        doc.moveDown();
+        if (data.financials?.sale_price != null) {
+            doc.fontSize(13).text('Resumen financiero', { underline: true });
+            doc.fontSize(11).text(`Precio de venta: ${formatCLP(data.financials.sale_price)}`);
+            doc.moveDown();
+        }
 
-        doc.fontSize(13).text('Hitos de pago', { underline: true });
+        doc.fontSize(13).text(`Hitos de pago al ${data.generated_at}`, { underline: true });
         doc.fontSize(10);
         if (data.milestones.length === 0) {
             doc.text('Sin hitos de pago registrados.');
@@ -73,18 +69,6 @@ export function generatePaymentStatement(data: PaymentStatementData): Promise<Bu
                 doc.text(`${m.name} — ${m.amount.toLocaleString('es-CL')} ${m.currency} — ${statusLabel} — ${dateLabel}`);
             }
         }
-        doc.moveDown();
-
-        doc.fontSize(13).text('Horas registradas', { underline: true });
-        doc.fontSize(10);
-        if (data.hours_summary.length === 0) {
-            doc.text('Sin horas registradas para este proyecto.');
-        } else {
-            for (const h of data.hours_summary) {
-                doc.text(`${h.user_name}: ${h.total_hours}h`);
-            }
-        }
-
         doc.end();
     });
 }

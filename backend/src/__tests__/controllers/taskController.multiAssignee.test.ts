@@ -117,6 +117,7 @@ describe('TaskController - acceso multi-asignado (co-responsable via task_assign
 
     it('getTaskComments: co-responsable via task_assignees tiene acceso', async () => {
         (db.get as jest.Mock).mockResolvedValueOnce({ id: 42 });
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
         const { commentService } = require('../../services/commentService');
         commentService.getForEntity.mockResolvedValueOnce([]);
         const res = mockRes();

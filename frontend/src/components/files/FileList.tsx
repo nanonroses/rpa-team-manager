@@ -31,8 +31,10 @@ import {
   LinkOutlined
 } from '@ant-design/icons';
 import { fileService, FileRecord, FileFilters } from '@/services/fileService';
+import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
 import dayjs from 'dayjs';
+import 'dayjs/locale/es';
 import relativeTime from 'dayjs/plugin/relativeTime';
 
 dayjs.extend(relativeTime);
@@ -69,7 +71,7 @@ export const FileList: React.FC<FileListProps> = ({
   showFilters = true,
   showActions = true,
   showAssociations = true,
-  title = 'Files',
+  title = 'Archivos',
   onFileSelect,
   onFileDelete,
   style,
@@ -104,7 +106,7 @@ export const FileList: React.FC<FileListProps> = ({
       setFiles(data);
     } catch (error) {
       console.error('Failed to load files:', error);
-      message.error('Failed to load files');
+      message.error('No se pudieron cargar los archivos');
     } finally {
       setLoading(false);
     }
@@ -134,22 +136,22 @@ export const FileList: React.FC<FileListProps> = ({
       link.click();
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
-      message.success('File downloaded successfully');
+      message.success('Archivo descargado');
     } catch (error) {
       console.error('Download failed:', error);
-      message.error('Failed to download file');
+      message.error('No se pudo descargar el archivo');
     }
   };
 
   const handleDelete = async (file: FileRecord) => {
     try {
       await fileService.deleteFile(file.id);
-      message.success('File deleted successfully');
+      message.success('Archivo eliminado');
       onFileDelete?.(file.id);
       loadFiles();
     } catch (error) {
       console.error('Delete failed:', error);
-      message.error('Failed to delete file');
+      message.error('No se pudo eliminar el archivo');
     }
   };
 
@@ -186,18 +188,20 @@ export const FileList: React.FC<FileListProps> = ({
     if (!showActions) return [];
 
     const actions = [
-      <Tooltip title="Download">
+      <Tooltip title="Descargar">
         <Button 
           type="text" 
           size="small"
+          aria-label={`Descargar ${file.original_filename || 'archivo'}`}
           icon={<DownloadOutlined />} 
           onClick={() => handleDownload(file)}
         />
       </Tooltip>,
-      <Tooltip title="View Details">
+      <Tooltip title="Ver detalles">
         <Button 
           type="text" 
           size="small"
+          aria-label={`Ver detalles de ${file.original_filename || 'archivo'}`}
           icon={<EyeOutlined />} 
           onClick={() => showFileDetails(file)}
         />
@@ -206,17 +210,18 @@ export const FileList: React.FC<FileListProps> = ({
 
     if (canDeleteFile(file)) {
       actions.push(
-        <Popconfirm
-          title="Delete file"
-          description="Are you sure you want to delete this file?"
+    <Popconfirm
+          title="Eliminar archivo"
+          description="¿Quieres eliminar este archivo?"
           onConfirm={() => handleDelete(file)}
-          okText="Yes"
-          cancelText="No"
+          okText="Eliminar"
+          cancelText="Cancelar"
         >
-          <Tooltip title="Delete">
+          <Tooltip title="Eliminar">
             <Button 
               type="text" 
               size="small"
+              aria-label={`Eliminar ${file.original_filename || 'archivo'}`}
               icon={<DeleteOutlined />} 
               danger
             />
@@ -239,15 +244,16 @@ export const FileList: React.FC<FileListProps> = ({
         <div style={{ marginBottom: 16 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <Title level={4} style={{ margin: 0 }}>{title}</Title>
-            <Button type="text" icon={<FilterOutlined />} onClick={loadFiles}>
-              Refresh
+            <Button type="text" aria-label="Actualizar archivos" icon={<FilterOutlined />} onClick={loadFiles}>
+              Actualizar
             </Button>
           </div>
 
           {showFilters && (
             <Space direction="vertical" style={{ width: '100%' }}>
               <Search
-                placeholder="Search files by name or description..."
+                aria-label="Buscar archivos"
+                placeholder="Buscar archivos por nombre o descripción..."
                 allowClear
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -257,7 +263,7 @@ export const FileList: React.FC<FileListProps> = ({
               
               <Space wrap>
                 <Select
-                  placeholder="Filter by category"
+                  placeholder="Filtrar por categoría"
                   style={{ minWidth: 150 }}
                   value={selectedCategory}
                   onChange={(value) => {
@@ -266,20 +272,20 @@ export const FileList: React.FC<FileListProps> = ({
                   }}
                   allowClear
                 >
-                  <Option value="documents">Documents</Option>
-                  <Option value="images">Images</Option>
-                  <Option value="presentations">Presentations</Option>
-                  <Option value="spreadsheets">Spreadsheets</Option>
-                  <Option value="code">Code</Option>
-                  <Option value="archives">Archives</Option>
+                  <Option value="documents">Documentos</Option>
+                  <Option value="images">Imágenes</Option>
+                  <Option value="presentations">Presentaciones</Option>
+                  <Option value="spreadsheets">Hojas de cálculo</Option>
+                  <Option value="code">Código</Option>
+                  <Option value="archives">Archivos comprimidos</Option>
                   <Option value="videos">Videos</Option>
                   <Option value="audio">Audio</Option>
-                  <Option value="other">Other</Option>
+                  <Option value="other">Otros</Option>
                 </Select>
                 
                 {!association_type && (
                   <Select
-                    placeholder="Filter by type"
+                    placeholder="Filtrar por tipo"
                     style={{ minWidth: 150 }}
                     value={selectedAssociationType}
                     onChange={(value) => {
@@ -303,7 +309,7 @@ export const FileList: React.FC<FileListProps> = ({
         <Spin spinning={loading}>
           {files.length === 0 ? (
             <Empty 
-              description="No files found"
+              description="No hay archivos que coincidan con esta búsqueda."
               image={Empty.PRESENTED_IMAGE_SIMPLE}
             />
           ) : (
@@ -327,7 +333,7 @@ export const FileList: React.FC<FileListProps> = ({
                           </Tag>
                         )}
                         {file.is_public && (
-                          <Tag color="blue">Public</Tag>
+                          <Tag color="blue">Público</Tag>
                         )}
                       </Space>
                     }
@@ -340,11 +346,11 @@ export const FileList: React.FC<FileListProps> = ({
                             </Text>
                             <Text type="secondary">•</Text>
                             <Text type="secondary">
-                              {dayjs(file.upload_date).fromNow()}
+                              {dayjs(file.upload_date).locale('es').fromNow()}
                             </Text>
                             <Text type="secondary">•</Text>
                             <Text type="secondary">
-                              by {file.uploaded_by_name}
+                              Por {file.uploaded_by_name}
                             </Text>
                           </Space>
                           
@@ -359,7 +365,7 @@ export const FileList: React.FC<FileListProps> = ({
                               <LinkOutlined style={{ color: '#8c8c8c', fontSize: '12px' }} />
                               {file.associations.map(assoc => (
                                 <Tag key={assoc.id} color="processing">
-                                  {assoc.entity_type}: {assoc.entity_name}
+                                  {assoc.entity_type === 'project' ? <Link to={`/projects/${assoc.entity_id}`}>Proyecto: {assoc.entity_name || `#${assoc.entity_id}`}</Link> : assoc.entity_type === 'task' ? <Link to={`/tasks?taskId=${assoc.entity_id}`}>Tarea: {assoc.entity_name || `#${assoc.entity_id}`}</Link> : `${assoc.entity_type === 'idea' ? 'Idea' : 'Usuario'}: ${assoc.entity_name || `#${assoc.entity_id}`}`}
                                 </Tag>
                               ))}
                             </Space>
@@ -377,15 +383,15 @@ export const FileList: React.FC<FileListProps> = ({
 
       {/* File Details Modal */}
       <Modal
-        title="File Details"
+        title="Detalle del archivo"
         open={detailModalVisible}
         onCancel={() => setDetailModalVisible(false)}
         footer={[
           <Button key="download" type="primary" icon={<DownloadOutlined />} onClick={() => selectedFile && handleDownload(selectedFile)}>
-            Download
+            Descargar
           </Button>,
           <Button key="close" onClick={() => setDetailModalVisible(false)}>
-            Close
+            Cerrar
           </Button>
         ]}
         width={700}
@@ -393,35 +399,35 @@ export const FileList: React.FC<FileListProps> = ({
         {selectedFile && (
           <div>
             <Descriptions bordered column={2} size="small">
-              <Descriptions.Item label="File Name" span={2}>
+              <Descriptions.Item label="Nombre" span={2}>
                 {selectedFile.original_filename}
               </Descriptions.Item>
-              <Descriptions.Item label="Size">
+              <Descriptions.Item label="Tamaño">
                 {fileService.formatFileSize(selectedFile.file_size)}
               </Descriptions.Item>
-              <Descriptions.Item label="Type">
+              <Descriptions.Item label="Tipo">
                 {selectedFile.mime_type}
               </Descriptions.Item>
-              <Descriptions.Item label="Category">
+              <Descriptions.Item label="Categoría">
                 {selectedFile.category_name ? (
                   <Tag color={selectedFile.category_color}>
                     {selectedFile.category_name}
                   </Tag>
-                ) : 'N/A'}
+              ) : 'Sin categoría'}
               </Descriptions.Item>
-              <Descriptions.Item label="Visibility">
+              <Descriptions.Item label="Visibilidad">
                 <Tag color={selectedFile.is_public ? 'blue' : 'default'}>
-                  {selectedFile.is_public ? 'Public' : 'Private'}
+                  {selectedFile.is_public ? 'Público' : 'Privado'}
                 </Tag>
               </Descriptions.Item>
-              <Descriptions.Item label="Uploaded By">
+              <Descriptions.Item label="Subido por">
                 {selectedFile.uploaded_by_name}
               </Descriptions.Item>
-              <Descriptions.Item label="Upload Date">
-                {dayjs(selectedFile.upload_date).format('YYYY-MM-DD HH:mm:ss')}
+              <Descriptions.Item label="Fecha de carga">
+                {dayjs(selectedFile.upload_date).format('DD/MM/YYYY HH:mm')}
               </Descriptions.Item>
               {selectedFile.description && (
-                <Descriptions.Item label="Description" span={2}>
+                <Descriptions.Item label="Descripción" span={2}>
                   {selectedFile.description}
                 </Descriptions.Item>
               )}
@@ -430,17 +436,15 @@ export const FileList: React.FC<FileListProps> = ({
             {selectedFile.associations && selectedFile.associations.length > 0 && (
               <div style={{ marginTop: 16 }}>
                 <Divider />
-                <Title level={5}>Associations</Title>
+                <Title level={5}>Asociaciones</Title>
                 <List
                   size="small"
                   dataSource={selectedFile.associations}
                   renderItem={(assoc) => (
                     <List.Item>
                       <Space>
-                        <Tag color="processing">
-                          {assoc.entity_type}
-                        </Tag>
-                        <Text>{assoc.entity_name}</Text>
+                        <Tag color="processing">{assoc.entity_type === 'project' ? 'Proyecto' : assoc.entity_type === 'task' ? 'Tarea' : assoc.entity_type === 'idea' ? 'Idea' : 'Usuario'}</Tag>
+                        {assoc.entity_type === 'project' ? <Link to={`/projects/${assoc.entity_id}`}>{assoc.entity_name || `#${assoc.entity_id}`}</Link> : assoc.entity_type === 'task' ? <Link to={`/tasks?taskId=${assoc.entity_id}`}>{assoc.entity_name || `#${assoc.entity_id}`}</Link> : <Text>{assoc.entity_name || `#${assoc.entity_id}`}</Text>}
                         <Text type="secondary">({assoc.association_type})</Text>
                       </Space>
                     </List.Item>
@@ -452,14 +456,14 @@ export const FileList: React.FC<FileListProps> = ({
             {selectedFile.versions && selectedFile.versions.length > 1 && (
               <div style={{ marginTop: 16 }}>
                 <Divider />
-                <Title level={5}>Version History</Title>
+                <Title level={5}>Historial de versiones</Title>
                 <List
                   size="small"
                   dataSource={selectedFile.versions}
                   renderItem={(version) => (
                     <List.Item>
                       <List.Item.Meta
-                        title={`Version ${version.version_number}`}
+                        title={`Versión ${version.version_number}`}
                         description={
                           <Space>
                             <Text type="secondary">
@@ -467,11 +471,11 @@ export const FileList: React.FC<FileListProps> = ({
                             </Text>
                             <Text type="secondary">•</Text>
                             <Text type="secondary">
-                              {dayjs(version.created_at).format('YYYY-MM-DD HH:mm')}
+                              {dayjs(version.created_at).format('DD/MM/YYYY HH:mm')}
                             </Text>
                             <Text type="secondary">•</Text>
                             <Text type="secondary">
-                              by {version.uploaded_by_name}
+                              Por {version.uploaded_by_name}
                             </Text>
                             {version.version_notes && (
                               <>

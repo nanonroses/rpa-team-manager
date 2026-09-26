@@ -1,210 +1,40 @@
 import React from 'react';
-import { Card, Tag, Progress, Typography, Space, Tooltip, Dropdown, Button } from 'antd';
+import { Button, Card, Dropdown, Progress, Space, Tag, Tooltip, Typography } from 'antd';
 import type { MenuProps } from 'antd';
-import {
-  CalendarOutlined,
-  UserOutlined,
-  DollarOutlined,
-  ClockCircleOutlined,
-  MoreOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  EyeOutlined
-} from '@ant-design/icons';
-import { Project, ProjectStatusLabels, PriorityLabels } from '@/types/project';
-import { useAuthStore } from '@/store/authStore';
+import { CalendarOutlined, MoreOutlined, EditOutlined, DeleteOutlined, EyeOutlined, UserOutlined, ApartmentOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
+import { Project, ProjectStatusLabels, PriorityLabels } from '@/types/project';
+import { ProjectHealth } from '@/types/projectHealth';
+import { useAuthStore } from '@/store/authStore';
 import { getProjectStatusColor, getPriorityColor } from '@/utils';
 
 const { Text, Title } = Typography;
+interface ProjectCardProps { project: Project; health?: ProjectHealth; onEdit?: (project: Project) => void; onDelete?: (project: Project) => void; onView?: (project: Project) => void; onClick?: (project: Project) => void; }
 
-interface ProjectCardProps {
-  project: Project;
-  onEdit?: (project: Project) => void;
-  onDelete?: (project: Project) => void;
-  onView?: (project: Project) => void;
-  onClick?: (project: Project) => void;
-}
-
-export const ProjectCard: React.FC<ProjectCardProps> = ({
-  project,
-  onEdit,
-  onDelete,
-  onView,
-  onClick
-}) => {
+export const ProjectCard: React.FC<ProjectCardProps> = ({ project, health, onEdit, onDelete, onView, onClick }) => {
   const { user, hasPermission } = useAuthStore();
-
-  const getProgressStatus = (percentage: number) => {
-    if (percentage === 100) return 'success';
-    if (percentage >= 70) return 'active';
-    if (percentage >= 30) return 'normal';
-    return 'exception';
-  };
-
-  // For team_lead role, allow all project operations
-  const canEdit = user?.role === 'team_lead' || 
-    hasPermission('projects:update') || 
-    hasPermission('projects:*') ||
-    (user?.role === 'rpa_developer' && project.assigned_to === user.id);
-  
-  const canDelete = user?.role === 'team_lead' || 
-    hasPermission('projects:delete') || 
-    hasPermission('projects:*');
-
+  const canEdit = user?.role === 'team_lead' || hasPermission('projects:update') || hasPermission('projects:*') || (user?.role === 'rpa_developer' && project.assigned_to === user.id);
+  const canDelete = user?.role === 'team_lead' || hasPermission('projects:delete') || hasPermission('projects:*');
   const menuItems: MenuProps['items'] = [
-    {
-      key: 'view',
-      icon: <EyeOutlined />,
-      label: 'View Details',
-      onClick: () => onView?.(project)
-    },
-    ...(canEdit ? [{
-      key: 'edit',
-      icon: <EditOutlined />,
-      label: 'Edit Project',
-      onClick: () => onEdit?.(project)
-    }] : []),
-    ...(canDelete ? [{
-      type: 'divider' as const
-    }, {
-      key: 'delete',
-      icon: <DeleteOutlined />,
-      label: 'Delete Project',
-      danger: true,
-      onClick: () => onDelete?.(project)
-    }] : [])
+    { key: 'view', icon: <EyeOutlined />, label: 'Ver ficha del proyecto', onClick: () => onView?.(project) },
+    ...(canEdit ? [{ key: 'edit', icon: <EditOutlined />, label: 'Editar proyecto', onClick: () => onEdit?.(project) }] : []),
+    ...(canDelete ? [{ type: 'divider' as const }, { key: 'delete', icon: <DeleteOutlined />, label: 'Eliminar proyecto', danger: true, onClick: () => onDelete?.(project) }] : [])
   ];
+  const isOverdue = Boolean(project.end_date && dayjs(project.end_date).isBefore(dayjs(), 'day') && project.status !== 'completed');
+  const stageLabel = ({ quoting: 'En cotización', approved: 'Aprobado', lost: 'Oportunidad perdida' } as Record<string, string>)[project.commercial_stage || 'approved'];
+  const statusLabel = ({ active: 'En ejecución', on_hold: 'En pausa', completed: 'Completado', cancelled: 'Cancelado' } as Record<string, string>)[project.status] || ProjectStatusLabels[project.status];
+  const healthLabels: Record<ProjectHealth['semaphore'], string> = { green: 'En curso', yellow: 'En riesgo', red: 'Desviado', gray: 'Datos insuficientes' };
+  const healthColors: Record<ProjectHealth['semaphore'], string> = { green: 'green', yellow: 'orange', red: 'red', gray: 'default' };
+  const progress = Math.max(0, Math.min(100, Number(project.progress_percentage) || 0));
 
-  const isOverdue = project.end_date && 
-    dayjs(project.end_date).isBefore(dayjs()) && 
-    project.status !== 'completed';
-
-  const daysRemaining = project.end_date ? 
-    dayjs(project.end_date).diff(dayjs(), 'day') : null;
-
-  return (
-    <Card
-      hoverable
-      className={`project-card ${isOverdue ? 'overdue' : ''}`}
-      style={{
-        height: '100%',
-        border: isOverdue ? '1px solid #ff4d4f' : undefined
-      }}
-      styles={{ body: { padding: '16px' } }}
-      extra={
-        <Dropdown menu={{ items: menuItems }} trigger={['click']}>
-          <Button type="text" icon={<MoreOutlined />} size="small" />
-        </Dropdown>
-      }
-      onClick={() => onClick?.(project)}
-    >
-      <div style={{ marginBottom: '12px' }}>
-        <Space align="start" style={{ width: '100%', justifyContent: 'space-between' }}>
-          <div style={{ flex: 1 }}>
-            <Title level={5} style={{ margin: 0, marginBottom: '4px' }}>
-              {project.name}
-            </Title>
-            <Text type="secondary" style={{ fontSize: '12px' }}>
-              {project.description?.substring(0, 80)}
-              {project.description && project.description.length > 80 ? '...' : ''}
-            </Text>
-          </div>
-        </Space>
-      </div>
-
-      <Space direction="vertical" style={{ width: '100%' }} size="small">
-        {/* Status and Priority */}
-        <Space>
-          <Tag color={getProjectStatusColor(project.status)}>
-            {ProjectStatusLabels[project.status]}
-          </Tag>
-          <Tag color={getPriorityColor(project.priority)}>
-            {PriorityLabels[project.priority]}
-          </Tag>
-        </Space>
-
-        {/* Progress */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-            <Text style={{ fontSize: '12px' }}>Avance por tareas</Text>
-            <Text style={{ fontSize: '12px' }}>
-              {project.completed_tasks || 0}/{project.total_tasks || 0} tareas
-            </Text>
-          </div>
-          <Progress 
-            percent={project.progress_percentage} 
-            size="small" 
-            status={getProgressStatus(project.progress_percentage)}
-            showInfo={false}
-          />
-        </div>
-
-        {/* Project Info */}
-        <Space wrap style={{ fontSize: '12px' }}>
-          {project.assigned_to_name && (
-            <Tooltip title={`Assigned to: ${project.assigned_to_name}`}>
-              <Space size={4}>
-                <UserOutlined />
-                <Text style={{ fontSize: '12px' }}>
-                  {project.assigned_to_name.split(' ')[0]}
-                </Text>
-              </Space>
-            </Tooltip>
-          )}
-
-          {user?.role === 'team_lead' && !!project.budget && (
-            <Tooltip title={`Budget: $${project.budget.toLocaleString()}`}>
-              <Space size={4}>
-                <DollarOutlined />
-                <Text style={{ fontSize: '12px' }}>
-                  ${(project.budget / 1000).toFixed(0)}k
-                </Text>
-              </Space>
-            </Tooltip>
-          )}
-
-          {project.total_hours_logged && (
-            <Tooltip title={`${project.total_hours_logged} hours logged`}>
-              <Space size={4}>
-                <ClockCircleOutlined />
-                <Text style={{ fontSize: '12px' }}>
-                  {project.total_hours_logged.toFixed(1)}h
-                </Text>
-              </Space>
-            </Tooltip>
-          )}
-
-          {project.end_date && (
-            <Tooltip title={`Due: ${dayjs(project.end_date).format('MMM DD, YYYY')}`}>
-              <Space size={4}>
-                <CalendarOutlined />
-                <Text 
-                  style={{ 
-                    fontSize: '12px',
-                    color: isOverdue ? '#ff4d4f' : 
-                           daysRemaining !== null && daysRemaining < 7 ? '#faad14' : 
-                           undefined
-                  }}
-                >
-                  {daysRemaining !== null ? (
-                    daysRemaining < 0 ? 
-                      `${Math.abs(daysRemaining)}d overdue` :
-                      daysRemaining === 0 ? 'Due today' :
-                      `${daysRemaining}d left`
-                  ) : 'No due date'}
-                </Text>
-              </Space>
-            </Tooltip>
-          )}
-        </Space>
-      </Space>
-
-      <style>{`
-        .project-card.overdue {
-          box-shadow: 0 0 0 1px #ff4d4f, 0 2px 8px rgba(255, 77, 79, 0.15);
-        }
-      `}</style>
-    </Card>
-  );
+  return <Card hoverable className={`project-card ${isOverdue ? 'overdue' : ''}`} onClick={() => onClick?.(project)} extra={<Dropdown menu={{ items: menuItems }} trigger={['click']}><Button aria-label={`Acciones para ${project.name}`} type="text" icon={<MoreOutlined />} size="small" onClick={(event) => event.stopPropagation()} /></Dropdown>}>
+    <div className="project-card-heading"><div><Title level={5}>{project.name}</Title><Text type="secondary">{project.description?.trim() || 'Sin descripción registrada'}</Text></div></div>
+    <div className="project-card-tags"><Tag color={getProjectStatusColor(project.status)}>{statusLabel}</Tag><Tag color={project.commercial_stage === 'quoting' ? 'gold' : project.commercial_stage === 'lost' ? 'default' : 'green'}>{stageLabel}</Tag><Tag color={getPriorityColor(project.priority)}>{PriorityLabels[project.priority]}</Tag></div>
+    {health && <div className="project-card-health"><Text type="secondary">Salud PMO</Text><Tag color={healthColors[health.semaphore]}>{healthLabels[health.semaphore]}</Tag></div>}
+    {project.client_name && <div className="project-card-meta"><ApartmentOutlined /><Text ellipsis>{project.client_name}</Text></div>}
+    <div className="project-card-meta"><UserOutlined /><Text ellipsis>{project.assigned_to_name || 'Sin responsable asignado'}</Text></div>
+    <div className="project-card-progress"><div><Text>Avance de tareas</Text><Text strong>{progress}% <span>({project.completed_tasks || 0}/{project.total_tasks || 0})</span></Text></div><Progress percent={progress} size="small" showInfo={false} status={progress === 100 ? 'success' : 'normal'} /></div>
+    <div className="project-card-dates"><CalendarOutlined /><Text>{project.start_date ? dayjs(project.start_date).format('DD MMM YYYY') : 'Inicio sin definir'} <span>→</span> {project.end_date ? dayjs(project.end_date).format('DD MMM YYYY') : 'Término sin definir'}</Text>{isOverdue && <Tooltip title="La fecha de término ya pasó"><Tag color="error">Atrasado</Tag></Tooltip>}</div>
+    {user?.role === 'team_lead' && project.total_hours_logged !== undefined && <Space className="project-card-hours"><Text type="secondary">Horas aprobadas: {Number(project.total_hours_logged).toFixed(1)} h</Text></Space>}
+  </Card>;
 };

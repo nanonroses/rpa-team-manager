@@ -103,6 +103,8 @@ export class ProjectController {
                 SELECT p.*,
                        u1.full_name as created_by_name,
                        u2.full_name as assigned_to_name,
+                       c.name as client_name,
+                       sr.name as sales_rep_name,
                        (SELECT COUNT(*) FROM tasks t JOIN task_boards tb ON t.board_id = tb.id
                          WHERE tb.project_id = p.id) as total_tasks,
                        (SELECT COUNT(*) FROM tasks t JOIN task_boards tb ON t.board_id = tb.id
@@ -112,13 +114,18 @@ export class ProjectController {
                 FROM projects p
                 LEFT JOIN users u1 ON p.created_by = u1.id
                 LEFT JOIN users u2 ON p.assigned_to = u2.id
+                LEFT JOIN clients c ON c.id = p.client_id
+                LEFT JOIN sales_reps sr ON sr.id = p.sales_rep_id
             `;
 
             const params: any[] = [];
+            const includeLost = req.query.include_lost === 'true';
+            if (!includeLost) query += " WHERE COALESCE(p.commercial_stage, 'approved') <> 'lost'";
 
             // Filter based on user role
             if (req.user?.role === 'rpa_developer') {
-                query += ' WHERE (p.assigned_to = ? OR p.created_by = ?)';
+                query += includeLost ? ' WHERE (p.assigned_to = ? OR p.created_by = ?)'
+                    : ' AND (p.assigned_to = ? OR p.created_by = ?)';
                 params.push(req.user.id, req.user.id);
             }
 
@@ -151,6 +158,8 @@ export class ProjectController {
                 SELECT p.*, 
                        u1.full_name as created_by_name,
                        u2.full_name as assigned_to_name,
+                       c.name as client_name,
+                       sr.name as sales_rep_name,
                        pf.budgeted_cost,
                        pf.actual_cost as budget_spent,
                        pf.budgeted_hours as hours_budgeted,
@@ -161,6 +170,8 @@ export class ProjectController {
                 FROM projects p
                 LEFT JOIN users u1 ON p.created_by = u1.id
                 LEFT JOIN users u2 ON p.assigned_to = u2.id
+                LEFT JOIN clients c ON c.id = p.client_id
+                LEFT JOIN sales_reps sr ON sr.id = p.sales_rep_id
                 LEFT JOIN project_financials pf ON p.id = pf.project_id
                 WHERE p.id = ?
             `, [id]);
@@ -220,18 +231,37 @@ export class ProjectController {
             const {
                 name,
                 description,
-                status = 'active',
+                status = 'on_hold',
                 priority = 'medium',
                 budget,
                 start_date,
                 end_date,
                 assigned_to,
                 client_id,
+                client_contact_id,
+                sales_rep_id,
+                opportunity_source = 'direct',
                 area_id,
                 pm_user_id,
                 project_type = 'commercial',
                 currency = 'CLP'
             } = req.body;
+
+            if (!['direct', 'sales'].includes(opportunity_source)) {
+                res.status(400).json({ error: 'El origen de la oportunidad no es válido' });
+                return;
+            }
+            if (opportunity_source === 'sales' && !sales_rep_id) {
+                res.status(400).json({ error: 'Selecciona el comercial que trajo la oportunidad' });
+                return;
+            }
+            if (client_contact_id) {
+                const contact = await db.get('SELECT client_id FROM client_contacts WHERE id = ? AND is_active = 1', [client_contact_id]);
+                if (!contact || Number(contact.client_id) !== Number(client_id)) {
+                    res.status(400).json({ error: 'El contacto seleccionado no pertenece al cliente activo' });
+                    return;
+                }
+            }
 
             if (!name) {
                 res.status(400).json({ error: 'Project name is required' });
@@ -241,6 +271,8 @@ export class ProjectController {
             // rpa_operations siempre se autoasigna al crear; se ignora cualquier assigned_to del body para este rol.
             const isSelfAssigningOps = req.user?.role === 'rpa_operations';
             const effectiveAssignedTo = isSelfAssigningOps ? req.user!.id : (assigned_to || null);
+            const effectiveStatus = project_type === 'commercial' ? 'on_hold' : status;
+            const commercialStage = project_type === 'commercial' ? 'quoting' : 'approved';
 
             // Validate assigned_to user exists if provided
             if (effectiveAssignedTo && !isSelfAssigningOps) {
@@ -256,19 +288,21 @@ export class ProjectController {
                 INSERT INTO projects (
                     name, description, status, priority, budget,
                     start_date, end_date, assigned_to, created_by,
-                    client_id, area_id, pm_user_id, project_type, currency
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    client_id, client_contact_id, sales_rep_id, opportunity_source, area_id, pm_user_id, project_type, currency, commercial_stage
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
-                name, description, status, priority, budget ?? null,
+                name, description, effectiveStatus, priority, budget ?? null,
                 start_date ?? null, end_date ?? null, effectiveAssignedTo, req.user?.id,
-                client_id ?? null, area_id ?? null, pm_user_id ?? null, project_type, currency
+                client_id ?? null, client_contact_id ?? null, sales_rep_id ?? null, opportunity_source, area_id ?? null, pm_user_id ?? null, project_type, currency, commercialStage
             ]);
 
             const projectId = result.id!;
 
-            await this.upsertProjectFinancials(projectId, this.financialInputFor(req.user, req.body));
+            if (project_type === 'internal') {
+                await this.upsertProjectFinancials(projectId, this.financialInputFor(req.user, req.body));
+            }
 
-            if (isSelfAssigningOps) {
+            if (isSelfAssigningOps && project_type === 'internal') {
                 await db.run(`
                     INSERT INTO project_assignments (
                         project_id, user_id, role, allocation_percentage, start_date, end_date, assigned_by, is_active
@@ -310,7 +344,7 @@ export class ProjectController {
                 projectId,
                 'created',
                 null,
-                { name, status, priority }
+                { name, status: effectiveStatus, priority, commercial_stage: commercialStage }
             );
 
             // Get the created project with details
@@ -356,7 +390,7 @@ export class ProjectController {
                 'name', 'description', 'status', 'priority', 'budget',
                 'start_date', 'end_date', 'actual_start_date', 'actual_end_date',
                 'assigned_to', 'progress_percentage',
-                'client_id', 'area_id', 'pm_user_id', 'project_type', 'currency'
+                'client_id', 'client_contact_id', 'sales_rep_id', 'opportunity_source', 'area_id', 'pm_user_id', 'currency'
             ];
 
             // Solo team_lead puede reasignar el proyecto (assigned_to); otros roles lo ven descartado silenciosamente.
@@ -366,9 +400,39 @@ export class ProjectController {
             })();
 
             const updateFields = Object.keys(updatesForFields).filter(key => allowedFields.includes(key) && updatesForFields[key] !== undefined);
+            const nextClientId = updatesForFields.client_id ?? currentProject.client_id;
+            const nextContactId = updatesForFields.client_contact_id ?? currentProject.client_contact_id;
+            if (nextContactId) {
+                const contact = await db.get('SELECT client_id FROM client_contacts WHERE id = ? AND is_active = 1', [nextContactId]);
+                if (!contact || Number(contact.client_id) !== Number(nextClientId)) {
+                    res.status(400).json({ error: 'El contacto seleccionado no pertenece al cliente del proyecto' });
+                    return;
+                }
+            }
             const financialInput = this.financialInputFor(req.user, updates);
             const hasFinancialChanges = Object.keys(ProjectController.FINANCIAL_FIELD_MAP)
                 .some(field => financialInput[field] !== undefined);
+
+            const lockedCommercialFields = ['sale_price', 'sale_price_currency', 'hours_budgeted'];
+            if (currentProject.project_type === 'commercial' && lockedCommercialFields.some(field => financialInput[field] !== undefined)) {
+                res.status(400).json({ error: 'El precio y las horas comerciales se actualizan mediante una versión de cotización' });
+                return;
+            }
+            if (updatesForFields.status === 'active' && currentProject.commercial_stage === 'quoting') {
+                res.status(409).json({ error: 'Aprueba una cotización y registra la aprobación del cliente antes de iniciar la ejecución' });
+                return;
+            }
+            if (updatesForFields.status === 'active' && currentProject.require_purchase_order) {
+                const purchaseOrder = await db.get(`SELECT id FROM project_commercial_documents WHERE project_id = ? AND document_type = 'purchase_order' LIMIT 1`, [id]);
+                if (!purchaseOrder) {
+                    res.status(409).json({ error: 'Registra la orden de compra obligatoria antes de iniciar ejecución' });
+                    return;
+                }
+            }
+            if (updatesForFields.status === 'completed' && !currentProject.delivery_accepted_at) {
+                res.status(409).json({ error: 'Registra la aceptación del cliente para cerrar la entrega del proyecto' });
+                return;
+            }
 
             if (updateFields.length === 0 && !hasFinancialChanges) {
                 res.status(400).json({ error: 'No valid fields to update' });
@@ -404,6 +468,9 @@ export class ProjectController {
                 SELECT p.*,
                        u1.full_name as created_by_name,
                        u2.full_name as assigned_to_name,
+                       c.name as client_name,
+                       cc.name as client_contact_name,
+                       sr.name as sales_rep_name,
                        pf.budgeted_cost,
                        pf.actual_cost as budget_spent,
                        pf.budgeted_hours as hours_budgeted,
@@ -414,6 +481,9 @@ export class ProjectController {
                 FROM projects p
                 LEFT JOIN users u1 ON p.created_by = u1.id
                 LEFT JOIN users u2 ON p.assigned_to = u2.id
+                LEFT JOIN clients c ON c.id = p.client_id
+                LEFT JOIN client_contacts cc ON cc.id = p.client_contact_id
+                LEFT JOIN sales_reps sr ON sr.id = p.sales_rep_id
                 LEFT JOIN project_financials pf ON p.id = pf.project_id
                 WHERE p.id = ?
             `, [id]);
@@ -885,10 +955,10 @@ export class ProjectController {
             // Validar todo ANTES de borrar: un payload inválido nunca debe dejar el proyecto sin equipo.
             const datePattern = /^\d{4}-\d{2}-\d{2}$/;
             const seen = new Set<number>();
-            const normalized: Array<{ user_id: number; role: string; allocation_percentage: number; start_date: string | null; end_date: string | null }> = [];
+            const normalized: Array<{ user_id: number; role: string; allocation_percentage: number; start_date: string | null; end_date: string | null; budgeted_hours: number | null }> = [];
 
             for (const assignment of user_assignments) {
-                const { user_id, allocation_percentage = 100, role = 'contributor', start_date = null, end_date = null } = assignment || {};
+                const { user_id, allocation_percentage = 100, role = 'contributor', start_date = null, end_date = null, budgeted_hours = null } = assignment || {};
 
                 if (!Number.isInteger(user_id) || user_id <= 0) {
                     res.status(400).json({ error: 'Cada asignación requiere un user_id válido' });
@@ -906,6 +976,10 @@ export class ProjectController {
                     res.status(400).json({ error: 'La dedicación debe ser un entero entre 0 y 100' });
                     return;
                 }
+                if (budgeted_hours !== null && (!Number.isFinite(Number(budgeted_hours)) || Number(budgeted_hours) < 0)) {
+                    res.status(400).json({ error: 'Las horas presupuestadas deben ser un número mayor o igual a cero' });
+                    return;
+                }
                 if ((start_date !== null && !datePattern.test(start_date)) || (end_date !== null && !datePattern.test(end_date))) {
                     res.status(400).json({ error: 'Las fechas deben tener formato YYYY-MM-DD' });
                     return;
@@ -917,7 +991,7 @@ export class ProjectController {
                 }
 
                 seen.add(user_id);
-                normalized.push({ user_id, role, allocation_percentage, start_date, end_date });
+                normalized.push({ user_id, role, allocation_percentage, start_date, end_date, budgeted_hours: budgeted_hours === null ? null : Number(budgeted_hours) });
             }
 
             await db.beginTransaction();
@@ -928,9 +1002,9 @@ export class ProjectController {
                 for (const a of normalized) {
                     const result = await db.run(`
                         INSERT INTO project_assignments (
-                            project_id, user_id, role, allocation_percentage, start_date, end_date, assigned_by, is_active
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-                    `, [id, a.user_id, a.role, a.allocation_percentage, a.start_date, a.end_date, userId]);
+                            project_id, user_id, role, allocation_percentage, start_date, end_date, assigned_by, is_active, budgeted_hours
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+                    `, [id, a.user_id, a.role, a.allocation_percentage, a.start_date, a.end_date, userId, a.budgeted_hours]);
 
                     newAssignments.push({ id: result.id, project_id: Number(id), ...a, assigned_by: userId, is_active: 1 });
                 }

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import {
   Card,
@@ -19,8 +19,6 @@ import {
   Statistic,
   Progress,
   Alert,
-  Empty,
-  Spin
 } from 'antd';
 import {
   PlayCircleOutlined,
@@ -33,6 +31,7 @@ import {
   FallOutlined
 } from '@ant-design/icons';
 import { apiService } from '@/services/api';
+import { EmptyState, LoadingState } from '@/components/common';
 import { useAuthStore } from '@/store/authStore';
 import dayjs from 'dayjs';
 import type { PhaseStatus, Responsibility, ProjectPhase, ROIAnalysis } from '@/types/lifecycle';
@@ -41,9 +40,14 @@ const { Title, Text } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
 
-export const ProjectLifecyclePage: React.FC = () => {
+interface ProjectLifecyclePageProps {
+  projectId?: number;
+}
+
+export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ projectId: projectIdProp }) => {
   const { projectId } = useParams<{ projectId: string }>();
   const { user } = useAuthStore();
+  const resolvedProjectId = projectIdProp ?? (projectId ? parseInt(projectId, 10) : undefined);
   const [loading, setLoading] = useState(true);
   const [phases, setPhases] = useState<ProjectPhase[]>([]);
   const [roiAnalysis, setRoiAnalysis] = useState<ROIAnalysis | null>(null);
@@ -51,21 +55,15 @@ export const ProjectLifecyclePage: React.FC = () => {
   const [selectedPhase, setSelectedPhase] = useState<ProjectPhase | null>(null);
   const [activityForm] = Form.useForm();
 
-  useEffect(() => {
-    if (projectId) {
-      loadLifecycleData();
-    }
-  }, [projectId]);
-
-  const loadLifecycleData = async () => {
+  const loadLifecycleData = useCallback(async () => {
     try {
       setLoading(true);
-      const phasesData = await apiService.getProjectPhases(parseInt(projectId!));
+      const phasesData = await apiService.getProjectPhases(resolvedProjectId!);
       setPhases(phasesData);
 
       // El endpoint de ROI es solo team_lead (403 para el resto).
       if (phasesData.length > 0 && user?.role === 'team_lead') {
-        const roiData = await apiService.getProjectROIAnalysis(parseInt(projectId!));
+        const roiData = await apiService.getProjectROIAnalysis(resolvedProjectId!);
         setRoiAnalysis(roiData);
       }
     } catch (error: any) {
@@ -79,11 +77,15 @@ export const ProjectLifecyclePage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [resolvedProjectId, user?.role]);
+
+  useEffect(() => {
+    if (resolvedProjectId) void loadLifecycleData();
+  }, [resolvedProjectId, loadLifecycleData]);
 
   const handleInitializePhases = async () => {
     try {
-      await apiService.initializeProjectPhases(parseInt(projectId!));
+      await apiService.initializeProjectPhases(resolvedProjectId!);
       message.success('Project phases initialized successfully!');
       loadLifecycleData();
     } catch (error) {
@@ -290,48 +292,39 @@ export const ProjectLifecyclePage: React.FC = () => {
   ];
 
   if (loading) {
-    return (
-      <div style={{ padding: '24px', textAlign: 'center' }}>
-        <Spin size="large" />
-        <div style={{ marginTop: 16 }}>
-          <Text>Loading lifecycle data...</Text>
-        </div>
-      </div>
-    );
+    return <LoadingState tip="Cargando ciclo de vida…" minHeight={220} />;
   }
 
   if (phases.length === 0) {
     return (
       <div style={{ padding: '24px' }}>
         <Card>
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
+          <EmptyState
             description={
               <Space direction="vertical" size="large">
                 <div>
-                  <Title level={4}>Project Lifecycle Not Initialized</Title>
+                  <Title level={4}>Ciclo de vida sin inicializar</Title>
                   <Text type="secondary">
-                    Initialize the lifecycle to track all project phases from pre-sale to deployment.
+                    Inicializa el ciclo de vida para seguir las fases del proyecto, desde la preventa hasta la implementación.
                   </Text>
                 </div>
                 <Alert
                   type="info"
-                  message="What happens when you initialize?"
-                  description="We'll create 29 predefined phases covering Discovery, Proposal, Negotiation, Development, Testing, and Deployment. You can track time and calculate Real ROI vs Apparent ROI."
+                  message="¿Qué ocurre al inicializar?"
+                  description="Se crearán 29 fases predefinidas para descubrimiento, propuesta, negociación, desarrollo, pruebas e implementación. Podrás registrar tiempo y comparar el ROI real con el aparente."
                   showIcon
                 />
               </Space>
             }
-          >
-            <Button
+            action={<Button
               type="primary"
               size="large"
               icon={<PlayCircleOutlined />}
               onClick={handleInitializePhases}
             >
-              Initialize Project Lifecycle (29 Phases)
-            </Button>
-          </Empty>
+              Inicializar ciclo de vida (29 fases)
+            </Button>}
+          />
         </Card>
       </div>
     );
@@ -439,34 +432,35 @@ export const ProjectLifecyclePage: React.FC = () => {
           }}
         >
           <Form.Item
-            label="Activity Description"
+            label="Descripción de la actividad"
             name="activity_description"
-            rules={[{ required: true, message: 'Please describe the activity' }]}
+            rules={[{ required: true, message: 'Describe la actividad' }]}
           >
-            <TextArea rows={3} placeholder="What did you work on?" />
+            <TextArea rows={3} aria-label="Descripción del trabajo realizado" placeholder="¿En qué trabajaste?" />
           </Form.Item>
 
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
-                label="Hours Worked"
+                label="Horas trabajadas"
                 name="hours_worked"
-                rules={[{ required: true, message: 'Please enter hours' }]}
+                rules={[{ required: true, message: 'Ingresa las horas' }]}
               >
                 <InputNumber
                   min={0.1}
                   max={24}
                   step={0.5}
                   style={{ width: '100%' }}
-                  placeholder="e.g., 2.5"
+                  aria-label="Horas trabajadas"
+                  placeholder="Ej.: 2,5"
                 />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item
-                label="Work Date"
+                label="Fecha de trabajo"
                 name="work_date"
-                rules={[{ required: true, message: 'Please select date' }]}
+                rules={[{ required: true, message: 'Selecciona una fecha' }]}
               >
                 <DatePicker style={{ width: '100%' }} />
               </Form.Item>
@@ -474,18 +468,18 @@ export const ProjectLifecyclePage: React.FC = () => {
           </Row>
 
           <Form.Item
-            label="Was this productive time?"
+            label="¿Fue tiempo productivo?"
             name="is_productive"
             rules={[{ required: true }]}
           >
             <Select>
-              <Option value={true}>Yes - Productive Work</Option>
-              <Option value={false}>No - Waiting/Blocked</Option>
+              <Option value={true}>Sí, trabajo productivo</Option>
+              <Option value={false}>No, espera o bloqueo</Option>
             </Select>
           </Form.Item>
 
-          <Form.Item label="Additional Notes" name="notes">
-            <TextArea rows={2} placeholder="Any additional context..." />
+          <Form.Item label="Notas adicionales" name="notes">
+            <TextArea rows={2} aria-label="Contexto adicional" placeholder="Contexto adicional..." />
           </Form.Item>
         </Form>
       </Modal>

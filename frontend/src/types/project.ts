@@ -30,6 +30,22 @@ export interface Project {
   delay_cost?: number;
   penalty_cost?: number;
   sale_price?: number;
+  client_id?: number;
+  client_contact_id?: number;
+  client_contact_name?: string;
+  sales_rep_id?: number;
+  opportunity_source?: 'sales' | 'direct';
+  project_type?: 'internal' | 'commercial';
+  client_name?: string;
+  sales_rep_name?: string;
+  currency?: 'CLP' | 'UF' | 'USD';
+  commercial_stage?: 'quoting' | 'approved' | 'lost';
+  client_approved_at?: string;
+  require_purchase_order?: boolean;
+  require_service_acceptance?: boolean;
+  delivery_accepted_at?: string;
+  financial_closed_at?: string;
+  loss_reason?: string;
 }
 
 export type ProjectStatus = 'active' | 'on_hold' | 'completed' | 'cancelled';

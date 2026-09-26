@@ -1,5 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ConfigProvider, App as AntdApp } from 'antd';
+import esES from 'antd/locale/es_ES';
+import { antdTheme } from '@/components/common/designTokens';
 import { QueryClient, QueryClientProvider } from 'react-query';
 
 // Components
@@ -11,6 +13,7 @@ import { LoginPage } from '@/pages/auth/LoginPage';
 import { DashboardPage } from '@/pages/dashboard/DashboardPage';
 import { ProjectsPage } from '@/pages/projects/ProjectsPage';
 import { ProjectDetailPage } from '@/pages/projects/ProjectDetailPage';
+import { ClientsPage } from '@/pages/projects/ClientsPage';
 import { TimeTrackingPage } from '@/pages/time/TimeTrackingPage';
 import { TasksPage } from '@/pages/tasks/TasksPage';
 import { SettingsPage } from '@/pages/settings/SettingsPage';
@@ -23,27 +26,6 @@ import BillingPage from '@/pages/billing/BillingPage';
 import ProfilePage from '@/pages/profile/ProfilePage';
 import TeamManagementPage from '@/pages/admin/TeamManagementPage';
 import PriorityMatrixPage from '@/pages/priorities/PriorityMatrixPage';
-
-// Ant Design theme configuration
-const theme = {
-  token: {
-    colorPrimary: '#1890ff',
-    borderRadius: 8,
-    wireframe: false,
-  },
-  components: {
-    Layout: {
-      bodyBg: '#f5f5f5',
-      headerBg: '#ffffff',
-      siderBg: '#ffffff',
-    },
-    Menu: {
-      itemBg: 'transparent',
-      itemSelectedBg: '#e6f7ff',
-      itemSelectedColor: '#1890ff',
-    },
-  },
-};
 
 // React Query client
 const queryClient = new QueryClient({
@@ -59,7 +41,7 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfigProvider theme={theme}>
+      <ConfigProvider theme={antdTheme} locale={esES}>
         <AntdApp>
           <Router
             future={{
@@ -84,6 +66,11 @@ function App() {
               {/* Projects */}
               <Route path="projects" element={<ProjectsPage />} />
               <Route path="projects/:id" element={<ProjectDetailPage />} />
+              <Route path="clients" element={
+                <ProtectedRoute requiredRoles={['team_lead', 'rpa_operations']}>
+                  <ClientsPage />
+                </ProtectedRoute>
+              } />
               
               {/* Tasks */}
               <Route path="tasks" element={<TasksPage />} />

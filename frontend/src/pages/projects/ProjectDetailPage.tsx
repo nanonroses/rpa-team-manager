@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Row,
   Col,
@@ -14,7 +14,6 @@ import {
   List,
   Avatar,
   Empty,
-  Spin,
   Alert,
   Breadcrumb,
   Tabs,
@@ -52,31 +51,32 @@ import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/store/authStore';
 import { Project, ProjectStatusLabels, PriorityLabels } from '@/types/project';
 import { apiService } from '@/services/api';
-import { getProjectStatusColor, getPriorityColor } from '@/utils';
+import { getProjectStatusColor } from '@/utils';
+import { ProjectHealth } from '@/types/projectHealth';
+import { ProjectCommercialSection } from '@/components/projects/ProjectCommercialSection';
+import { ErrorState, LoadingState } from '@/components/common';
 import dayjs from 'dayjs';
 
 const { Title, Text, Paragraph } = Typography;
+const projectTabOrder = ['overview', 'commercial', 'billing', 'pmo', 'lifecycle', 'files', 'evidence', 'comments', 'ai-analytics'];
 
 export const ProjectDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [project, setProject] = useState<Project | null>(null);
   const [tasks, setTasks] = useState<any[]>([]);
+  const [health, setHealth] = useState<ProjectHealth | null>(null);
   const [editModalVisible, setEditModalVisible] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
+  const initialTab = ['commercial', 'billing', 'lifecycle', 'pmo', 'files'].includes(searchParams.get('tab') || '') ? searchParams.get('tab')! : 'overview';
+  const [activeTab, setActiveTab] = useState(initialTab);
   
   const { getProject } = useProjectStore();
   const { user } = useAuthStore();
   const { message, modal } = App.useApp();
 
-  useEffect(() => {
-    if (id) {
-      loadProjectData();
-    }
-  }, [id]);
-
-  const loadProjectData = async () => {
+  const loadProjectData = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -85,11 +85,22 @@ export const ProjectDetailPage: React.FC = () => {
       try {
         projectData = await apiService.getProject(parseInt(id!));
       } catch (apiError) {
-        console.log('Direct API failed, trying store:', apiError);
+        console.warn('Direct project API failed; trying project store:', apiError);
         projectData = await getProject(parseInt(id!));
       }
       
       setProject(projectData);
+
+      if (user?.role === 'team_lead') {
+        try {
+          setHealth(await apiService.getProjectHealth(projectData.id));
+        } catch (healthError) {
+          console.warn('Project health is not available:', healthError);
+          setHealth(null);
+        }
+      } else {
+        setHealth(null);
+      }
       
       // Load project tasks 
       try {
@@ -104,7 +115,16 @@ export const ProjectDetailPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [getProject, id, user?.role]);
+
+  useEffect(() => {
+    if (id) void loadProjectData();
+  }, [id, loadProjectData]);
+
+  useEffect(() => {
+    const requestedTab = searchParams.get('tab');
+    if (requestedTab && ['commercial', 'lifecycle', 'pmo', 'files'].includes(requestedTab)) setActiveTab(requestedTab);
+  }, [searchParams]);
 
 
   const getTaskStatusColor = (status: string) => {
@@ -141,20 +161,20 @@ export const ProjectDetailPage: React.FC = () => {
 
   const handleDelete = () => {
     modal.confirm({
-      title: 'Delete Project',
+      title: 'Eliminar proyecto',
       icon: <ExclamationCircleOutlined />,
-      content: `Are you sure you want to delete "${project?.name}"? This action cannot be undone.`,
-      okText: 'Delete',
+      content: `¿Quieres eliminar “${project?.name}”? Esta acción no se puede deshacer.`,
+      okText: 'Eliminar',
       okType: 'danger',
-      cancelText: 'Cancel',
+      cancelText: 'Cancelar',
       onOk: async () => {
         try {
           const { deleteProject } = useProjectStore.getState();
           await deleteProject(project!.id);
-          message.success('Project deleted successfully');
+          message.success('Proyecto eliminado');
           navigate('/projects');
         } catch (error: any) {
-          const errorMessage = error?.response?.data?.error || 'Failed to delete project';
+          const errorMessage = error?.response?.data?.error || 'No se pudo eliminar el proyecto';
           message.error(errorMessage);
         }
       }
@@ -166,36 +186,19 @@ export const ProjectDetailPage: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div style={{ padding: '24px', textAlign: 'center' }}>
-        <Spin size="large" />
-        <div style={{ marginTop: 16 }}>
-          <Text>Loading project details...</Text>
-        </div>
-      </div>
-    );
+    return <LoadingState tip="Cargando ficha del proyecto…" minHeight={240} />;
   }
 
   if (!project) {
     return (
-      <div style={{ padding: '24px' }}>
-        <Alert
-          message="Project Not Found"
-          description="The project you're looking for doesn't exist or you don't have permission to view it."
-          type="error"
-          showIcon
-          action={
-            <Button size="small" onClick={handleBack}>
-              Back to Projects
-            </Button>
-          }
-        />
-      </div>
+      <ErrorState
+        title="No se encontró el proyecto"
+        description="El proyecto no existe o no tienes permiso para consultarlo."
+        action={<Button onClick={handleBack}>Volver al portafolio</Button>}
+      />
     );
   }
 
-  console.log('Project tasks:', tasks.map(t => ({ id: t.id, title: t.title, status: t.status, column_name: t.column_name })));
-  
   const completedTasks = tasks.filter(t => 
     t.status === 'done' || 
     t.status === 'completed' || 
@@ -206,83 +209,82 @@ export const ProjectDetailPage: React.FC = () => {
   ).length;
   const totalTasks = tasks.length;
   const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
-  
-  console.log(`Progress: ${completedTasks}/${totalTasks} (${progressPercentage}%)`);
+  const remainingDays = project.end_date ? dayjs(project.end_date).startOf('day').diff(dayjs().startOf('day'), 'day') : null;
+  const dateFormatter = new Intl.DateTimeFormat('es-CL', { day: 'numeric', month: 'short', year: 'numeric' });
+  const projectScheduleLabel = project.start_date && project.end_date
+    ? `${dateFormatter.format(dayjs(project.start_date).toDate())} — ${dateFormatter.format(dayjs(project.end_date).toDate())}`
+    : project.start_date ? `Inicio ${dateFormatter.format(dayjs(project.start_date).toDate())}`
+      : project.end_date ? `Término ${dateFormatter.format(dayjs(project.end_date).toDate())}` : 'Fechas por definir';
+  const healthLabels: Record<ProjectHealth['semaphore'], string> = {
+    green: 'En curso', yellow: 'En riesgo', red: 'Desviado', gray: 'Salud sin datos'
+  };
+  const statusLabel = ({ active: 'En ejecución', planning: 'En planificación', on_hold: 'En pausa', completed: 'Completado', cancelled: 'Cancelado' } as Record<string, string>)[project.status] || ProjectStatusLabels[project.status as keyof typeof ProjectStatusLabels] || project.status;
+  const priorityLabel = ({ critical: 'Crítica', high: 'Alta', medium: 'Media', low: 'Baja' } as Record<string, string>)[project.priority] || PriorityLabels[project.priority as keyof typeof PriorityLabels] || project.priority;
 
   return (
-    <div style={{ padding: '24px' }}>
-      {/* Breadcrumb */}
-      <Breadcrumb style={{ marginBottom: '16px' }}>
-        <Breadcrumb.Item>
-          <HomeOutlined />
-        </Breadcrumb.Item>
-        <Breadcrumb.Item>
-          <ProjectOutlined />
-          <span>Projects</span>
-        </Breadcrumb.Item>
-        <Breadcrumb.Item>{project.name}</Breadcrumb.Item>
-      </Breadcrumb>
+    <main className="project-detail-page">
+      <Breadcrumb className="project-detail-breadcrumb" items={[
+        { title: <HomeOutlined /> },
+        { title: <button onClick={handleBack} className="breadcrumb-link">Portafolio</button> },
+        { title: project.name }
+      ]} />
 
-      {/* Header */}
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <Space size="large">
-            <Button 
-              icon={<ArrowLeftOutlined />} 
-              onClick={handleBack}
-              type="text"
-            />
-            <Title level={2} style={{ margin: 0 }}>
-              {project.name}
-            </Title>
-            <Tag color={getProjectStatusColor(project.status)} style={{ fontSize: '14px', padding: '4px 12px' }}>
-              {ProjectStatusLabels[project.status as keyof typeof ProjectStatusLabels]}
-            </Tag>
-            <Tag color={getPriorityColor(project.priority)} style={{ fontSize: '14px', padding: '4px 12px' }}>
-              {PriorityLabels[project.priority as keyof typeof PriorityLabels]} Priority
-            </Tag>
-          </Space>
-          
-          {user?.role === 'team_lead' && (
-            <Space>
-              <Button 
-                type="primary" 
-                icon={<EditOutlined />}
-                onClick={handleEdit}
-              >
-                Edit Project
-              </Button>
-              <Button 
-                danger
-                icon={<DeleteOutlined />}
-                onClick={handleDelete}
-              >
-                Delete
-              </Button>
-            </Space>
-          )}
+      <section className="project-hero">
+        <div className="project-hero-main">
+          <Button className="project-back-button" icon={<ArrowLeftOutlined />} onClick={handleBack}>Volver al portafolio</Button>
+          <div className="project-hero-title-row">
+            <div className="project-hero-title-block">
+              <div className="project-status-line">
+                <Tag color={getProjectStatusColor(project.status)}>{statusLabel}</Tag>
+                <span className={`project-priority-pill priority-${project.priority}`}><span />Prioridad {priorityLabel.toLowerCase()}</span>
+                {health && <span className={`project-health-pill health-${health.semaphore}`}><span />{healthLabels[health.semaphore]}</span>}
+              </div>
+              <Title level={1}>{project.name}</Title>
+              <div className="project-hero-meta">
+                {project.client_name && <span><UserOutlined />{project.client_name}</span>}
+                {project.client_contact_name && <span><UserOutlined />{project.client_contact_name}</span>}
+                {project.opportunity_source && <span>{project.opportunity_source === 'sales' ? `Comercial · ${project.sales_rep_name || 'Sin asignar'}` : 'Contacto directo'}</span>}
+                <span><CalendarOutlined />{projectScheduleLabel}</span>
+                {project.assigned_to_name && <span><UserOutlined />{project.assigned_to_name}</span>}
+                <span><ClockCircleOutlined />{project.total_hours_logged?.toFixed(1) || '0.0'} h registradas</span>
+              </div>
+            </div>
+            {user?.role === 'team_lead' && <Space className="project-hero-actions">
+              <Button type="primary" icon={<EditOutlined />} onClick={handleEdit}>Editar proyecto</Button>
+              <Button danger icon={<DeleteOutlined />} onClick={handleDelete}>Eliminar</Button>
+            </Space>}
+          </div>
+          {project.description && <Paragraph className="project-hero-description">{project.description}</Paragraph>}
         </div>
 
-        {project.description && (
-          <Paragraph type="secondary" style={{ fontSize: '16px', marginBottom: 0 }}>
-            {project.description}
-          </Paragraph>
-        )}
-      </div>
+        <div className="project-hero-progress">
+          <div className="project-hero-progress-top"><span>AVANCE DEL PROYECTO</span><strong>{progressPercentage}%</strong></div>
+          <Progress percent={progressPercentage} showInfo={false} strokeColor="#78a78a" trailColor="rgba(255,255,255,.17)" />
+          <div className="project-hero-progress-bottom"><span>{completedTasks} de {totalTasks} tareas completadas</span><span>{remainingDays === null ? 'Plazo por definir' : remainingDays < 0 ? `Vencido hace ${Math.abs(remainingDays)} días` : remainingDays === 0 ? 'Vence hoy' : `${remainingDays} días restantes`}</span></div>
+        </div>
+      </section>
 
-      {/* Project Tabs */}
-      <Card>
+      <section className="project-kpi-strip">
+        <div className="project-kpi"><span className="project-kpi-icon"><ProjectOutlined /></span><div><Text type="secondary">Tareas</Text><strong>{completedTasks}<span> / {totalTasks}</span></strong></div></div>
+        <div className="project-kpi"><span className="project-kpi-icon"><ClockCircleOutlined /></span><div><Text type="secondary">Horas registradas</Text><strong>{(project.total_hours_logged || 0).toFixed(1)}<span> h</span></strong></div></div>
+        <div className="project-kpi"><span className="project-kpi-icon"><CalendarOutlined /></span><div><Text type="secondary">Próximo paso</Text><strong className="project-kpi-next">{tasks.find((task) => task.status !== 'done' && task.status !== 'completed')?.title || 'Revisar hitos'}</strong></div></div>
+        {user?.role === 'team_lead' && <div className="project-kpi"><span className="project-kpi-icon"><DollarOutlined /></span><div><Text type="secondary">Salud del proyecto</Text><strong className="project-kpi-health">{health ? healthLabels[health.semaphore] : 'Pendiente de datos'}</strong></div></div>}
+      </section>
+
+      <section className="project-detail-workspace">
+        <div className="project-section-intro"><div><Text className="section-kicker">ESPACIO DE TRABAJO DEL PROYECTO</Text><Title level={4}>Información y seguimiento</Title></div><Text type="secondary">{tasks.length} tareas · actualizado al {dateFormatter.format(new Date())}</Text></div>
         <Tabs
           activeKey={activeTab}
           onChange={setActiveTab}
-          size="large"
+          size="middle"
+          className="project-detail-tabs"
           items={[
             {
               key: 'overview',
               label: (
                 <span>
                   <ProjectOutlined />
-                  Overview
+                  Resumen
                 </span>
               ),
               children: (
@@ -290,72 +292,57 @@ export const ProjectDetailPage: React.FC = () => {
                   {/* Left Column - Project Info */}
                   <Col xs={24} lg={16}>
                     {/* Project Overview */}
-                    <Card title="Project Overview" style={{ marginBottom: '24px' }}>
+                    <Card className="project-info-card" title="Contexto del proyecto" style={{ marginBottom: '18px' }}>
                       <Row gutter={16}>
                         <Col span={12}>
                           <Descriptions column={1} size="small">
                             <Descriptions.Item 
-                              label={<><UserOutlined /> Assigned To</>}
+                              label={<><UserOutlined /> Responsable</>}
                             >
                               <Space>
                                 <Avatar size="small" icon={<UserOutlined />} />
-                                {project.assigned_to_name || 'Unassigned'}
+                                {project.assigned_to_name || 'Sin asignar'}
                               </Space>
                             </Descriptions.Item>
                             
                             <Descriptions.Item 
-                              label={<><CalendarOutlined /> Start Date</>}
+                              label={<><CalendarOutlined /> Fecha de inicio</>}
                             >
-                              {project.start_date ? dayjs(project.start_date).format('MMM DD, YYYY') : 'Not set'}
+                              {project.start_date ? dateFormatter.format(dayjs(project.start_date).toDate()) : 'Por definir'}
                             </Descriptions.Item>
                             
                             <Descriptions.Item 
-                              label={<><CalendarOutlined /> End Date</>}
+                              label={<><CalendarOutlined /> Fecha de término</>}
                             >
-                              {project.end_date ? dayjs(project.end_date).format('MMM DD, YYYY') : 'Not set'}
+                              {project.end_date ? dateFormatter.format(dayjs(project.end_date).toDate()) : 'Por definir'}
                             </Descriptions.Item>
                             
                             {user?.role === 'team_lead' && (
                               <Descriptions.Item
-                                label={<><DollarOutlined /> Budget</>}
+                                label={<><DollarOutlined /> Presupuesto</>}
                               >
-                                {project.budget ? `$${project.budget.toLocaleString()}` : 'Not set'}
+                                {project.budget ? `$${project.budget.toLocaleString('es-CL')}` : 'Por definir'}
                               </Descriptions.Item>
                             )}
                           </Descriptions>
                         </Col>
                         
                         <Col span={12}>
-                          <div style={{ textAlign: 'center' }}>
-                            <Text strong>Project Progress</Text>
-                            <Progress
-                              type="circle"
-                              percent={progressPercentage}
-                              format={percent => `${percent}%`}
-                              size={120}
-                              strokeColor="#52c41a"
-                              style={{ marginTop: '16px' }}
-                            />
-                            <div style={{ marginTop: '8px' }}>
-                              <Text type="secondary">
-                                {completedTasks} of {totalTasks} tasks completed
-                              </Text>
-                            </div>
-                          </div>
+                          <div className="project-progress-summary"><Text type="secondary">Progreso de tareas</Text><Progress type="circle" percent={progressPercentage} format={(percent) => `${percent}%`} size={104} strokeColor="#39745d" trailColor="#e9eee9" /><Text type="secondary">{completedTasks} de {totalTasks} completadas</Text></div>
                         </Col>
                       </Row>
                     </Card>
 
                     {/* Tasks */}
                     <Card 
-                      title="Recent Tasks"
+                      title="Actividad de trabajo"
                       extra={
                         <Button 
                           type="link" 
                           onClick={handleViewAllTasks}
                           icon={<ProjectOutlined />}
                         >
-                          View All Tasks
+                          Ver tablero completo
                         </Button>
                       }
                       style={{ marginBottom: '24px' }}
@@ -384,17 +371,17 @@ export const ProjectDetailPage: React.FC = () => {
                                       {task.title}
                                     </Text>
                                     <Tag color={getTaskStatusColor(task.status)}>
-                                      {task.status.replace('_', ' ')}
+                                      {task.status === 'done' || task.status === 'completed' ? 'Completada' : task.status === 'in_progress' ? 'En curso' : task.status === 'blocked' ? 'Bloqueada' : task.status === 'review' ? 'En revisión' : task.status === 'testing' ? 'En pruebas' : 'Pendiente'}
                                     </Tag>
                                   </Space>
                                 }
                                 description={
                                   <Space split={<span style={{ color: '#d9d9d9' }}>•</span>}>
-                                    <Text type="secondary">{task.assignee_name || 'Unassigned'}</Text>
+                                    <Text type="secondary">{task.assignee_name || 'Sin asignar'}</Text>
                                     {task.due_date && (
-                                      <Text type="secondary">Due: {dayjs(task.due_date).format('MMM DD')}</Text>
+                                      <Text type="secondary">Vence: {dateFormatter.format(dayjs(task.due_date).toDate())}</Text>
                                     )}
-                                    <Text type="secondary">Board: {task.board_name}</Text>
+                                    {task.board_name && <Text type="secondary">Tablero: {task.board_name}</Text>}
                                   </Space>
                                 }
                               />
@@ -403,7 +390,7 @@ export const ProjectDetailPage: React.FC = () => {
                         />
                       ) : (
                         <Empty 
-                          description="No tasks found for this project"
+                          description="Todavía no hay tareas vinculadas a este proyecto"
                           image={Empty.PRESENTED_IMAGE_SIMPLE}
                           style={{ padding: '40px 0' }}
                         >
@@ -412,7 +399,7 @@ export const ProjectDetailPage: React.FC = () => {
                             onClick={handleViewAllTasks}
                             icon={<ProjectOutlined />}
                           >
-                            Go to Tasks Module
+                            Abrir tareas
                           </Button>
                         </Empty>
                       )}
@@ -423,7 +410,7 @@ export const ProjectDetailPage: React.FC = () => {
                             onClick={handleViewAllTasks}
                             icon={<ProjectOutlined />}
                           >
-                            View Full Task Board
+                            Abrir tablero de tareas
                           </Button>
                         </div>
                       )}
@@ -433,11 +420,11 @@ export const ProjectDetailPage: React.FC = () => {
                   {/* Right Column - Stats & ROI */}
                   <Col xs={24} lg={8}>
                     {/* Project Stats */}
-                    <Card title="Project Statistics" style={{ marginBottom: '24px' }}>
+                    <Card title="Indicadores de ejecución" style={{ marginBottom: '18px' }}>
                       <Row gutter={[16, 16]}>
                         <Col span={12}>
                           <Statistic
-                            title="Total Tasks"
+                            title="Tareas totales"
                             value={totalTasks}
                             prefix={<ProjectOutlined />}
                             valueStyle={{ color: '#1890ff' }}
@@ -445,7 +432,7 @@ export const ProjectDetailPage: React.FC = () => {
                         </Col>
                         <Col span={12}>
                           <Statistic
-                            title="Completed"
+                            title="Completadas"
                             value={completedTasks}
                             prefix={<CheckCircleOutlined />}
                             valueStyle={{ color: '#52c41a' }}
@@ -453,7 +440,7 @@ export const ProjectDetailPage: React.FC = () => {
                         </Col>
                         <Col span={12}>
                           <Statistic
-                            title="Hours Logged"
+                            title="Horas registradas"
                             value={project.total_hours_logged || 0}
                             suffix="h"
                             prefix={<ClockCircleOutlined />}
@@ -462,7 +449,7 @@ export const ProjectDetailPage: React.FC = () => {
                         </Col>
                         <Col span={12}>
                           <Statistic
-                            title="Progress"
+                            title="Avance"
                             value={progressPercentage}
                             suffix="%"
                             valueStyle={{ color: progressPercentage > 80 ? '#52c41a' : '#1890ff' }}
@@ -483,10 +470,12 @@ export const ProjectDetailPage: React.FC = () => {
                       <ProjectHealthCard projectId={project.id} />
                     )}
 
-                    <ActivityTimeline projectId={project.id} />
+                    <Card className="project-activity-card" title="Últimos movimientos" style={{ marginTop: '18px' }}>
+                      <ActivityTimeline projectId={project.id} />
+                    </Card>
 
                     {/* PMO Quick Actions */}
-                    <Card title="PMO & Analytics" style={{ marginTop: '24px' }}>
+                    <Card className="project-pmo-shortcuts" title="Seguimiento PMO" style={{ marginTop: '18px' }}>
                       <Space direction="vertical" style={{ width: '100%' }}>
                         <Button 
                           type="primary" 
@@ -494,44 +483,44 @@ export const ProjectDetailPage: React.FC = () => {
                           onClick={() => navigate(`/pmo?project=${project.id}`)}
                           block
                         >
-                          Open PMO Dashboard
+                          Abrir centro PMO
                         </Button>
                         <Button 
                           icon={<ProjectOutlined />}
                           onClick={() => setActiveTab('pmo')}
                           block
                         >
-                          View PMO Analytics Tab
+                          Ver indicadores PMO
                         </Button>
                         <Button 
                           icon={<CalendarOutlined />}
                           onClick={() => navigate(`/pmo/gantt/${project.id}`)}
                           block
                         >
-                          View Gantt Timeline
+                          Abrir cronograma de hitos
                         </Button>
                       </Space>
                     </Card>
 
                     {/* Timeline Info */}
                     {(project.start_date && project.end_date) && (
-                      <Card title="Timeline" style={{ marginTop: '24px' }}>
+                      <Card title="Calendario del proyecto" style={{ marginTop: '18px' }}>
                         <Space direction="vertical" style={{ width: '100%' }}>
                           <div>
-                            <Text strong>Duration:</Text>
+                            <Text strong>Duración:</Text>
                             <Text style={{ float: 'right' }}>
-                              {dayjs(project.end_date).diff(dayjs(project.start_date), 'days')} days
+                              {dayjs(project.end_date).diff(dayjs(project.start_date), 'days')} días
                             </Text>
                           </div>
                           <div>
-                            <Text strong>Time Remaining:</Text>
+                            <Text strong>Tiempo restante:</Text>
                             <Text style={{ float: 'right' }}>
-                              {dayjs(project.end_date).diff(dayjs(), 'days')} days
+                              {dayjs(project.end_date).diff(dayjs(), 'days')} días
                             </Text>
                           </div>
                           {dayjs().isAfter(dayjs(project.end_date)) && (
                             <Alert
-                              message="Project Overdue"
+                              message="El plazo del proyecto venció"
                               type="error"
                               showIcon
                             />
@@ -544,19 +533,24 @@ export const ProjectDetailPage: React.FC = () => {
               )
             },
             {
+              key: 'commercial',
+              label: <span><DollarOutlined /> Comercial · Cobranza · Equipo</span>,
+              children: <ProjectCommercialSection project={project} user={user || undefined} onRefresh={loadProjectData} />
+            },
+            {
+              key: 'billing',
+              label: <span><DollarOutlined /> Finanzas y cobranza</span>,
+              children: <ProjectCommercialSection project={project} user={user || undefined} onRefresh={loadProjectData} initialTab="billing" />
+            },
+            {
               key: 'files',
-              label: (
-                <span>
-                  <FolderOutlined />
-                  Files & Evidence
-                </span>
-              ),
+              label: <span><FolderOutlined /> Documentos</span>,
               children: (
                 <div style={{ padding: '8px 0' }}>
                   <FileManager
                     entity_type="project"
                     entity_id={project.id}
-                    title={`Project Files - ${project.name}`}
+                    title={`Documentos del proyecto · ${project.name}`}
                     showUploadTab={false}
                     association_type="evidence"
                     multiple={true}
@@ -567,19 +561,14 @@ export const ProjectDetailPage: React.FC = () => {
             },
             {
               key: 'evidence',
-              label: (
-                <span>
-                  <PictureOutlined />
-                  Evidence Gallery
-                </span>
-              ),
+              label: <span><PictureOutlined /> Evidencias</span>,
               children: (
                 <div style={{ padding: '8px 0' }}>
                   <EvidenceGallery
                     entity_type="project"
                     entity_id={project.id}
                     entity_name={project.name}
-                    title={`Evidence Gallery - ${project.name}`}
+                    title={`Evidencias · ${project.name}`}
                     showUpload={true}
                     maxImages={100}
                   />
@@ -591,7 +580,7 @@ export const ProjectDetailPage: React.FC = () => {
               label: (
                 <span>
                   <RobotOutlined />
-                  AI Analytics
+                  Analítica IA
                 </span>
               ),
               children: (
@@ -606,7 +595,7 @@ export const ProjectDetailPage: React.FC = () => {
               label: (
                 <span>
                   <FundOutlined />
-                  PMO Analytics
+                  Hitos y PMO
                 </span>
               ),
               children: (
@@ -624,11 +613,11 @@ export const ProjectDetailPage: React.FC = () => {
               label: (
                 <span>
                   <RocketOutlined />
-                  Lifecycle & Real ROI
+                  Ciclo de vida
                 </span>
               ),
               children: (
-                <ProjectLifecyclePage />
+                <ProjectLifecyclePage projectId={project.id} />
               )
             },
             {
@@ -648,9 +637,9 @@ export const ProjectDetailPage: React.FC = () => {
                 </div>
               )
             }
-          ]}
+          ].sort((first, second) => projectTabOrder.indexOf(first.key) - projectTabOrder.indexOf(second.key))}
         />
-      </Card>
+      </section>
 
       {/* Edit Project Modal */}
       <CreateProjectModal
@@ -659,6 +648,6 @@ export const ProjectDetailPage: React.FC = () => {
         onSuccess={handleEditSuccess}
         editProject={project}
       />
-    </div>
+    </main>
   );
 };

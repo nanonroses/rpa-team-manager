@@ -75,7 +75,7 @@ const IdeasPage: React.FC = () => {
   const handleVote = async (ideaId: number, voteType: 'up' | 'down') => {
     try {
       await voteIdea(ideaId, voteType);
-      message.success(`Vote ${voteType === 'up' ? 'added' : 'updated'} successfully`);
+      message.success(voteType === 'up' ? 'Voto registrado' : 'Voto actualizado');
     } catch (error) {
       // Error handled by store
     }
@@ -83,14 +83,14 @@ const IdeasPage: React.FC = () => {
 
   const handleDelete = async (ideaId: number, ideaTitle: string) => {
     Modal.confirm({
-      title: 'Delete Idea',
-      content: `Are you sure you want to delete "${ideaTitle}"?`,
-      okText: 'Delete',
+      title: 'Eliminar idea',
+      content: `¿Quieres eliminar «${ideaTitle}»?`,
+      okText: 'Eliminar',
       okType: 'danger',
       onOk: async () => {
         try {
           await deleteIdea(ideaId);
-          message.success('Idea deleted successfully');
+          message.success('Idea eliminada');
         } catch (error) {
           // Error handled by store
         }
@@ -132,9 +132,9 @@ const IdeasPage: React.FC = () => {
   };
 
   const getPriorityLabel = (score: number): { label: string; color: string } => {
-    if (score >= 2) return { label: 'High', color: 'red' };
-    if (score >= 1.5) return { label: 'Medium', color: 'orange' };
-    return { label: 'Low', color: 'green' };
+    if (score >= 2) return { label: 'Alta', color: 'red' };
+    if (score >= 1.5) return { label: 'Media', color: 'orange' };
+    return { label: 'Baja', color: 'green' };
   };
 
   const renderIdeaCard = (idea: Idea) => {
@@ -149,9 +149,10 @@ const IdeasPage: React.FC = () => {
         style={{ marginBottom: 16, height: '100%', cursor: 'pointer' }}
         onClick={() => handleEditIdea(idea)}
         actions={[
-          <Tooltip title={idea.user_vote === 'up' ? 'Remove vote' : 'Vote up'}>
+          <Tooltip title={idea.user_vote === 'up' ? 'Quitar voto positivo' : 'Votar a favor'}>
             <Button
               type={idea.user_vote === 'up' ? 'primary' : 'text'}
+              aria-label={`${idea.user_vote === 'up' ? 'Quitar voto positivo' : 'Votar a favor'} de ${idea.title}`}
               icon={<LikeOutlined />}
               onClick={(e) => {
                 e.stopPropagation();
@@ -161,9 +162,10 @@ const IdeasPage: React.FC = () => {
               {idea.votes_count > 0 ? idea.votes_count : ''}
             </Button>
           </Tooltip>,
-          <Tooltip title={idea.user_vote === 'down' ? 'Remove vote' : 'Vote down'}>
+          <Tooltip title={idea.user_vote === 'down' ? 'Quitar voto negativo' : 'Votar en contra'}>
             <Button
               type={idea.user_vote === 'down' ? 'primary' : 'text'}
+              aria-label={`${idea.user_vote === 'down' ? 'Quitar voto negativo' : 'Votar en contra'} de ${idea.title}`}
               icon={<DislikeOutlined />}
               onClick={(e) => {
                 e.stopPropagation();
@@ -172,9 +174,10 @@ const IdeasPage: React.FC = () => {
               danger={idea.user_vote === 'down'}
             />
           </Tooltip>,
-          <Tooltip title="Comments">
+          <Tooltip title="Comentarios">
             <Button 
-              type="text" 
+              type="text"
+              aria-label={`Ver comentarios de ${idea.title}`}
               icon={<CommentOutlined />}
               onClick={(e) => {
                 e.stopPropagation();
@@ -185,9 +188,10 @@ const IdeasPage: React.FC = () => {
             </Button>
           </Tooltip>,
           canEdit && (
-            <Tooltip title="Delete">
+            <Tooltip title="Eliminar">
               <Button 
-                type="text" 
+              type="text"
+              aria-label={`Eliminar idea ${idea.title}`}
                 danger 
                 icon={<DeleteOutlined />}
                 onClick={(e) => {
@@ -203,13 +207,13 @@ const IdeasPage: React.FC = () => {
           <div style={{ marginBottom: 12 }}>
             <Space>
               <Tag color={getIdeaStatusColor(idea.status)}>
-                {idea.status.replace('_', ' ').toUpperCase()}
+                {{ draft: 'Borrador', under_review: 'En revisión', approved: 'Aprobada', in_progress: 'En curso', done: 'Completada', rejected: 'Rechazada' }[idea.status]}
               </Tag>
               <Tag color={getCategoryColor(idea.category)}>
-                {idea.category.replace('_', ' ')}
+                {{ automation: 'Automatización', process_improvement: 'Mejora de proceso', tool_enhancement: 'Mejora de herramienta', cost_reduction: 'Reducción de costos', productivity: 'Productividad', general: 'General' }[idea.category]}
               </Tag>
               <Tag color={priority.color}>
-                {priority.label} Priority
+                Prioridad {priority.label.toLowerCase()}
               </Tag>
             </Space>
           </div>
@@ -242,13 +246,13 @@ const IdeasPage: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: '24px' }}>
+      <div className="page-container">
       {/* Header */}
       <Row justify="space-between" align="middle" style={{ marginBottom: 24 }}>
         <Col>
           <Title level={2} style={{ margin: 0 }}>
             <BulbOutlined style={{ marginRight: 8 }} />
-            Ideas & Innovation
+            Ideas y mejoras
           </Title>
         </Col>
         <Col>
@@ -258,14 +262,14 @@ const IdeasPage: React.FC = () => {
               icon={<SortAscendingOutlined />}
               onClick={() => setMatrixModalVisible(true)}
             >
-              Priority Matrix
+              Matriz de prioridad
             </Button>
             <Button
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => setCreateModalVisible(true)}
             >
-              New Idea
+              Nueva idea
             </Button>
           </Space>
         </Col>
@@ -277,7 +281,7 @@ const IdeasPage: React.FC = () => {
           <Col xs={24} sm={12} md={6}>
             <Card>
               <Statistic
-                title="Total Ideas"
+                title="Ideas registradas"
                 value={stats.total_ideas}
                 prefix={<BulbOutlined />}
               />
@@ -286,7 +290,7 @@ const IdeasPage: React.FC = () => {
           <Col xs={24} sm={12} md={6}>
             <Card>
               <Statistic
-                title="In Progress"
+                title="En curso"
                 value={stats.in_progress_count}
                 valueStyle={{ color: '#faad14' }}
               />
@@ -295,7 +299,7 @@ const IdeasPage: React.FC = () => {
           <Col xs={24} sm={12} md={6}>
             <Card>
               <Statistic
-                title="Completed"
+                title="Completadas"
                 value={stats.done_count}
                 valueStyle={{ color: '#52c41a' }}
               />
@@ -304,7 +308,7 @@ const IdeasPage: React.FC = () => {
           <Col xs={24} sm={12} md={6}>
             <Card>
               <Statistic
-                title="Avg Votes"
+                title="Promedio de votos"
                 value={stats.avg_votes}
                 precision={1}
                 valueStyle={{ color: '#1890ff' }}
@@ -319,7 +323,7 @@ const IdeasPage: React.FC = () => {
         <Row gutter={16} align="middle">
           <Col xs={24} sm={12} md={8}>
             <Search
-              placeholder="Search ideas..."
+              placeholder="Buscar ideas..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{ width: '100%' }}
@@ -327,47 +331,47 @@ const IdeasPage: React.FC = () => {
           </Col>
           <Col xs={24} sm={6} md={4}>
             <Select
-              placeholder="Status"
+              placeholder="Estado"
               value={filters.status}
               onChange={(value) => setFilters({ ...filters, status: value })}
               style={{ width: '100%' }}
             >
-              <Option value="all">All Status</Option>
-              <Option value="draft">Draft</Option>
-              <Option value="under_review">Under Review</Option>
-              <Option value="approved">Approved</Option>
-              <Option value="in_progress">In Progress</Option>
-              <Option value="done">Done</Option>
-              <Option value="rejected">Rejected</Option>
+              <Option value="all">Todos los estados</Option>
+              <Option value="draft">Borrador</Option>
+              <Option value="under_review">En revisión</Option>
+              <Option value="approved">Aprobada</Option>
+              <Option value="in_progress">En curso</Option>
+              <Option value="done">Completada</Option>
+              <Option value="rejected">Rechazada</Option>
             </Select>
           </Col>
           <Col xs={24} sm={6} md={4}>
             <Select
-              placeholder="Category"
+              placeholder="Categoría"
               value={filters.category}
               onChange={(value) => setFilters({ ...filters, category: value })}
               style={{ width: '100%' }}
             >
-              <Option value="all">All Categories</Option>
-              <Option value="automation">Automation</Option>
-              <Option value="process_improvement">Process Improvement</Option>
-              <Option value="tool_enhancement">Tool Enhancement</Option>
-              <Option value="cost_reduction">Cost Reduction</Option>
-              <Option value="productivity">Productivity</Option>
+              <Option value="all">Todas las categorías</Option>
+              <Option value="automation">Automatización</Option>
+              <Option value="process_improvement">Mejora de proceso</Option>
+              <Option value="tool_enhancement">Mejora de herramienta</Option>
+              <Option value="cost_reduction">Reducción de costos</Option>
+              <Option value="productivity">Productividad</Option>
               <Option value="general">General</Option>
             </Select>
           </Col>
           <Col xs={24} sm={6} md={4}>
             <Select
-              placeholder="Sort by"
+              placeholder="Ordenar por"
               value={filters.sort}
               onChange={(value) => setFilters({ ...filters, sort: value })}
               style={{ width: '100%' }}
             >
-              <Option value="priority">Priority</Option>
-              <Option value="votes">Most Voted</Option>
-              <Option value="recent">Most Recent</Option>
-              <Option value="oldest">Oldest</Option>
+              <Option value="priority">Mayor prioridad</Option>
+              <Option value="votes">Más votadas</Option>
+              <Option value="recent">Más recientes</Option>
+              <Option value="oldest">Más antiguas</Option>
             </Select>
           </Col>
         </Row>
@@ -377,7 +381,7 @@ const IdeasPage: React.FC = () => {
       <Spin spinning={isLoading}>
         {filteredIdeas.length === 0 ? (
           <Empty
-            description="No ideas found"
+            description="No hay ideas que coincidan con estos filtros."
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           >
             <Button
@@ -385,7 +389,7 @@ const IdeasPage: React.FC = () => {
               icon={<PlusOutlined />}
               onClick={() => setCreateModalVisible(true)}
             >
-              Create First Idea
+              Crear primera idea
             </Button>
           </Empty>
         ) : (
@@ -407,7 +411,7 @@ const IdeasPage: React.FC = () => {
                   pageSize={pageSize}
                   onChange={setCurrentPage}
                   showTotal={(total, range) =>
-                    `${range[0]}-${range[1]} of ${total} ideas`
+                    `${range[0]}–${range[1]} de ${total} ideas`
                   }
                 />
               </Row>
@@ -454,7 +458,7 @@ const IdeasPage: React.FC = () => {
       </Modal>
 
       <Modal
-        title="Priority Matrix"
+        title="Matriz de prioridad"
         open={matrixModalVisible}
         onCancel={() => setMatrixModalVisible(false)}
         footer={null}

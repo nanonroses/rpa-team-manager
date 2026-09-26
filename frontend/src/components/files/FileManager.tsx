@@ -40,7 +40,7 @@ export interface FileManagerProps {
 export const FileManager: React.FC<FileManagerProps> = ({
   entity_type,
   entity_id,
-  title = 'File Manager',
+  title = 'Administrador de archivos',
   showUploadTab = true,
   defaultTab = 'files',
   multiple = true,
@@ -82,16 +82,16 @@ export const FileManager: React.FC<FileManagerProps> = ({
       label: (
         <span>
           <FileOutlined />
-          Files
+          Archivos
         </span>
       ),
       children: (
         <div style={{ padding: '8px 0' }}>
           <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Typography.Text type="secondary">
-              {entity_type && entity_id 
-                ? `Files associated with this ${entity_type}`
-                : 'All files you have access to'
+              {entity_type && entity_id
+                ? `Archivos asociados a ${entity_type === 'project' ? 'este proyecto' : entity_type === 'task' ? 'esta tarea' : entity_type === 'idea' ? 'esta idea' : 'este usuario'}`
+                : 'Todos los archivos a los que tienes acceso'
               }
             </Typography.Text>
             <Button
@@ -99,7 +99,7 @@ export const FileManager: React.FC<FileManagerProps> = ({
               icon={<PlusOutlined />}
               onClick={showUploadModal}
             >
-              Upload Files
+              Subir archivos
             </Button>
           </div>
           
@@ -127,13 +127,13 @@ export const FileManager: React.FC<FileManagerProps> = ({
       label: (
         <span>
           <UploadOutlined />
-          Upload
+          Cargar
         </span>
       ),
       children: (
         <div style={{ padding: '8px 0' }}>
           <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-            Upload files {entity_type && entity_id ? `and associate them with this ${entity_type}` : ''}
+            Sube archivos {entity_type && entity_id ? `y asócialos a ${entity_type === 'project' ? 'este proyecto' : entity_type === 'task' ? 'esta tarea' : entity_type === 'idea' ? 'esta idea' : 'este usuario'}` : ''}
           </Typography.Text>
           
           <FileErrorBoundary>
@@ -179,10 +179,10 @@ export const FileManager: React.FC<FileManagerProps> = ({
         title={
           <Space>
             <UploadOutlined />
-            Upload Files
+            Subir archivos
             {entity_type && entity_id && (
               <Typography.Text type="secondary" style={{ fontSize: '14px' }}>
-                (will be associated with this {entity_type})
+                (asociados a {entity_type === 'project' ? 'este proyecto' : entity_type === 'task' ? 'esta tarea' : entity_type === 'idea' ? 'esta idea' : 'este usuario'})
               </Typography.Text>
             )}
           </Space>

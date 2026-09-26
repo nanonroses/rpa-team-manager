@@ -1644,5 +1644,298 @@ export const migrations: Migration[] = [
        VALUES ('weekly_hours', '42', 'number')
        ON CONFLICT(setting_key) DO UPDATE SET setting_value = '42'`
     ]
+  },
+
+  {
+    version: 38,
+    description: 'Ciclo comercial y controles PMO: cotizaciones, reuniones, OC/HES, cierres y capacidad presupuestada',
+    up: [
+      `CREATE TABLE IF NOT EXISTS client_contacts (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER NOT NULL REFERENCES clients(id),
+        name TEXT NOT NULL,
+        position TEXT,
+        email TEXT,
+        phone TEXT,
+        is_primary BOOLEAN NOT NULL DEFAULT 0,
+        is_active BOOLEAN NOT NULL DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_client_contacts_client ON client_contacts(client_id, is_active)`,
+      `CREATE TABLE IF NOT EXISTS sales_reps (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        email TEXT,
+        is_active BOOLEAN NOT NULL DEFAULT 1,
+        created_by INTEGER REFERENCES users(id),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE TABLE IF NOT EXISTS project_quotes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        version INTEGER NOT NULL,
+        pricing_model TEXT NOT NULL DEFAULT 'fixed' CHECK (pricing_model IN ('fixed', 'hourly', 'mixed')),
+        amount DECIMAL(14,2) NOT NULL CHECK (amount >= 0),
+        currency TEXT NOT NULL DEFAULT 'CLP' CHECK (currency IN ('CLP', 'UF', 'USD')),
+        hours DECIMAL(10,2),
+        hourly_rate DECIMAL(14,2),
+        estimated_cost DECIMAL(14,2),
+        margin_percent DECIMAL(7,2),
+        status TEXT NOT NULL DEFAULT 'sent' CHECK (status IN ('draft', 'sent', 'approved', 'rejected', 'replaced')),
+        scope_change_id INTEGER REFERENCES project_scope_changes(id) ON DELETE SET NULL,
+        file_id INTEGER REFERENCES files(id) ON DELETE SET NULL,
+        notes TEXT,
+        created_by INTEGER REFERENCES users(id),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        approved_by INTEGER REFERENCES users(id),
+        approved_at DATETIME,
+        UNIQUE(project_id, version)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_project_quotes_project ON project_quotes(project_id, version DESC)`,
+      `ALTER TABLE projects ADD COLUMN sales_rep_id INTEGER REFERENCES sales_reps(id)`,
+      `ALTER TABLE projects ADD COLUMN client_contact_id INTEGER REFERENCES client_contacts(id)`,
+      `ALTER TABLE projects ADD COLUMN opportunity_source TEXT NOT NULL DEFAULT 'direct' CHECK (opportunity_source IN ('sales', 'direct'))`,
+      `ALTER TABLE projects ADD COLUMN commercial_stage TEXT NOT NULL DEFAULT 'quoting' CHECK (commercial_stage IN ('quoting', 'approved', 'lost'))`,
+      `ALTER TABLE projects ADD COLUMN client_approved_at DATETIME`,
+      `UPDATE projects SET commercial_stage = 'approved', client_approved_at = COALESCE(client_approved_at, created_at)`,
+      `ALTER TABLE project_assignments ADD COLUMN budgeted_hours DECIMAL(10,2)`,
+      `ALTER TABLE project_assignments ADD COLUMN allocation_start_date DATE`,
+      `ALTER TABLE project_assignments ADD COLUMN allocation_end_date DATE`,
+      `ALTER TABLE projects ADD COLUMN require_purchase_order BOOLEAN NOT NULL DEFAULT 0`,
+      `ALTER TABLE projects ADD COLUMN require_service_acceptance BOOLEAN NOT NULL DEFAULT 0`,
+      `ALTER TABLE projects ADD COLUMN delivery_accepted_at DATETIME`,
+      `ALTER TABLE projects ADD COLUMN delivery_accepted_by INTEGER REFERENCES users(id)`,
+      `ALTER TABLE projects ADD COLUMN financial_closed_at DATETIME`,
+      `ALTER TABLE projects ADD COLUMN loss_reason TEXT`,
+      `CREATE TABLE IF NOT EXISTS project_meetings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        meeting_date DATETIME NOT NULL,
+        summary TEXT NOT NULL,
+        escalation_reason TEXT,
+        next_commitment TEXT,
+        has_pdd BOOLEAN NOT NULL DEFAULT 0,
+        has_technical_commercial_proposal BOOLEAN NOT NULL DEFAULT 0,
+        evidence_reference TEXT,
+        evidence_file_id INTEGER REFERENCES files(id) ON DELETE SET NULL,
+        created_by INTEGER REFERENCES users(id),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_project_meetings_project ON project_meetings(project_id, meeting_date)`,
+      `CREATE TABLE IF NOT EXISTS project_commercial_documents (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        document_type TEXT NOT NULL CHECK (document_type IN ('purchase_order', 'service_acceptance', 'client_approval', 'pdd', 'technical_commercial_proposal')),
+        reference_number TEXT,
+        document_date DATE,
+        file_id INTEGER REFERENCES files(id) ON DELETE SET NULL,
+        notes TEXT,
+        created_by INTEGER REFERENCES users(id),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_project_commercial_documents_project ON project_commercial_documents(project_id, document_type)`,
+      `CREATE TABLE IF NOT EXISTS notification_deliveries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        event_key TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        scheduled_for DATE NOT NULL,
+        notification_id INTEGER REFERENCES notifications(id) ON DELETE SET NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(event_key, entity_type, entity_id, user_id, scheduled_for)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_notification_deliveries_due ON notification_deliveries(scheduled_for, event_key)`
+    ]
+  },
+  {
+    version: 39,
+    description: 'Completa columnas comerciales y de capacidad ausentes en bases que ya registraron la migración 38',
+    up: [],
+    run: async (database) => {
+      const addMissingColumns = async (
+        table: 'projects' | 'project_assignments' | 'project_meetings' | 'project_commercial_documents',
+        columnsToAdd: Array<[string, string]>
+      ) => {
+        const existingColumns = await new Promise<Set<string>>((resolve, reject) => {
+          database.all(`PRAGMA table_info(${table})`, (error, rows: Array<{ name: string }>) => {
+            if (error) reject(error);
+            else resolve(new Set(rows.map((row) => row.name)));
+          });
+        });
+
+        for (const [column, definition] of columnsToAdd) {
+          if (existingColumns.has(column)) continue;
+          await new Promise<void>((resolve, reject) => {
+            database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`, (error) => {
+              if (error) reject(error);
+              else resolve();
+            });
+          });
+          existingColumns.add(column);
+        }
+      };
+
+      await addMissingColumns('projects', [
+        ['sales_rep_id', 'INTEGER REFERENCES sales_reps(id)'],
+        ['client_contact_id', 'INTEGER REFERENCES client_contacts(id)'],
+        ['opportunity_source', "TEXT NOT NULL DEFAULT 'direct' CHECK (opportunity_source IN ('sales', 'direct'))"],
+        ['commercial_stage', "TEXT NOT NULL DEFAULT 'quoting' CHECK (commercial_stage IN ('quoting', 'approved', 'lost'))"],
+        ['client_approved_at', 'DATETIME'],
+        ['require_purchase_order', 'BOOLEAN NOT NULL DEFAULT 0'],
+        ['require_service_acceptance', 'BOOLEAN NOT NULL DEFAULT 0'],
+        ['delivery_accepted_at', 'DATETIME'],
+        ['delivery_accepted_by', 'INTEGER REFERENCES users(id)'],
+        ['financial_closed_at', 'DATETIME'],
+        ['loss_reason', 'TEXT']
+      ]);
+
+      await addMissingColumns('project_assignments', [
+        ['budgeted_hours', 'DECIMAL(10,2)'],
+        ['allocation_start_date', 'DATE'],
+        ['allocation_end_date', 'DATE']
+      ]);
+
+      // Version 38 was previously recorded in existing databases before its
+      // commercial DDL was amended. Repair the affected tables as well as the
+      // project columns so the first meeting/document write remains compatible.
+      await addMissingColumns('project_meetings', [
+        ['escalation_reason', 'TEXT'],
+        ['next_commitment', 'TEXT'],
+        ['has_pdd', 'BOOLEAN NOT NULL DEFAULT 0'],
+        ['has_technical_commercial_proposal', 'BOOLEAN NOT NULL DEFAULT 0'],
+        ['evidence_reference', 'TEXT'],
+        ['evidence_file_id', 'INTEGER REFERENCES files(id) ON DELETE SET NULL'],
+        ['created_by', 'INTEGER REFERENCES users(id)'],
+        ['created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP']
+      ]);
+
+      await addMissingColumns('project_commercial_documents', [
+        ['reference_number', 'TEXT'],
+        ['document_date', 'DATE'],
+        ['file_id', 'INTEGER REFERENCES files(id) ON DELETE SET NULL'],
+        ['notes', 'TEXT'],
+        ['created_by', 'INTEGER REFERENCES users(id)'],
+        ['created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP']
+      ]);
+
+      await new Promise<void>((resolve, reject) => {
+        database.exec(`UPDATE projects SET opportunity_source = 'sales' WHERE sales_rep_id IS NOT NULL`, (error) => {
+          if (error) reject(error);
+          else resolve();
+        });
+      });
+    }
+  },
+  {
+    version: 40,
+    description: 'Completa columnas de trazabilidad comercial en bases existentes',
+    up: [],
+    run: async (database) => {
+      const addMissingColumns = async (
+        table: 'project_meetings' | 'project_commercial_documents' | 'project_quotes',
+        columnsToAdd: Array<[string, string]>
+      ) => {
+        const existingColumns = await new Promise<Set<string>>((resolve, reject) => {
+          database.all(`PRAGMA table_info(${table})`, (error, rows: Array<{ name: string }>) => {
+            if (error) reject(error);
+            else resolve(new Set(rows.map((row) => row.name)));
+          });
+        });
+
+        for (const [column, definition] of columnsToAdd) {
+          if (existingColumns.has(column)) continue;
+          await new Promise<void>((resolve, reject) => {
+            database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`, (error) => {
+              if (error) reject(error);
+              else resolve();
+            });
+          });
+          existingColumns.add(column);
+        }
+      };
+
+      await addMissingColumns('project_meetings', [
+        ['escalation_reason', 'TEXT'],
+        ['next_commitment', 'TEXT'],
+        ['has_pdd', 'BOOLEAN NOT NULL DEFAULT 0'],
+        ['has_technical_commercial_proposal', 'BOOLEAN NOT NULL DEFAULT 0'],
+        ['evidence_reference', 'TEXT'],
+        ['evidence_file_id', 'INTEGER REFERENCES files(id) ON DELETE SET NULL'],
+        ['created_by', 'INTEGER REFERENCES users(id)'],
+        ['created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP']
+      ]);
+
+      await addMissingColumns('project_commercial_documents', [
+        ['reference_number', 'TEXT'],
+        ['document_date', 'DATE'],
+        ['file_id', 'INTEGER REFERENCES files(id) ON DELETE SET NULL'],
+        ['notes', 'TEXT'],
+        ['created_by', 'INTEGER REFERENCES users(id)'],
+        ['created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP']
+      ]);
+
+      await addMissingColumns('project_quotes', [
+        ['pricing_model', "TEXT NOT NULL DEFAULT 'fixed'"],
+        ['amount', 'DECIMAL(14,2) NOT NULL DEFAULT 0'],
+        ['currency', "TEXT NOT NULL DEFAULT 'CLP'"],
+        ['hours', 'DECIMAL(10,2)'],
+        ['hourly_rate', 'DECIMAL(14,2)'],
+        ['estimated_cost', 'DECIMAL(14,2)'],
+        ['margin_percent', 'DECIMAL(7,2)'],
+        ['status', "TEXT NOT NULL DEFAULT 'sent'"],
+        ['scope_change_id', 'INTEGER REFERENCES project_scope_changes(id) ON DELETE SET NULL'],
+        ['file_id', 'INTEGER REFERENCES files(id) ON DELETE SET NULL'],
+        ['notes', 'TEXT'],
+        ['created_by', 'INTEGER REFERENCES users(id)'],
+        ['created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP'],
+        ['approved_at', 'DATETIME'],
+        ['approved_by', 'INTEGER REFERENCES users(id)']
+      ]);
+    }
+  },
+  {
+    version: 41,
+    description: 'Completa columnas de cotizaciones comerciales en bases existentes',
+    up: [],
+    run: async (database) => {
+      const existingColumns = await new Promise<Set<string>>((resolve, reject) => {
+        database.all('PRAGMA table_info(project_quotes)', (error, rows: Array<{ name: string }>) => {
+          if (error) reject(error);
+          else resolve(new Set(rows.map((row) => row.name)));
+        });
+      });
+
+      const columnsToAdd: Array<[string, string]> = [
+        ['pricing_model', "TEXT NOT NULL DEFAULT 'fixed'"],
+        ['amount', 'DECIMAL(14,2) NOT NULL DEFAULT 0'],
+        ['currency', "TEXT NOT NULL DEFAULT 'CLP'"],
+        ['hours', 'DECIMAL(10,2)'],
+        ['hourly_rate', 'DECIMAL(14,2)'],
+        ['estimated_cost', 'DECIMAL(14,2)'],
+        ['margin_percent', 'DECIMAL(7,2)'],
+        ['status', "TEXT NOT NULL DEFAULT 'sent'"],
+        ['scope_change_id', 'INTEGER REFERENCES project_scope_changes(id) ON DELETE SET NULL'],
+        ['file_id', 'INTEGER REFERENCES files(id) ON DELETE SET NULL'],
+        ['notes', 'TEXT'],
+        ['created_by', 'INTEGER REFERENCES users(id)'],
+        ['created_at', 'DATETIME DEFAULT CURRENT_TIMESTAMP'],
+        ['approved_by', 'INTEGER REFERENCES users(id)'],
+        ['approved_at', 'DATETIME']
+      ];
+
+      for (const [column, definition] of columnsToAdd) {
+        if (existingColumns.has(column)) continue;
+        await new Promise<void>((resolve, reject) => {
+          database.exec(`ALTER TABLE project_quotes ADD COLUMN ${column} ${definition}`, (error) => {
+            if (error) reject(error);
+            else resolve();
+          });
+        });
+        existingColumns.add(column);
+      }
+    }
   }
 ];

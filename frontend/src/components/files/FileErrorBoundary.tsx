@@ -34,12 +34,12 @@ class FileErrorBoundary extends Component<Props, State> {
       return (
         <Card>
           <Alert
-            message="File Upload Error"
+            message="Error al cargar archivos"
             description={
               <div>
-                <p>Something went wrong with the file upload component.</p>
+                <p>Se produjo un problema en el componente de carga de archivos.</p>
                 <p style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
-                  {this.state.error?.message || 'Unknown error occurred'}
+                  {this.state.error?.message || 'Error desconocido'}
                 </p>
                 <Button 
                   type="primary" 
@@ -47,7 +47,7 @@ class FileErrorBoundary extends Component<Props, State> {
                   onClick={this.handleRetry}
                   style={{ marginTop: '12px' }}
                 >
-                  Try Again
+                  Reintentar
                 </Button>
               </div>
             }

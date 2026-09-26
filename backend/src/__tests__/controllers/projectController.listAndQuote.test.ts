@@ -14,7 +14,7 @@ function mockRes(): Response {
 }
 
 function makeReq(user: { id: number; role: string }, body: any = {}, params: any = {}): AuthenticatedRequest {
-    return { user, body, params } as unknown as AuthenticatedRequest;
+    return { user, body, params, query: {} } as unknown as AuthenticatedRequest;
 }
 
 describe('ProjectController - listado y creación desde cotización (SQLite real)', () => {

@@ -14,7 +14,7 @@ function mockRes(): Response {
 }
 
 function makeReq(user: { id: number; role: string }, body: any = {}, params: any = {}): AuthenticatedRequest {
-    return { user, body, params } as unknown as AuthenticatedRequest;
+    return { user, body, params, query: {} } as unknown as AuthenticatedRequest;
 }
 
 function jsonOf(res: Response): any {
@@ -46,15 +46,16 @@ describe('ProjectController - persistencia financiera (SQLite real)', () => {
 
     async function createAs(user: { id: number; role: string }, body: any): Promise<any> {
         const res = mockRes();
-        await controller.createProject(makeReq(user, body), res);
+        await controller.createProject(makeReq(user, { project_type: 'internal', ...body }), res);
         expect(res.status).toHaveBeenCalledWith(201);
         return jsonOf(res);
     }
 
-    it('team_lead crea un proyecto con precio y horas: se guardan en project_financials y el estado por defecto es active', async () => {
+    it('team_lead crea un proyecto interno con precio y horas: se guardan en project_financials', async () => {
         const created = await createAs(lead, { name: 'P1', budget: 5000000, sale_price: 12000000, hours_budgeted: 300 });
 
-        expect(created.status).toBe('active');
+        expect(created.project_type).toBe('internal');
+        expect(created.status).toBe('on_hold');
         const fin = await testDb.get('SELECT * FROM project_financials WHERE project_id = ?', [created.id]);
         expect(fin).toMatchObject({ budgeted_cost: 5000000, sale_price: 12000000, budgeted_hours: 300 });
     });

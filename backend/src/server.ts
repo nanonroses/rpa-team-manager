@@ -28,11 +28,14 @@ import billingRoutes from './routes/billingRoutes';
 import timesheetRoutes from './routes/timesheetRoutes';
 import adminRoutes from './routes/adminRoutes';
 import notificationRoutes from './routes/notificationRoutes';
+import commercialRoutes from './routes/commercialRoutes';
+import clientRoutes from './routes/clientRoutes';
 
 // Import database and logger
 import { db } from './database/database';
 import { logger } from './utils/logger';
 import { timesheetService } from './services/timesheetService';
+import { billingService } from './services/billingService';
 
 // Load environment variables
 dotenv.config();
@@ -155,6 +158,8 @@ class RPATeamManagerServer {
         this.app.use('/api/timesheet', timesheetRoutes);
         this.app.use('/api/admin', commonEndpointsLimiter, adminRoutes);
         this.app.use('/api/notifications', notificationRoutes);
+        this.app.use('/api/commercial', commercialRoutes);
+        this.app.use('/api', clientRoutes);
 
         // API documentation route
         this.app.get('/api', (req, res) => {
@@ -344,6 +349,19 @@ class RPATeamManagerServer {
             } catch (error) {
                 logger.warn('Failed to log startup pending timesheet summary:', error);
             }
+
+            // Recordatorios de cobranza idempotentes; se reanudan al iniciar el proceso.
+            const runCollectionReminders = async () => {
+                try {
+                    const sent = await billingService.sendCollectionReminders();
+                    if (sent > 0) logger.info(`Billing: ${sent} recordatorio(s) de cobranza enviado(s)`);
+                } catch (error) {
+                    logger.warn('No se pudieron procesar los recordatorios de cobranza:', error);
+                }
+            };
+            await runCollectionReminders();
+            const reminderTimer = setInterval(() => { void runCollectionReminders(); }, 6 * 60 * 60 * 1000);
+            reminderTimer.unref();
 
             // Start server
             this.app.listen(this.port, () => {

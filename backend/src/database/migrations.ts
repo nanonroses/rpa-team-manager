@@ -4,6 +4,7 @@ export interface Migration {
   version: number;
   description: string;
   up: string[];
+  run?: (database: sqlite3.Database) => Promise<void>;
   down?: string[];
 }
 
@@ -65,6 +66,10 @@ export class MigrationManager {
                   else res();
                 });
               });
+            }
+
+            if (migration.run) {
+              await migration.run(this.db!);
             }
             
             // Registrar la migración como aplicada

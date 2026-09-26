@@ -249,7 +249,9 @@ export class AuthController {
             res.status(201).json(result);
         } catch (error) {
             logger.error('Create user error:', error);
-            res.status(400).json({ error: (error as Error).message });
+            const message = (error as Error).message || 'Failed to create user';
+            const statusCode = message.includes('already exists') || message.includes('already in use') ? 409 : 400;
+            res.status(statusCode).json({ error: message });
         }
     };
 

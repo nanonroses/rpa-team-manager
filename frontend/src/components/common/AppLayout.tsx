@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Layout, Menu, Avatar, Dropdown, Button, Typography, Space } from 'antd';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Layout, Menu, Avatar, Dropdown, Button, Typography, Grid, Breadcrumb } from 'antd';
 import type { MenuProps } from 'antd';
 import {
   DashboardOutlined,
@@ -17,7 +17,10 @@ import {
   FundOutlined,
   KeyOutlined,
   DollarOutlined,
-  BarChartOutlined
+  BarChartOutlined,
+  MenuOutlined,
+  TeamOutlined,
+  SearchOutlined
 } from '@ant-design/icons';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { useAuthStore } from '@/store/authStore';
@@ -28,11 +31,69 @@ import { RoleLabels, RoleColors } from '@/types/auth';
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
 
+const pageTitles: Array<{ match: (path: string) => boolean; title: string; eyebrow: string }> = [
+  { match: (path) => path === '/dashboard', title: 'Inicio', eyebrow: 'RESUMEN' },
+  { match: (path) => path === '/projects', title: 'Portafolio', eyebrow: 'PROYECTOS' },
+  { match: (path) => path === '/clients', title: 'Clientes y comerciales', eyebrow: 'CICLO COMERCIAL' },
+  { match: (path) => path.startsWith('/projects/'), title: 'Ficha 360° del proyecto', eyebrow: 'PROYECTOS' },
+  { match: (path) => path.startsWith('/pmo'), title: 'Centro PMO', eyebrow: 'CONTROL' },
+  { match: (path) => path === '/billing', title: 'Finanzas', eyebrow: 'CONTROL' },
+  { match: (path) => path === '/tasks', title: 'Tareas', eyebrow: 'EJECUCIÓN' },
+  { match: (path) => path === '/time', title: 'Registro de tiempo', eyebrow: 'EJECUCIÓN' },
+  { match: (path) => path === '/ideas', title: 'Ideas', eyebrow: 'RECURSOS' },
+  { match: (path) => path === '/files', title: 'Documentos', eyebrow: 'RECURSOS' },
+  { match: (path) => path === '/support', title: 'Soporte', eyebrow: 'RECURSOS' },
+  { match: (path) => path === '/admin', title: 'Equipo y acceso', eyebrow: 'ADMINISTRACIÓN' },
+  { match: (path) => path === '/priorities', title: 'Prioridades', eyebrow: 'ADMINISTRACIÓN' },
+  { match: (path) => path.startsWith('/settings'), title: 'Configuración', eyebrow: 'ADMINISTRACIÓN' },
+  { match: (path) => path === '/profile', title: 'Mi perfil', eyebrow: 'CUENTA' }
+];
+
 export const AppLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const mobileMenuTrigger = useRef<HTMLElement | null>(null);
+  const mobileDrawerRef = useRef<HTMLElement | null>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const { user, logout } = useAuthStore();
+
+  useEffect(() => {
+    const drawer = mobileDrawerRef.current;
+    if (drawer) drawer.inert = !mobileMenuOpen;
+    if (!mobileMenuOpen) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const trigger = mobileMenuTrigger.current;
+    const frame = window.requestAnimationFrame(() => mobileDrawerRef.current?.querySelector<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])')?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setMobileMenuOpen(false);
+        return;
+      }
+      if (event.key !== 'Tab' || !mobileDrawerRef.current) return;
+      const focusable = Array.from(mobileDrawerRef.current.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), [tabindex]:not([tabindex="-1"])'))
+        .filter((element) => element.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', handleKeyDown);
+      if (previousFocus?.isConnected) previousFocus.focus();
+      else trigger?.focus();
+    };
+  }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    if (screens.md && !screens.lg) setCollapsed(true);
+  }, [screens.md, screens.lg]);
 
   const handleLogout = async () => {
     try {
@@ -44,268 +105,152 @@ export const AppLayout: React.FC = () => {
   };
 
   const userMenuItems: MenuProps['items'] = [
-    {
-      key: 'profile',
-      icon: <UserOutlined />,
-      label: 'Profile',
-      onClick: () => navigate('/profile')
-    },
-    {
-      key: 'settings',
-      icon: <SettingOutlined />,
-      label: 'Settings',
-      onClick: () => navigate('/settings')
-    },
-    {
-      type: 'divider'
-    },
-    {
-      key: 'logout',
-      icon: <LogoutOutlined />,
-      label: 'Logout',
-      onClick: handleLogout
-    }
+    { key: 'profile', icon: <UserOutlined />, label: 'Mi perfil', onClick: () => navigate('/profile') },
+    ...(user?.role === 'team_lead' ? [{ key: 'settings', icon: <SettingOutlined />, label: 'Configuración', onClick: () => navigate('/settings') }] : []),
+    { type: 'divider' },
+    { key: 'logout', icon: <LogoutOutlined />, label: 'Cerrar sesión', onClick: handleLogout }
   ];
 
-  const getMenuItems = (): MenuProps['items'] => {
-    const baseItems: MenuProps['items'] = [
-      {
-        key: '/dashboard',
-        icon: <DashboardOutlined />,
-        label: 'Dashboard'
-      },
-      {
-        key: '/projects',
-        icon: <ProjectOutlined />,
-        label: 'Projects'
-      },
-      {
-        key: '/tasks',
-        icon: <CheckSquareOutlined />,
-        label: 'Tasks'
-      },
-      {
-        key: '/time',
-        icon: <ClockCircleOutlined />,
-        label: 'Time Tracking'
-      },
-      {
-        key: '/ideas',
-        icon: <BulbOutlined />,
-        label: 'Ideas'
-      },
-      {
-        key: '/files',
-        icon: <FileOutlined />,
-        label: 'Files'
-      },
-      {
-        key: '/support',
-        icon: <CustomerServiceOutlined />,
-        label: 'Soporte'
-      }
+  const items = useMemo<MenuProps['items']>(() => {
+    const roleCanSeePMO = user?.role === 'team_lead' || user?.role === 'rpa_operations';
+    const main: NonNullable<MenuProps['items']> = [
+      { type: 'group', label: 'ESPACIO DE TRABAJO', children: [
+        { key: '/dashboard', icon: <DashboardOutlined />, label: 'Inicio' },
+        { key: '/projects', icon: <ProjectOutlined />, label: 'Portafolio' },
+        { key: '/tasks', icon: <CheckSquareOutlined />, label: 'Tareas' },
+        { key: '/time', icon: <ClockCircleOutlined />, label: 'Registro de tiempo' }
+      ] },
+      { type: 'group', label: 'RECURSOS', children: [
+        { key: '/ideas', icon: <BulbOutlined />, label: 'Ideas' },
+        { key: '/files', icon: <FileOutlined />, label: 'Documentos' },
+        { key: '/support', icon: <CustomerServiceOutlined />, label: 'Soporte' }
+      ] }
     ];
 
-    // Add PMO for Team Lead and RPA Operations
-    if (user?.role === 'team_lead' || user?.role === 'rpa_operations') {
-      baseItems.push({
-        key: '/pmo',
-        icon: <FundOutlined />,
-        label: 'PMO'
-      });
-
-      baseItems.push({
-        key: '/billing',
-        icon: <DollarOutlined />,
-        label: 'Cobranza'
-      });
+    if (roleCanSeePMO) {
+      main[0] = { type: 'group', label: 'ESPACIO DE TRABAJO', children: [
+        { key: '/dashboard', icon: <DashboardOutlined />, label: 'Inicio' },
+        { key: '/projects', icon: <ProjectOutlined />, label: 'Portafolio' },
+        { key: '/clients', icon: <TeamOutlined />, label: 'Clientes y comerciales' },
+        { key: '/tasks', icon: <CheckSquareOutlined />, label: 'Tareas' },
+        { key: '/time', icon: <ClockCircleOutlined />, label: 'Registro de tiempo' }
+      ] };
     }
 
-    // Add configuration menu for team lead
+    if (roleCanSeePMO) {
+      main.splice(1, 0, { type: 'group', label: 'CONTROL', children: [
+        { key: '/pmo', icon: <FundOutlined />, label: 'Centro PMO' },
+        { key: '/billing', icon: <DollarOutlined />, label: 'Finanzas' }
+      ] });
+    }
+
     if (user?.role === 'team_lead') {
-      baseItems.push({
-        key: '/admin',
-        icon: <UserOutlined />,
-        label: 'Administración'
-      });
-
-      baseItems.push({
-        key: '/priorities',
-        icon: <BarChartOutlined />,
-        label: 'Matriz de Prioridad'
-      });
-
-      baseItems.push({
-        key: 'configuration',
-        icon: <SettingOutlined />,
-        label: 'Configuración',
-        children: [
-          {
-            key: '/settings',
-            icon: <DollarOutlined />,
-            label: 'Configuración General'
-          },
-          {
-            key: '/settings/llm',
-            icon: <KeyOutlined />,
-            label: 'Configuración LLM'
-          }
-        ]
-      });
+      main.push({ type: 'group', label: 'ADMINISTRACIÓN', children: [
+        { key: '/admin', icon: <UserOutlined />, label: 'Equipo y acceso' },
+        { key: '/priorities', icon: <BarChartOutlined />, label: 'Prioridades' },
+        { key: 'configuration', icon: <SettingOutlined />, label: 'Configuración', children: [
+          { key: '/settings', icon: <DollarOutlined />, label: 'General' },
+          { key: '/settings/llm', icon: <KeyOutlined />, label: 'Integraciones IA' }
+        ] }
+      ] });
     }
+    return main;
+  }, [user?.role]);
 
-    return baseItems;
-  };
-
-  const handleMenuClick = ({ key }: { key: string }) => {
-    navigate(key);
-  };
-
-  const getPageTitle = () => {
-    const path = location.pathname;
-    switch (path) {
-      case '/dashboard':
-        return 'Dashboard';
-      case '/projects':
-        return 'Projects';
-      case '/tasks':
-        return 'Tasks';
-      case '/time':
-        return 'Time Tracking';
-      case '/ideas':
-        return 'Ideas';
-      case '/priorities':
-        return 'Matriz de Prioridad';
-      case '/files':
-        return 'Files';
-      case '/support':
-        return 'Soporte';
-      case '/billing':
-        return 'Cobranza';
-      case '/admin':
-        return 'Administration';
-      default:
-        return 'RPA Team Manager';
+  const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
+    if (key.startsWith('/')) {
+      navigate(key);
+      setMobileMenuOpen(false);
     }
   };
+
+  const page = pageTitles.find(({ match }) => match(location.pathname)) || {
+    title: 'RPA Team Manager', eyebrow: 'ESPACIO DE TRABAJO'
+  };
+  const showBreadcrumb = location.pathname !== '/dashboard' && !location.pathname.startsWith('/projects/');
+  const selectedKey = location.pathname.startsWith('/projects/') ? '/projects'
+    : location.pathname.startsWith('/pmo') ? '/pmo'
+      : location.pathname.startsWith('/settings') ? '/settings'
+        : location.pathname;
+
+  const navigation = (
+    <>
+      <div className="app-brand">
+        <div className="app-brand-mark" aria-hidden="true">R</div>
+        {!collapsed && <div className="app-brand-copy"><Text strong>RPA Manager</Text><Text type="secondary">OFICINA DE PROYECTOS</Text></div>}
+      </div>
+      <Menu
+        mode="inline"
+        selectedKeys={[selectedKey]}
+        defaultOpenKeys={['configuration']}
+        items={items}
+        onClick={handleMenuClick}
+        className="app-navigation"
+        inlineCollapsed={collapsed && !isMobile}
+      />
+      {!collapsed && <div className="app-sidebar-note"><span className="app-sidebar-note-dot" />Sistema operativo<Text type="secondary">Todos los módulos disponibles</Text></div>}
+    </>
+  );
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
-      <Sider 
-        trigger={null} 
-        collapsible 
+    <Layout className="app-shell">
+      {!isMobile && <Sider
+        trigger={null}
+        collapsible
         collapsed={collapsed}
-        style={{
-          background: '#fff',
-          borderRight: '1px solid #f0f0f0',
-          boxShadow: '2px 0 8px rgba(0,0,0,0.06)'
-        }}
+        width={252}
+        collapsedWidth={76}
+        className="app-sider"
       >
-        <div style={{ 
-          padding: '16px', 
-          borderBottom: '1px solid #f0f0f0',
-          textAlign: 'center'
-        }}>
-          <div style={{ 
-            fontSize: collapsed ? '24px' : '32px', 
-            marginBottom: collapsed ? '0' : '8px',
-            transition: 'all 0.2s'
-          }}>
-            🤖
-          </div>
-          {!collapsed && (
-            <Text strong style={{ fontSize: '14px', color: '#1890ff' }}>
-              RPA Manager
-            </Text>
-          )}
-        </div>
-
-        <Menu
-          mode="inline"
-          selectedKeys={[location.pathname]}
-          items={getMenuItems()}
-          onClick={handleMenuClick}
-          style={{ 
-            border: 'none',
-            marginTop: '8px'
-          }}
+        {navigation}
+        <Button
+          className="app-collapse-button"
+          type="text"
+          icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+          aria-label={collapsed ? 'Expandir navegación' : 'Contraer navegación'}
+          onClick={() => setCollapsed(!collapsed)}
         />
-      </Sider>
+      </Sider>}
 
-      <Layout>
-        <Header style={{ 
-          padding: '0 24px', 
-          background: '#fff',
-          borderBottom: '1px solid #f0f0f0',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
-        }}>
-          <Space align="center">
-            <Button
-              type="text"
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed(!collapsed)}
-              style={{ fontSize: '16px', width: 32, height: 32 }}
-            />
-            <Typography.Title level={4} style={{ margin: 0, color: '#1f1f1f' }}>
-              {getPageTitle()}
-            </Typography.Title>
-          </Space>
-
-          <Space align="center">
-            <GlobalSearch />
+      <Layout className="app-main-layout">
+        <a className="app-skip-link" href="#main-content">Saltar al contenido principal</a>
+        <Header className="app-header">
+          {isMobile && <Button ref={mobileMenuTrigger as React.Ref<HTMLButtonElement>} type="text" aria-label="Abrir navegación" aria-expanded={mobileMenuOpen} aria-controls="mobile-navigation" icon={<MenuOutlined />} onClick={() => setMobileMenuOpen(true)} />}
+          <div className="app-page-heading">
+            {showBreadcrumb && <Breadcrumb items={[
+              { title: <button className="app-breadcrumb-link" onClick={() => navigate('/dashboard')}>Inicio</button> },
+              { title: page.title }
+            ]} />}
+            <Typography.Title level={4}>{page.title}</Typography.Title>
+          </div>
+          <div className="app-header-actions">
+            <div className={`app-search-slot${mobileSearchOpen ? ' is-mobile-open' : ''}`}><GlobalSearch /></div>
+            {isMobile && <Button type="text" aria-label={mobileSearchOpen ? 'Cerrar búsqueda' : 'Abrir búsqueda'} aria-expanded={mobileSearchOpen} icon={<SearchOutlined />} onClick={() => setMobileSearchOpen((open) => !open)} />}
             <NotificationBell />
-
-            <Dropdown
-              menu={{ items: userMenuItems }} 
-              trigger={['click']}
-              placement="bottomRight"
-            >
-              <Space style={{ cursor: 'pointer', padding: '8px' }}>
-                <Avatar 
-                  style={{ 
-                    backgroundColor: user ? RoleColors[user.role] : '#1890ff' 
-                  }}
-                  icon={<UserOutlined />}
-                />
-                <div style={{ textAlign: 'right' }}>
-                  <div style={{ 
-                    fontSize: '14px', 
-                    fontWeight: 500,
-                    color: '#1f1f1f'
-                  }}>
-                    {user?.full_name || 'User'}
-                  </div>
-                  <div style={{ 
-                    fontSize: '12px', 
-                    color: '#666',
-                    lineHeight: 1
-                  }}>
-                    {user ? RoleLabels[user.role] : 'Loading...'}
-                  </div>
-                </div>
-              </Space>
+            <Dropdown menu={{ items: userMenuItems }} trigger={['click']} placement="bottomRight">
+              <Button type="text" className="app-user-button">
+                <Avatar size={36} style={{ backgroundColor: user ? RoleColors[user.role] : '#315d78' }}>{user?.full_name?.charAt(0)?.toUpperCase() || <UserOutlined />}</Avatar>
+                <span className="app-user-copy"><Text strong>{user?.full_name || 'Usuario'}</Text><Text type="secondary">{user ? RoleLabels[user.role] : 'Cargando…'}</Text></span>
+              </Button>
             </Dropdown>
-          </Space>
+          </div>
         </Header>
 
-        <Content style={{ 
-          padding: '24px',
-          background: '#f5f5f5',
-          overflow: 'auto'
-        }}>
-          <div style={{ 
-            background: '#fff',
-            borderRadius: '8px',
-            minHeight: 'calc(100vh - 112px)',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
-          }}>
-            <Outlet />
-          </div>
+        <Content className="app-content" id="main-content" tabIndex={-1} role="main" aria-label="Contenido principal">
+          <div className="app-content-inner"><Outlet /></div>
         </Content>
       </Layout>
+
+      {isMobile && <>
+        {mobileMenuOpen && <button className="app-mobile-scrim" aria-label="Cerrar navegación" tabIndex={-1} onClick={() => setMobileMenuOpen(false)} />}
+        <aside ref={mobileDrawerRef} id="mobile-navigation" className={`app-mobile-drawer${mobileMenuOpen ? ' is-open' : ''}`} aria-label="Navegación principal" aria-hidden={!mobileMenuOpen}>
+          <div className="app-mobile-drawer-head">
+            <div className="app-brand-mark" aria-hidden="true">R</div>
+            <Button type="text" icon={<MenuFoldOutlined />} aria-label="Cerrar navegación" onClick={() => setMobileMenuOpen(false)} />
+          </div>
+          {navigation}
+        </aside>
+      </>}
     </Layout>
   );
 };

@@ -13,9 +13,9 @@ const billingController = new BillingController();
 router.use(authenticate);
 
 // Lectura de dashboard y listas: mismo nivel que PMO
-const billingReadRoles = authorize(['team_lead', 'rpa_operations']);
+const billingReadRoles = authorize(['team_lead']);
 // Gestión de hitos y facturas
-const billingWriteRoles = authorize(['team_lead', 'rpa_operations']);
+const billingWriteRoles = authorize(['team_lead']);
 // Registrar cobros: acción financiera irreversible, solo team_lead
 const billingPaymentRoles = authorize(['team_lead']);
 
@@ -23,7 +23,7 @@ const billingPaymentRoles = authorize(['team_lead']);
 // DASHBOARD DE COBRANZA
 // ========================================
 router.get('/dashboard', billingReadRoles, billingController.getDashboard);
-router.post('/evaluate', billingReadRoles, billingController.evaluate);
+router.post('/evaluate', authorize(['team_lead']), billingController.evaluate);
 
 // ========================================
 // HITOS DE PAGO

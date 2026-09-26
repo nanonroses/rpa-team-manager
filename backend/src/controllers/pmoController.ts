@@ -32,6 +32,7 @@ export class PMOController {
                     pm.bugs_resolved,
                     pm.client_satisfaction_score,
                     u.full_name as assigned_to_name,
+                    c.name as client_name,
                     CASE 
                         WHEN pm.schedule_variance_days > 5 OR pm.cost_variance_percentage > 20 OR pm.risk_level = 'critical' THEN 'critical'
                         WHEN pm.schedule_variance_days > 2 OR pm.cost_variance_percentage > 10 OR pm.risk_level = 'high' THEN 'warning'
@@ -49,6 +50,7 @@ export class PMOController {
                 FROM projects p
                 LEFT JOIN project_pmo_metrics pm ON p.id = pm.project_id
                 LEFT JOIN users u ON p.assigned_to = u.id
+                LEFT JOIN clients c ON p.client_id = c.id
                 WHERE p.status != 'cancelled'
                 ORDER BY 
                     CASE 
@@ -109,11 +111,27 @@ export class PMOController {
                 ORDER BY active_tasks DESC
             `);
 
+            const teamCapacity = await db.query(`
+                SELECT u.id, u.full_name, u.role,
+                       ROUND(COALESCE(SUM(CASE WHEN p.id IS NOT NULL THEN pa.allocation_percentage ELSE 0 END), 0) / 100.0, 2) AS planned_fte,
+                       COALESCE(SUM(CASE WHEN p.id IS NOT NULL THEN pa.budgeted_hours ELSE 0 END), 0) AS budgeted_hours,
+                       COUNT(DISTINCT CASE WHEN p.id IS NOT NULL THEN pa.project_id END) AS assigned_projects
+                FROM users u
+                LEFT JOIN project_assignments pa ON pa.user_id = u.id AND pa.is_active = 1
+                LEFT JOIN projects p ON p.id = pa.project_id AND p.status IN ('active', 'on_hold') AND COALESCE(p.commercial_stage, 'approved') <> 'lost'
+                  AND (pa.start_date IS NULL OR date(pa.start_date) <= date('now'))
+                  AND (pa.end_date IS NULL OR date(pa.end_date) >= date('now'))
+                WHERE u.is_active = 1 AND u.role IN ('rpa_developer', 'rpa_operations', 'team_lead')
+                GROUP BY u.id, u.full_name, u.role
+                ORDER BY planned_fte DESC, u.full_name
+            `);
+
             res.json({
                 projects,
                 overallMetrics,
                 upcomingMilestones,
-                teamWorkload
+                teamWorkload,
+                teamCapacity
             });
         } catch (error) {
             logger.error('Get PMO dashboard error:', error);
@@ -143,6 +161,8 @@ export class PMOController {
                     p.progress_percentage,
                     p.created_by,
                     p.assigned_to,
+                    u.full_name as assigned_to_name,
+                    c.name as client_name,
                     p.created_at,
                     p.updated_at,
                     pm.planned_hours,
@@ -165,6 +185,8 @@ export class PMOController {
                     pm.updated_by
                 FROM projects p
                 LEFT JOIN project_pmo_metrics pm ON p.id = pm.project_id
+                LEFT JOIN users u ON p.assigned_to = u.id
+                LEFT JOIN clients c ON p.client_id = c.id
                 WHERE p.id = ?
             `, [id]);
 

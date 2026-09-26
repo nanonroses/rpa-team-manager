@@ -14,10 +14,8 @@ import {
   Input,
   DatePicker,
   message,
-  Empty,
   Tooltip,
   Badge,
-  Spin,
   Divider
 } from 'antd';
 import {
@@ -32,12 +30,13 @@ import {
   TeamOutlined
 } from '@ant-design/icons';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { apiService } from '@/services/api';
 import { TaskSubtasksChecklist } from '@/components/tasks/TaskSubtasksChecklist';
 import { CommentsThread } from '@/components/comments/CommentsThread';
 import { TaskTagsEditor } from '@/components/tasks/TaskTagsEditor';
 import { TaskCollaboratorsEditor } from '@/components/tasks/TaskCollaboratorsEditor';
+import { EmptyState, LoadingState } from '@/components/common';
 import { getPriorityColor } from '@/utils';
 import dayjs from 'dayjs';
 
@@ -636,7 +635,7 @@ export const TasksPage: React.FC = () => {
                   <span style={{ marginRight: 8 }}>{getTaskTypeIcon(task.task_type)}</span>
                   <Text strong style={{ flex: 1 }}>{task.title}</Text>
                   <Tag color={getPriorityColor(task.priority)}>
-                    {task.priority.toUpperCase()}
+                    {{ critical: 'Crítica', high: 'Alta', medium: 'Media', low: 'Baja' }[task.priority]}
                   </Tag>
                 </div>
 
@@ -833,11 +832,7 @@ export const TasksPage: React.FC = () => {
                 {provided.placeholder}
                 
                 {columnTasks.length === 0 && (
-                  <Empty 
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description="No hay tareas"
-                    style={{ marginTop: 50 }}
-                  />
+                  <EmptyState description="No hay tareas" />
                 )}
               </div>
             )}
@@ -848,20 +843,15 @@ export const TasksPage: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div style={{ padding: '24px', textAlign: 'center' }}>
-        <Spin size="large" />
-        <div style={{ marginTop: 16 }}>Cargando...</div>
-      </div>
-    );
+    return <LoadingState tip="Cargando tareas…" minHeight={220} />;
   }
 
   return (
     <div style={{ padding: '24px' }}>
       <div style={{ marginBottom: '24px' }}>
-        <Title level={2}>📋 Tasks Management</Title>
+        <Title level={2}>Tareas del equipo</Title>
         <Text type="secondary">
-          Gestiona tareas con boards Kanban y seguimiento de tiempo
+          Organiza el trabajo por proyecto, revisa responsables, prioridades y fechas, y registra el tiempo dedicado.
         </Text>
       </div>
 
@@ -944,6 +934,16 @@ export const TasksPage: React.FC = () => {
           </Col>
         </Row>
       </Card>
+
+      {selectedProject && (
+        <Card size="small" style={{ marginBottom: 16 }}>
+          <Space wrap>
+            <Text strong>Proyecto de este tablero:</Text>
+            <Link to={`/projects/${selectedProject}`}>{projects.find(project => project.id === selectedProject)?.name || 'Ver proyecto'}</Link>
+            <Button type="link" size="small"><Link to={`/projects/${selectedProject}`}>Abrir ficha del proyecto</Link></Button>
+          </Space>
+        </Card>
+      )}
 
       {/* Filtros */}
       {selectedBoard && (
@@ -1070,9 +1070,7 @@ export const TasksPage: React.FC = () => {
       {selectedBoard ? (
         <DragDropContext onDragEnd={handleDragEnd}>
           {boardLoading ? (
-            <div style={{ textAlign: 'center', padding: 50 }}>
-              <Spin size="large" />
-            </div>
+            <LoadingState tip="Cargando tablero…" minHeight={150} />
           ) : (
             <Row gutter={16}>
               {selectedBoard.columns.map(column => renderColumn(column))}
@@ -1081,23 +1079,21 @@ export const TasksPage: React.FC = () => {
         </DragDropContext>
       ) : (
         <Card style={{ textAlign: 'center', padding: 50 }}>
-          <Empty
+          <EmptyState
             description={
               selectedProject 
                 ? "No hay boards disponibles. Crea uno para comenzar."
                 : "Selecciona un proyecto para ver los boards"
             }
-          />
-          {selectedProject && (
-            <Button
+            action={selectedProject && <Button
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => setIsCreateBoardModalOpen(true)}
               style={{ marginTop: 16 }}
             >
-              Crear Primer Board
-            </Button>
-          )}
+              Crear primer tablero
+            </Button>}
+          />
         </Card>
       )}
 

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Typography, Tabs, Spin, Empty } from 'antd';
+import { Typography, Tabs } from 'antd';
 import { BarChartOutlined } from '@ant-design/icons';
 import { apiService } from '@/services/api';
 import { Project } from '@/types/project';
 import ProjectPriorityMatrix from '@/components/projects/ProjectPriorityMatrix';
 import TaskPriorityMatrix from '@/components/tasks/TaskPriorityMatrix';
+import { EmptyState, LoadingState } from '@/components/common';
 
 const { Title, Text } = Typography;
 
@@ -47,9 +48,7 @@ const PriorityMatrixPage: React.FC = () => {
       </div>
 
       {loading ? (
-        <div style={{ textAlign: 'center', padding: '60px' }}>
-          <Spin size="large" />
-        </div>
+        <LoadingState tip="Cargando matrices…" minHeight={220} />
       ) : (
         <Tabs
           defaultActiveKey="projects"
@@ -59,14 +58,14 @@ const PriorityMatrixPage: React.FC = () => {
               label: 'Proyectos (ROI vs Complejidad)',
               children: projects.length > 0
                 ? <ProjectPriorityMatrix projects={projects} />
-                : <Empty description="No hay proyectos para mostrar" />
+                : <EmptyState description="No hay proyectos para mostrar" />
             },
             {
               key: 'tasks',
               label: 'Tareas (Urgencia vs Impacto)',
               children: tasks.length > 0
                 ? <TaskPriorityMatrix tasks={tasks} />
-                : <Empty description="No hay tareas activas para mostrar" />
+                : <EmptyState description="No hay tareas activas para mostrar" />
             }
           ]}
         />

@@ -2,6 +2,20 @@ import { Request, Response } from 'express';
 import { db } from '../database/database';
 import { logger } from '../utils/logger';
 import { financeService } from '../services/financeService';
+import { notificationService } from '../services/notificationService';
+
+async function notifyProjectStakeholders(projectId: number, eventKey: 'project_delay_created' | 'scope_change_pending_approval', title: string, message: string, link: string, senderId?: number): Promise<void> {
+  const recipients = await db.query(`
+    SELECT id AS user_id FROM users WHERE role = 'team_lead' AND is_active = 1
+    UNION SELECT pm_user_id AS user_id FROM projects WHERE id = ? AND pm_user_id IS NOT NULL
+    UNION SELECT created_by AS user_id FROM projects WHERE id = ? AND created_by IS NOT NULL
+    UNION SELECT user_id FROM project_assignments WHERE project_id = ? AND is_active = 1
+  `, [projectId, projectId, projectId]);
+  for (const recipient of recipients) await notificationService.notify({
+    userId: recipient.user_id, eventKey, title, message, type: eventKey === 'project_delay_created' ? 'warning' : 'info',
+    entityType: 'project', entityId: projectId, senderId, link, dedupe: true
+  });
+}
 
 // ========================================
 // PHASE TEMPLATES
@@ -427,6 +441,9 @@ export const createProjectDelay = async (req: Request, res: Response) => {
       WHERE pd.id = ?
     `, [result.id]);
 
+    const responsibility = responsible_party === 'client' ? 'atribuida al cliente' : responsible_party === 'internal' ? 'atribuida al equipo' : 'registrada';
+    await notifyProjectStakeholders(project_id, 'project_delay_created', 'Nuevo desvío de proyecto', `Demora ${responsibility}: ${description}`, `/projects/${project_id}?tab=lifecycle`, userId);
+
     return res.status(201).json(delay);
   } catch (error: any) {
     logger.error('Error creating project delay:', error);
@@ -573,6 +590,8 @@ export const createScopeChange = async (req: Request, res: Response) => {
       WHERE psc.id = ?
     `, [result.id]);
 
+    if (requires_re_quote) await notifyProjectStakeholders(project_id, 'scope_change_pending_approval', 'Cambio de alcance requiere nueva cotización', description, `/projects/${project_id}?tab=lifecycle`, userId);
+
     return res.status(201).json(change);
   } catch (error: any) {
     logger.error('Error creating scope change:', error);
@@ -584,9 +603,11 @@ export const updateScopeChange = async (req: Request, res: Response) => {
   try {
     const { changeId } = req.params;
     const updates = req.body;
-
-    const setClauses = Object.keys(updates).map(key => `${key} = ?`).join(', ');
-    const values = Object.values(updates);
+    const allowedFields = ['phase_id', 'change_type', 'description', 'reason', 'requested_by', 'hours_impact', 'cost_impact', 'timeline_impact_days', 'requires_re_quote', 'new_quote_amount'];
+    const fields = Object.keys(updates).filter(key => allowedFields.includes(key));
+    if (!fields.length) return res.status(400).json({ error: 'No hay campos válidos para actualizar' });
+    const setClauses = fields.map(key => `${key} = ?`).join(', ');
+    const values = fields.map(key => updates[key]);
 
     await db.run(`
       UPDATE project_scope_changes
@@ -630,6 +651,12 @@ export const approveScopeChange = async (req: Request, res: Response) => {
   try {
     const { changeId } = req.params;
     const userId = (req as any).user?.id;
+
+    const pendingChange = await db.get('SELECT requires_re_quote, quote_approved FROM project_scope_changes WHERE id = ?', [changeId]);
+    if (!pendingChange) return res.status(404).json({ error: 'Scope change not found' });
+    if (pendingChange.requires_re_quote && !pendingChange.quote_approved) {
+      return res.status(409).json({ error: 'Aprueba una nueva versión de cotización para este cambio antes de autorizar su ejecución' });
+    }
 
     await db.run(`
       UPDATE project_scope_changes

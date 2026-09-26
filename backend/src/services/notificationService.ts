@@ -7,7 +7,14 @@ export type NotificationEventKey =
     | 'task_due_soon'
     | 'timesheet_submitted'
     | 'timesheet_missing_days'
-    | 'comment_mention';
+    | 'comment_mention'
+    | 'commercial_meeting_followup'
+    | 'commercial_meeting_escalation'
+    | 'billing_due_7_days'
+    | 'billing_due_today'
+    | 'billing_overdue_weekly'
+    | 'project_delay_created'
+    | 'scope_change_pending_approval';
 
 export interface NotifyParams {
     userId: number;

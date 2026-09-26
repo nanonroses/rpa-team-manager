@@ -30,6 +30,13 @@ const { Text, Title } = Typography;
 const { TextArea } = Input;
 const { Option } = Select;
 
+const fileStatusLabel: Record<FileItem['status'], string> = {
+  pending: 'Pendiente',
+  uploading: 'Subiendo',
+  success: 'Completado',
+  error: 'Error'
+};
+
 export interface FileUploadProps {
   // Entity association (optional)
   entity_type?: 'project' | 'task' | 'idea' | 'user';
@@ -114,7 +121,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     
     // Check file count limit
     if (files.length + fileArray.length > maxFiles) {
-      message.error(`Maximum ${maxFiles} files allowed`);
+      message.error(`Puedes seleccionar hasta ${maxFiles} archivos`);
       return false;
     }
 
@@ -122,10 +129,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     const validation = fileService.validateFiles(fileArray, categories || []);
     if (!validation.valid) {
       Modal.error({
-        title: 'File Validation Failed',
+        title: 'No se pudo validar los archivos',
         content: (
           <div>
-            <p>The following files have issues:</p>
+            <p>Revisa los siguientes archivos:</p>
             <ul>
               {validation.errors.map((error, index) => (
                 <li key={index}>{error}</li>
@@ -195,7 +202,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
 
   const uploadFiles = async () => {
     if (files.length === 0) {
-      message.warning('Please select files to upload');
+      message.warning('Selecciona archivos para cargar');
       return;
     }
 
@@ -239,18 +246,18 @@ export const FileUpload: React.FC<FileUploadProps> = ({
       });
 
       if (result.successful > 0) {
-        message.success(`${result.successful} files uploaded successfully`);
+        message.success(`${result.successful} archivos cargados correctamente`);
       }
 
       if (result.failed > 0) {
-        message.error(`${result.failed} files failed to upload`);
+        message.error(`No se pudieron cargar ${result.failed} archivos`);
       }
 
       onUploadComplete?.(result.files);
 
     } catch (error) {
       console.error('Upload error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Upload failed';
+      const errorMessage = error instanceof Error ? error.message : 'No se pudieron cargar los archivos';
       
       // Mark all files as failed
       setFiles(prev => prev.map(f => ({ 
@@ -280,6 +287,13 @@ export const FileUpload: React.FC<FileUploadProps> = ({
     }
   };
 
+  const handleDropZoneKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      fileInputRef.current?.click();
+    }
+  };
+
 
   return (
     <div style={style} className={className}>
@@ -288,6 +302,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
+          role="button"
+          tabIndex={0}
+          aria-label="Seleccionar archivos para cargar"
+          onKeyDown={handleDropZoneKeyDown}
           style={{
             border: dragOver ? '2px dashed #1890ff' : '2px dashed #d9d9d9',
             borderRadius: '8px',
@@ -295,16 +313,17 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             textAlign: 'center',
             backgroundColor: dragOver ? '#f0f8ff' : '#fafafa',
             cursor: 'pointer',
-            transition: 'all 0.3s'
+            transition: 'all 0.3s',
+            outlineOffset: 3
           }}
           onClick={() => fileInputRef.current?.click()}
         >
           <InboxOutlined style={{ fontSize: 48, color: dragOver ? '#1890ff' : '#d9d9d9' }} />
           <Title level={4} style={{ marginTop: 16, color: dragOver ? '#1890ff' : undefined }}>
-            Drop files here or click to browse
+            Suelta los archivos aquí o selecciónalos
           </Title>
           <Text type="secondary">
-            {multiple ? `Select up to ${maxFiles} files` : 'Select a file'} to upload
+            {multiple ? `Puedes cargar hasta ${maxFiles} archivos` : 'Selecciona un archivo para cargar'}
           </Text>
           
           <input
@@ -319,7 +338,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
         {/* File Categories Info */}
         {categories.length > 0 && (
           <Alert
-            message="Supported file types"
+            message="Tipos de archivo admitidos"
             description={
               <div style={{ marginTop: 8 }}>
                 {categories.map(category => (
@@ -342,10 +361,10 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             
             {showDescription && (
               <div style={{ marginBottom: 16 }}>
-                <Text strong>Description (optional)</Text>
+                <Text strong>Descripción (opcional)</Text>
                 <TextArea
                   rows={2}
-                  placeholder="Add a description for these files..."
+                  placeholder="Añade una descripción para estos archivos..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   style={{ marginTop: 8 }}
@@ -356,14 +375,14 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             {showPublicOption && (
               <div style={{ marginBottom: 16 }}>
                 <Space>
-                  <Text strong>Visibility:</Text>
+                  <Text strong>Visibilidad:</Text>
                   <Select
                     value={isPublic ? 'public' : 'private'}
                     onChange={(value) => setIsPublic(value === 'public')}
                     style={{ width: 120 }}
                   >
-                    <Option value="private">Private</Option>
-                    <Option value="public">Public</Option>
+                    <Option value="private">Privado</Option>
+                    <Option value="public">Público</Option>
                   </Select>
                 </Space>
               </div>
@@ -377,7 +396,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
             <Divider />
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
               <Title level={5} style={{ margin: 0 }}>
-                Selected Files ({files.length})
+                Archivos seleccionados ({files.length})
               </Title>
               {!uploading && (
                 <Button
@@ -386,7 +405,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                   icon={<DeleteOutlined />}
                   onClick={clearAllFiles}
                 >
-                  Clear All
+                  Quitar todos
                 </Button>
               )}
             </div>
@@ -415,7 +434,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                       <Space>
                         <Text>{fileItem.file.name}</Text>
                         <Tag color={getFileStatusColor(fileItem.status)}>
-                          {fileItem.status}
+                          {fileStatusLabel[fileItem.status]}
                         </Tag>
                       </Space>
                     }
@@ -438,7 +457,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
                         )}
                         {fileItem.result?.isDuplicate && (
                           <Text type="warning" style={{ display: 'block', marginTop: 4 }}>
-                            File already exists - associated with entity
+                            El archivo ya existe y quedó asociado al elemento
                           </Text>
                         )}
                       </div>
@@ -461,7 +480,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
               onClick={uploadFiles}
               disabled={files.length === 0}
             >
-              {uploading ? 'Uploading...' : `Upload ${files.length} file${files.length > 1 ? 's' : ''}`}
+              {uploading ? 'Cargando...' : `Cargar ${files.length} ${files.length === 1 ? 'archivo' : 'archivos'}`}
             </Button>
           </div>
         )}

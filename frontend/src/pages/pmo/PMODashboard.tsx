@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Card,
   Row,
@@ -23,7 +23,6 @@ import {
   Typography,
   Upload,
   Drawer,
-  Spin,
   Checkbox
 } from 'antd';
 import {
@@ -53,6 +52,7 @@ import apiService from '@/services/api';
 import dayjs from 'dayjs';
 import { useBatchDeletion } from '../../hooks/useBatchDeletion';
 import { useGanttData } from '../../hooks/useGanttData';
+import { LoadingState } from '@/components/common';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -62,6 +62,7 @@ interface PMODashboardData {
   overallMetrics: any;
   upcomingMilestones: any[];
   teamWorkload: any[];
+  teamCapacity?: any[];
 }
 
 interface PMOAnalytics {
@@ -95,6 +96,7 @@ interface PMODashboardProps {
 
 export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false }) => {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const { id: projectIdParam } = useParams<{ id: string }>();
   const [loading, setLoading] = useState(true);
   const [dashboardData, setDashboardData] = useState<PMODashboardData | null>(null);
@@ -113,6 +115,10 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   const [taskModalVisible, setTaskModalVisible] = useState(false);
   const [taskForm] = Form.useForm();
   const [activeTab, setActiveTab] = useState(ganttMode ? 'gantt' : 'overview');
+  const [projectFilter, setProjectFilter] = useState('');
+  const [healthFilter, setHealthFilter] = useState<string | undefined>();
+  const [clientFilter, setClientFilter] = useState<string | undefined>();
+  const [stageFilter, setStageFilter] = useState<string | undefined>();
   const [mermaidDrawerVisible, setMermaidDrawerVisible] = useState(false);
   const [mermaidCode, setMermaidCode] = useState('');
   
@@ -123,6 +129,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   // Refs to prevent multiple simultaneous API calls
   const loadingDashboard = useRef(false);
   const deletingItems = useRef(new Set<number>()); // Track items being deleted
+  const totalPlannedBudget = dashboardData?.overallMetrics?.total_planned_budget;
 
   // Helper function to safely validate ganttData structure
   const isValidGanttData = (data: any): boolean => {
@@ -484,6 +491,9 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
       const projectId = parseInt(projectIdParam, 10);
       console.log('🎯 Gantt mode with project param:', projectId);
       setSelectedProjectId(projectId);
+      setActiveTab('gantt');
+    } else {
+      setActiveTab('overview');
     }
   }, [ganttMode, projectIdParam]);
 
@@ -1030,88 +1040,58 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
     }
   };
 
+  const visibleProjects = (dashboardData?.projects || []).filter((project: any) => {
+    const search = `${project.name || ''} ${project.assigned_to_name || ''} ${project.client_name || ''}`.toLocaleLowerCase();
+    return (!projectFilter || search.includes(projectFilter.toLocaleLowerCase())) &&
+      (!healthFilter || project.project_health_status === healthFilter) &&
+      (!clientFilter || String(project.client_id || '') === clientFilter) &&
+      (!stageFilter || (project.commercial_stage || 'approved') === stageFilter);
+  });
+  const needsAttention = visibleProjects.filter((project: any) => project.project_health_status === 'critical' || project.project_health_status === 'warning' || (project.days_to_deadline !== null && project.days_to_deadline !== undefined && project.days_to_deadline < 7));
+  const openProject = (id: number) => navigate(`/projects/${id}`);
+
   if (loading) {
-    return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '400px',
-        padding: '24px'
-      }}>
-        <Spin size="large" tip="Cargando PMO Dashboard...">
-          <div style={{ minHeight: '300px' }} />
-        </Spin>
-      </div>
-    );
+    return <LoadingState tip="Cargando centro PMO…" minHeight={400} />;
   }
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div style={{ padding: 'clamp(12px, 3vw, 24px)' }}>
       <Row justify="space-between" align="middle" style={{ marginBottom: '24px' }}>
         <Col>
-          <Title level={2}>PMO Dashboard</Title>
-          <Text type="secondary">Vista ejecutiva de proyectos y métricas</Text>
+          <Title level={2}>Centro PMO</Title>
+          <Text type="secondary">Excepciones, hitos y seguimiento del portafolio</Text>
         </Col>
         <Col>
           <Space>
-            <Button 
+            {['team_lead', 'rpa_operations'].includes(user?.role || '') && <Button
               type="primary" 
               icon={<PlusOutlined />}
               onClick={() => setMilestoneModalVisible(true)}
             >
               Crear Hito
-            </Button>
+            </Button>}
           </Space>
-        </Col>
-      </Row>
-
-      {/* Métricas generales */}
-      <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Proyectos Totales"
-              value={dashboardData?.overallMetrics?.total_projects || 0}
-              prefix={<ProjectOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Proyectos Críticos"
-              value={dashboardData?.overallMetrics?.critical_projects || 0}
-              prefix={<AlertOutlined />}
-              valueStyle={{ color: '#f5222d' }}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Completitud Promedio"
-              value={Math.round(dashboardData?.overallMetrics?.avg_completion || 0)}
-              suffix="%"
-              prefix={<RiseOutlined />}
-            />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} md={6}>
-          <Card>
-            <Statistic
-              title="Satisfacción Cliente"
-              value={dashboardData?.overallMetrics?.avg_satisfaction?.toFixed(1) || 'N/A'}
-              suffix="/10"
-              prefix={<CheckCircleOutlined />}
-            />
-          </Card>
         </Col>
       </Row>
 
       <Tabs activeKey={activeTab} onChange={setActiveTab}>
         <TabPane tab="Vista General" key="overview">
-          {/* Dashboard Ejecutivo Completo */}
+          <Card title="Requieren atención" extra={<Tag>{needsAttention.length} proyectos</Tag>} style={{ marginBottom: 16 }}>
+            <Space wrap style={{ width: '100%', marginBottom: 12 }}>
+              <Input allowClear aria-label="Buscar proyectos" placeholder="Proyecto, cliente o responsable" value={projectFilter} onChange={event => setProjectFilter(event.target.value)} style={{ width: 'min(100%, 320px)' }} />
+              <Select allowClear aria-label="Filtrar por salud" placeholder="Todas las condiciones" value={healthFilter} onChange={setHealthFilter} style={{ minWidth: 160 }} options={[{ value: 'critical', label: 'Crítica' }, { value: 'warning', label: 'En alerta' }, { value: 'healthy', label: 'Saludable' }]} />
+              <Select allowClear showSearch optionFilterProp="label" aria-label="Filtrar por cliente" placeholder="Todos los clientes" value={clientFilter} onChange={setClientFilter} style={{ minWidth: 180 }} options={Array.from(new Map((dashboardData?.projects || []).filter((p: any) => p.client_id && p.client_name).map((p: any) => [String(p.client_id), p.client_name])).entries()).map(([value, label]) => ({ value, label }))} />
+              <Select allowClear aria-label="Filtrar por etapa" placeholder="Todas las etapas" value={stageFilter} onChange={setStageFilter} style={{ minWidth: 160 }} options={[{ value: 'quoting', label: 'En cotización' }, { value: 'approved', label: 'Aprobado' }, { value: 'lost', label: 'Perdido' }]} />
+              <Button onClick={() => { setProjectFilter(''); setHealthFilter(undefined); setClientFilter(undefined); setStageFilter(undefined); }}>Limpiar filtros</Button>
+            </Space>
+            {needsAttention.length ? <Table size="small" rowKey="id" dataSource={needsAttention} pagination={{ pageSize: 6, showSizeChanger: false }} scroll={{ x: 680 }} columns={[
+              { title: 'Proyecto', dataIndex: 'name', key: 'name', render: (name: string, project: any) => <Button type="link" style={{ padding: 0, height: 'auto', whiteSpace: 'normal', textAlign: 'left' }} onClick={() => openProject(project.id)}>{name}</Button> },
+              { title: 'Condición', key: 'condition', render: (_: unknown, project: any) => <Space wrap>{project.project_health_status !== 'healthy' && <Tag>{project.project_health_status === 'critical' ? 'Riesgo crítico' : 'En alerta'}</Tag>}{project.days_to_deadline < 0 ? <Tag>Retrasado {Math.abs(project.days_to_deadline)} días</Tag> : project.days_to_deadline < 7 && <Tag>{project.days_to_deadline === 0 ? 'Vence hoy' : `Vence en ${project.days_to_deadline} días`}</Tag>}{project.risk_level && <Tag>Riesgo: {({ low: 'Bajo', medium: 'Medio', high: 'Alto', critical: 'Crítico' } as Record<string, string>)[project.risk_level] || project.risk_level}</Tag>}</Space> },
+              { title: 'Responsable', dataIndex: 'assigned_to_name', key: 'owner', render: (name: string) => name || 'Sin asignar' },
+              { title: 'Acceso', key: 'actions', render: (_: unknown, project: any) => <Space><Button size="small" onClick={() => openProject(project.id)}>Ficha</Button><Button size="small" onClick={() => { setSelectedProjectId(project.id); setActiveTab('gantt'); }}>Cronograma</Button></Space> }
+            ]} /> : <Alert type="success" showIcon message="Sin excepciones para los filtros actuales" />}
+          </Card>
+          {/* Resumen ejecutivo de métricas */}
           
           {/* Fila 1: KPIs Críticos */}
           <Row gutter={[16, 16]} style={{ marginBottom: '20px' }}>
@@ -1141,12 +1121,12 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                 </div>
               </Card>
             </Col>
-            <Col xs={24} sm={12} md={6}>
+            {user?.role === 'team_lead' && <Col xs={24} sm={12} md={6}>
               <Card size="small">
                 <Statistic
                   title="Presupuesto Total"
-                  value={Math.round((dashboardData?.overallMetrics?.total_planned_budget || 0) / 1000000)}
-                  suffix="M"
+                  value={totalPlannedBudget == null ? 'N/D' : Math.round(Number(totalPlannedBudget) / 1000000)}
+                  suffix={totalPlannedBudget == null ? undefined : 'M'}
                   prefix={<DollarOutlined style={{ color: '#52c41a' }} />}
                   valueStyle={{ color: '#52c41a', fontSize: '24px' }}
                 />
@@ -1154,7 +1134,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                   CLP planificado
                 </div>
               </Card>
-            </Col>
+            </Col>}
             <Col xs={24} sm={12} md={6}>
               <Card size="small">
                 <Statistic
@@ -1181,10 +1161,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                 style={{ height: '300px' }}
               >
                 <div style={{ height: '240px', overflowY: 'auto' }}>
-                  {dashboardData?.projects
-                    ?.filter((p: any) => p.project_health_status === 'critical' || (p.days_to_deadline !== null && p.days_to_deadline !== undefined && p.days_to_deadline < 7))
-                    ?.slice(0, 8)
-                    ?.map((project: any) => (
+                  {needsAttention.slice(0, 8).map((project: any) => (
                       <Alert
                         key={project.id}
                         message={project.name}
@@ -1204,10 +1181,12 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                               ? 'error'
                               : 'warning'
                         }
-                        style={{ marginBottom: '8px' }}
+                        style={{ marginBottom: '8px', cursor: 'pointer' }}
+                        onClick={() => openProject(project.id)}
                         showIcon
                       />
-                    )) || (
+                    ))}
+                  {needsAttention.length === 0 && (
                     <div style={{ textAlign: 'center', padding: '60px 0', color: '#999' }}>
                       <CheckCircleOutlined style={{ fontSize: '32px', marginBottom: '8px' }} />
                       <div>No hay alertas críticas</div>
@@ -1278,7 +1257,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                 style={{ height: '300px' }}
               >
                 <div style={{ height: '240px', overflowY: 'auto' }}>
-                  {dashboardData?.teamWorkload?.length ? dashboardData.teamWorkload.slice(0, 6).map((member: any) => (
+                  {dashboardData?.teamCapacity?.length ? dashboardData.teamCapacity.slice(0, 6).map((member: any) => (
                     <div key={member.id} style={{
                       display: 'flex',
                       justifyContent: 'space-between',
@@ -1293,7 +1272,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                           {member.full_name}
                         </div>
                         <div style={{ fontSize: '10px', color: '#666' }}>
-                          {member.active_tasks} {member.active_tasks === 1 ? 'tarea activa' : 'tareas activas'}
+                          {member.assigned_projects} proyectos · {Number(member.planned_fte).toFixed(2)} FTE comprometido · {Number(member.budgeted_hours || 0).toLocaleString('es-CL')} h presupuestadas
                         </div>
                       </div>
                       <div style={{
@@ -1303,9 +1282,11 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                         background: member.active_tasks > 8 ? '#fff1f0' : member.active_tasks > 4 ? '#fff7e6' : '#f6ffed',
                         color: member.active_tasks > 8 ? '#f5222d' : member.active_tasks > 4 ? '#fa8c16' : '#52c41a'
                       }}>
-                        {member.active_tasks}
+                        {Number(member.planned_fte).toFixed(2)} FTE
                       </div>
                     </div>
+                  )) : dashboardData?.teamWorkload?.length ? dashboardData.teamWorkload.slice(0, 6).map((member: any) => (
+                    <div key={member.id} style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{member.full_name} · {member.active_tasks} tareas activas</div>
                   )) : (
                     <div style={{ textAlign: 'center', padding: '60px 0', color: '#999' }}>
                       Sin datos del equipo
@@ -1336,8 +1317,8 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                 }
                 size="small"
               >
-                <Table
-                  dataSource={dashboardData?.projects || []}
+                    <Table
+                  dataSource={visibleProjects}
                   columns={[
                     {
                       title: 'Proyecto',
@@ -1346,7 +1327,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                       width: 200,
                       render: (text: string, record: any) => (
                         <div>
-                          <div style={{ fontWeight: 'bold', fontSize: '12px' }}>{text}</div>
+                          <Button type="link" style={{ height: 'auto', padding: 0, fontWeight: 'bold', fontSize: '12px', whiteSpace: 'normal', textAlign: 'left' }} onClick={() => openProject(record.id)}>{text}</Button>
                           <div style={{ fontSize: '10px', color: '#666' }}>
                             {getHealthIcon(record.project_health_status)} {record.assigned_to_name || 'Sin asignar'}
                           </div>
@@ -1394,15 +1375,16 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                       title: 'Presupuesto',
                       key: 'budget',
                       width: 100,
+                      responsive: user?.role === 'team_lead' ? undefined : ['xxl'],
                       render: (record: any) => (
-                        <div style={{ fontSize: '11px' }}>
+                        user?.role === 'team_lead' ? <div style={{ fontSize: '11px' }}>
                           <div>{record.planned_budget ? `$${(record.planned_budget / 1000000).toFixed(1)}M` : 'N/A'}</div>
                           <div style={{ 
                             color: record.cost_variance_percentage > 10 ? '#ff4d4f' : record.cost_variance_percentage > 0 ? '#faad14' : '#52c41a'
                           }}>
                             {record.cost_variance_percentage ? `${record.cost_variance_percentage > 0 ? '+' : ''}${record.cost_variance_percentage.toFixed(1)}%` : 'N/A'}
                           </div>
-                        </div>
+                        </div> : null
                       ),
                     },
                     {
@@ -1456,12 +1438,8 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                         }
                       >
                         <div>
-                          <div style={{ fontWeight: 'bold', fontSize: '12px' }}>
-                            {milestone.name}
-                          </div>
-                          <div style={{ fontSize: '11px', color: '#666', marginBottom: '2px' }}>
-                            {milestone.project_name}
-                          </div>
+                          <Button type="link" style={{ height: 'auto', padding: 0, fontWeight: 'bold', fontSize: '12px', whiteSpace: 'normal', textAlign: 'left' }} onClick={() => navigate(`/pmo/gantt/${milestone.project_id}`)}>{milestone.name}</Button>
+                          <div><Button type="link" size="small" style={{ padding: 0, height: 'auto' }} onClick={() => navigate(`/pmo/gantt/${milestone.project_id}`)}>{milestone.project_name} · Abrir cronograma</Button></div>
                           <div style={{ 
                             fontSize: '10px',
                             color: milestone.days_until < 0 ? '#ff4d4f' : milestone.days_until < 3 ? '#faad14' : '#52c41a'
@@ -2229,6 +2207,17 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                     </Row>
                   </Card>
 
+                  {(ganttData.taskDependencies?.length > 0 || ganttData.projectDependencies?.length > 0) && <Card size="small" title="Dependencias registradas" style={{ marginBottom: 12 }}>
+                    <Space direction="vertical" style={{ width: '100%' }}>
+                      {(ganttData.taskDependencies || []).map((dependency: any) => <Text key={`task-dep-${dependency.id}`}>
+                        {dependency.predecessor_title} → {dependency.successor_title}
+                      </Text>)}
+                      {(ganttData.projectDependencies || []).map((dependency: any) => <Text key={`project-dep-${dependency.id}`}>
+                        {dependency.source_project_name} → {dependency.dependent_project_name}
+                      </Text>)}
+                    </Space>
+                  </Card>}
+
                   {/* Vista Gantt Principal Alineada */}
                   <Card>
                     {/* Headers alineados */}
@@ -2433,6 +2422,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                     ? `📅 ${dayjs(item.start_date).format('DD/MM')} → ${dayjs(item.due_date).format('DD/MM')}`
                                     : '📅 Sin fechas'
                                 }
+                                {' · '}{item.type === 'milestone' ? (item.responsible_name || 'Sin responsable') : (item.assignee_names || item.assignee_name || 'Sin responsable')}
                               </div>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
