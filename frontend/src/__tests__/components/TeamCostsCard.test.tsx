@@ -39,6 +39,21 @@ describe('TeamCostsCard', () => {
     expect(screen.getByText(/176/)).toBeInTheDocument();
   });
 
+  it('sin cambios pendientes muestra el valor HH guardado en el backend; al escribir muestra el preview recalculado', async () => {
+    (apiService.getTeamCosts as any).mockResolvedValue({
+      ...response,
+      members: [{ ...response.members[0], hourly_rate: 11000 }, response.members[1]]
+    });
+    render(<TeamCostsCard />);
+    await waitFor(() => expect(screen.getByText('Dev Uno')).toBeInTheDocument());
+
+    expect(within(rowOf('Dev Uno')).getByText(/11\.000/)).toBeInTheDocument();
+
+    const input = within(rowOf('Dev Uno')).getByLabelText(/costo empresa de dev uno/i);
+    fireEvent.change(input, { target: { value: '3520000' } });
+    await waitFor(() => expect(within(rowOf('Dev Uno')).getByText(/20\.000/)).toBeInTheDocument());
+  });
+
   it('guarda el costo empresa de una persona sin costo previo', async () => {
     render(<TeamCostsCard />);
     await waitFor(() => expect(screen.getByText('Ops Uno')).toBeInTheDocument());

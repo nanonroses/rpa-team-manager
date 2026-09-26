@@ -31,8 +31,8 @@ export const SettingsPage: React.FC = () => {
   const [settings, setSettings] = useState<GlobalSettings>({
     usd_rate: 925.50,
     uf_rate: 37250.85,
-    monthly_hours: 176,
-    weekly_hours: 44
+    monthly_hours: 168,
+    weekly_hours: 42
   });
 
   useEffect(() => {
@@ -145,7 +145,7 @@ export const SettingsPage: React.FC = () => {
               style={{ marginBottom: '24px' }}
             >
               <Alert
-                message="Chile: 44 horas semanales = 176 horas mensuales"
+                message="Chile: 42 horas semanales = 168 horas mensuales"
                 description="Estos valores se usan para calcular el costo por hora de los empleados."
                 type="info"
                 style={{ marginBottom: '16px' }}
@@ -162,7 +162,7 @@ export const SettingsPage: React.FC = () => {
                     ]}
                   >
                     <InputNumber
-                      placeholder="44"
+                      placeholder="42"
                       suffix="horas"
                       style={{ width: '100%' }}
                       min={1}
@@ -180,7 +180,7 @@ export const SettingsPage: React.FC = () => {
                     ]}
                   >
                     <InputNumber
-                      placeholder="176"
+                      placeholder="168"
                       suffix="horas"
                       style={{ width: '100%' }}
                       min={1}

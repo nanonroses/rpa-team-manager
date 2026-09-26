@@ -93,6 +93,10 @@ export const TeamCostsCard: React.FC = () => {
       title: 'Valor HH',
       key: 'hourly_rate',
       render: (_: unknown, member: TeamCostMember) => {
+        // Sin cambios pendientes se muestra el valor HH guardado, que es el que usan los cálculos de rentabilidad.
+        if (drafts[member.user_id] === undefined && member.hourly_rate !== null) {
+          return formatCLP(member.hourly_rate);
+        }
         const value = currentValue(member);
         return value && value > 0 ? formatCLP(value / monthlyHours) : '—';
       }
