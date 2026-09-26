@@ -18,6 +18,8 @@ interface ProjectROIData {
   // BASIC PARAMETERS
   planned_hours: number;
   real_hours: number;
+  real_hours_source: 'approved' | 'projected';
+  approved_hours: number;
   client_delay_hours: number;
   hourly_rate_uf: number;
   uf_value_clp: number;
@@ -90,9 +92,9 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
     }
   };
 
-  // Helper to determine if we should show real vs planned data
+  // Hay dato real si ya existen horas aprobadas (Fase 3) o atraso atribuible al cliente.
   const hasClientDelays = (roiData?.client_delay_hours ?? 0) > 0;
-  const shouldShowReal = hasClientDelays;
+  const shouldShowReal = hasClientDelays || roiData?.real_hours_source === 'approved';
   
   // Get the appropriate values to display
   const getDisplayValues = () => {

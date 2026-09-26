@@ -4,6 +4,7 @@ import { Project } from '@/types/project';
 import { ProjectHealth, ProjectBaseline } from '../types/projectHealth';
 import { ActivityLogEntry } from '../types/activity';
 import { NotificationItem } from '../types/notification';
+import { TeamCostsResponse } from '@/types/teamCosts';
 
 interface RequestCache {
   [key: string]: {
@@ -362,6 +363,11 @@ class ApiService {
 
   async createUserCost(data: { user_id: number; monthly_cost: number; effective_from: string }): Promise<any> {
     const response = await this.api.post('/financial/user-costs', data);
+    return response.data;
+  }
+
+  async getTeamCosts(): Promise<TeamCostsResponse> {
+    const response = await this.api.get('/financial/team-costs');
     return response.data;
   }
 
