@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Badge, Button, Dropdown, List, Typography, Empty, Spin } from 'antd';
+import { Badge, Button, Dropdown, List, Typography } from 'antd';
 import { NotificationOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { apiService } from '@/services/api';
 import { NotificationItem } from '@/types/notification';
+import { EmptyState, InlineErrorState, LoadingState } from '@/components/common';
 
 const { Text } = Typography;
 
@@ -14,6 +15,7 @@ export const NotificationBell: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [listError, setListError] = useState(false);
   const [open, setOpen] = useState(false);
 
   const loadUnreadCount = useCallback(async () => {
@@ -34,10 +36,11 @@ export const NotificationBell: React.FC = () => {
   const loadList = useCallback(async () => {
     try {
       setLoading(true);
+      setListError(false);
       const data = await apiService.getNotifications({ limit: 10, offset: 0 });
       setItems(data);
     } catch {
-      // silencioso: el dropdown queda con la última lista cargada o vacío
+      setListError(true);
     } finally {
       setLoading(false);
     }
@@ -91,9 +94,11 @@ export const NotificationBell: React.FC = () => {
             </Button>
           </div>
           {loading ? (
-            <div style={{ padding: 24, textAlign: 'center' }}><Spin size="small" /></div>
+            <LoadingState tip="Cargando notificaciones…" minHeight={96} />
+          ) : listError ? (
+            <div style={{ padding: 12 }}><InlineErrorState title="No se pudieron cargar las notificaciones" onRetry={() => void loadList()} /></div>
           ) : items.length === 0 ? (
-            <div style={{ padding: 24 }}><Empty description="Sin notificaciones" image={Empty.PRESENTED_IMAGE_SIMPLE} /></div>
+            <EmptyState description="Sin notificaciones" />
           ) : (
             <List
               size="small"
@@ -119,7 +124,7 @@ export const NotificationBell: React.FC = () => {
       )}
     >
       <Badge count={unreadCount} size="small">
-        <Button type="text" icon={<NotificationOutlined />} style={{ fontSize: '16px' }} />
+        <Button type="text" aria-label={`Notificaciones${unreadCount ? `, ${unreadCount} sin leer` : ''}`} icon={<NotificationOutlined />} style={{ fontSize: '16px' }} />
       </Badge>
     </Dropdown>
   );

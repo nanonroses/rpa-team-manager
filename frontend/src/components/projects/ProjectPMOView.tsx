@@ -391,7 +391,7 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
               <Row gutter={[16, 16]}>
                 <Col xs={12} sm={6}>
                   <Statistic
-                    title="Completion"
+                    title="Avance del cronograma"
                     value={pmoMetrics.completion_percentage}
                     suffix="%"
                     valueStyle={{ 

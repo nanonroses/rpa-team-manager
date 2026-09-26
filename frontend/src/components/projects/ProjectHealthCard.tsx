@@ -85,7 +85,7 @@ export const ProjectHealthCard: React.FC<ProjectHealthCardProps> = ({ projectId 
       ) : (
         <Row gutter={16}>
           <Col span={6}>
-            <Statistic title="Avance" value={health.ev_percentage} suffix="%" />
+            <Statistic title="Avance por hitos" value={health.ev_percentage} suffix="%" />
           </Col>
           <Col span={6}>
             <Statistic

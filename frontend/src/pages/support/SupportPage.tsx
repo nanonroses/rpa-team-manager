@@ -41,6 +41,7 @@ import { getSupportStatusColor, getPriorityColor, getGenericStatusColor } from '
 import dayjs from 'dayjs';
 import { apiService } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
+import { ErrorState, EmptyState } from '@/components/common';
 import ExcelImportModal from '@/components/support/ExcelImportModal';
 
 const { Content } = Layout;
@@ -533,13 +534,13 @@ const SupportPage: React.FC = () => {
             </Col>
             <Col span={8}>
               <Text strong>Prioridad:</Text><br />
-              <Tag color={getPriorityColor(ticket.priority)}>{ticket.priority.toUpperCase()}</Tag>
+              <Tag color={getPriorityColor(ticket.priority)}>{({ critical: 'Crítica', high: 'Alta', medium: 'Media', low: 'Baja' } as Record<string, string>)[ticket.priority] || ticket.priority}</Tag>
             </Col>
             <Col span={8}>
               <Text strong>Estado:</Text><br />
               <Tag color={getSupportStatusColor(ticket.status)}>
                 {ticket.status === 'open' ? 'Abierto' :
-                  ticket.status === 'in_progress' ? 'En Progreso' :
+                  ticket.status === 'in_progress' ? 'En curso' :
                     ticket.status === 'resolved' ? 'Resuelto' :
                       ticket.status === 'closed' ? 'Cerrado' : ticket.status}
               </Tag>
@@ -771,7 +772,7 @@ const SupportPage: React.FC = () => {
       key: 'priority',
       render: (priority) => (
         <Tag color={getPriorityColor(priority)}>
-          {priority.toUpperCase()}
+          {({ critical: 'Crítica', high: 'Alta', medium: 'Media', low: 'Baja' } as Record<string, string>)[priority] || priority}
         </Tag>
       )
     },
@@ -782,7 +783,7 @@ const SupportPage: React.FC = () => {
       render: (status) => (
         <Tag color={getSupportStatusColor(status)}>
           {status === 'open' ? 'Abierto' :
-            status === 'in_progress' ? 'En Progreso' :
+            status === 'in_progress' ? 'En curso' :
               status === 'resolved' ? 'Resuelto' :
                 status === 'closed' ? 'Cerrado' : status}
         </Tag>
@@ -964,21 +965,15 @@ const SupportPage: React.FC = () => {
     <Content style={{ padding: '24px' }}>
       <div style={{ marginBottom: '24px' }}>
         <Title level={2}>
-          <CustomerServiceOutlined /> Gestión de Soporte
+          <CustomerServiceOutlined /> Soporte
         </Title>
         <Text type="secondary">
-          Administra empresas clientes, tickets de soporte y facturación por horas de soporte técnico
+          Bandeja de tickets, prioridades, responsables y empresas cliente. Las tarifas y cifras de facturación se muestran solo a los roles autorizados.
         </Text>
       </div>
 
       {loadError && (
-        <Alert
-          type="error"
-          showIcon
-          message="Error al cargar datos de Soporte"
-          description={loadError}
-          style={{ marginBottom: '16px' }}
-        />
+        <ErrorState title="No se pudieron cargar los datos de soporte" description={loadError} onRetry={() => activeTab === 'tickets' ? loadTickets() : activeTab === 'companies' ? loadCompanies() : loadDashboardData()} />
       )}
 
       <Tabs
@@ -987,7 +982,7 @@ const SupportPage: React.FC = () => {
         items={[
           {
             key: 'dashboard',
-            label: 'Dashboard',
+            label: 'Resumen',
             children: <Dashboard />
           },
           {
@@ -1001,7 +996,7 @@ const SupportPage: React.FC = () => {
                     <Card size="small">
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                          <Text strong>📅 Mes para Facturación:</Text>
+                          <Text strong>Mes de facturación:</Text>
                           <DatePicker
                             picker="month"
                             value={selectedMonth}
@@ -1044,6 +1039,7 @@ const SupportPage: React.FC = () => {
                     rowKey="id"
                     loading={loading}
                     pagination={{ pageSize: 10 }}
+                    locale={{ emptyText: <EmptyState description="No hay empresas para este periodo." /> }}
                   />
                 </Card>
               </div>
@@ -1078,6 +1074,7 @@ const SupportPage: React.FC = () => {
                   rowKey="id_ticket"
                   loading={loading}
                   pagination={{ pageSize: 10 }}
+                  locale={{ emptyText: <EmptyState description="No hay tickets que mostrar." /> }}
                 />
               </Card>
             )

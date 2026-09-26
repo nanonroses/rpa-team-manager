@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, DatePicker, InputNumber, message } from 'antd';
+import { Modal, Form, Input, Select, DatePicker, InputNumber, Alert, message } from 'antd';
 import { Project } from '@/types/project';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/store/authStore';
 import { apiService } from '@/services/api';
+import { buildUserAssignments } from './projectAssignments';
 import dayjs from 'dayjs';
 
 const { TextArea } = Input;
@@ -26,6 +27,8 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [teamMembers, setTeamMembers] = useState<{ label: string; value: number; role?: string }[]>([]);
   const [projectAssignments, setProjectAssignments] = useState<any[]>([]);
+  const [clients, setClients] = useState<any[]>([]);
+  const [salesReps, setSalesReps] = useState<any[]>([]);
   const { createProject, updateProject } = useProjectStore();
   const { user } = useAuthStore();
 
@@ -41,6 +44,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   useEffect(() => {
     if (visible) {
       loadTeamMembers();
+      void loadCommercialDirectories();
       if (isEdit && editProject) {
         loadProjectAssignments();
       }
@@ -84,13 +88,26 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         // Reset form for new project
         form.resetFields();
         form.setFieldsValue({
-          status: 'planning',
+          status: 'on_hold',
           priority: 'medium',
           default_allocation: 100
         });
       }
     }
   }, [visible, editProject, teamMembers, projectAssignments, form]);
+
+  const loadCommercialDirectories = async () => {
+    try {
+      const [clientResponse, salesResponse] = await Promise.all([
+        apiService.request<any>({ url: '/clients' }),
+        apiService.request<any>({ url: '/sales-reps' })
+      ]);
+      setClients(clientResponse?.data || []);
+      setSalesReps(salesResponse?.data || []);
+    } catch (error) {
+      console.warn('No se pudieron cargar clientes o comerciales:', error);
+    }
+  };
 
   const loadTeamMembers = async () => {
     try {
@@ -133,18 +150,24 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       console.log('Submit called with values:', values);
       console.log('isEdit:', isEdit, 'editProject:', editProject);
 
+      const isOperations = user?.role === 'rpa_operations';
+
       const projectData = {
         name: values.name,
         description: values.description,
-        status: values.status,
+        status: isEdit ? values.status : 'on_hold',
         priority: values.priority,
         budget: values.budget,
         start_date: values.dates?.[0]?.format('YYYY-MM-DD'),
         end_date: values.dates?.[1]?.format('YYYY-MM-DD'),
-        assigned_to: values.assigned_users?.[0] || null,
+        assigned_to: isOperations ? null : (values.assigned_users?.[0] || null),
         // Financial data
         sale_price: values.sale_price,
-        hours_budgeted: values.hours_budgeted
+        hours_budgeted: values.hours_budgeted,
+        client_id: values.client_id,
+        client_contact_id: values.client_contact_id,
+        sales_rep_id: values.sales_rep_id,
+        opportunity_source: values.opportunity_source || 'direct'
       };
       
       console.log('Sending project data:', projectData);
@@ -159,13 +182,15 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         message.success('Project created successfully');
       }
 
-      // Handle multiple user assignments
-      if (values.assigned_users && values.assigned_users.length > 0) {
-        const userAssignments = values.assigned_users.map((userId: number) => ({
-          user_id: userId,
-          allocation_percentage: values.default_allocation || 100,
-          role: userId === values.assigned_users[0] ? 'lead' : 'member'
-        }));
+      // Handle multiple user assignments (el servidor auto-asigna a rpa_operations, no hace falta mandar nada)
+      if (!isOperations && values.assigned_users && values.assigned_users.length > 0) {
+        const userAssignments = buildUserAssignments(
+          values.assigned_users,
+          values.default_allocation,
+          values.budgeted_hours_per_person,
+          values.dates?.[0]?.format('YYYY-MM-DD'),
+          values.dates?.[1]?.format('YYYY-MM-DD')
+        );
 
         try {
           await apiService.post(`/projects/${result.id}/assignments`, {
@@ -189,7 +214,6 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   };
 
   const statusOptions = [
-    { label: 'Planning', value: 'planning' },
     { label: 'Active', value: 'active' },
     { label: 'On Hold', value: 'on_hold' },
     { label: 'Completed', value: 'completed' },
@@ -197,16 +221,16 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   ];
 
   const priorityOptions = [
-    { label: 'Critical', value: 'critical' },
-    { label: 'High', value: 'high' },
-    { label: 'Medium', value: 'medium' },
-    { label: 'Low', value: 'low' }
+    { label: 'Crítica', value: 'critical' },
+    { label: 'Alta', value: 'high' },
+    { label: 'Media', value: 'medium' },
+    { label: 'Baja', value: 'low' }
   ];
 
 
   return (
     <Modal
-      title={isEdit ? 'Edit Project' : 'Create New Project'}
+      title={isEdit ? 'Editar proyecto' : 'Crear nuevo proyecto'}
       open={visible}
       onCancel={onCancel}
       onOk={() => form.submit()}
@@ -234,63 +258,74 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           sale_price: editProject.sale_price || undefined,
           hours_budgeted: editProject.hours_budgeted || undefined
         } : {
-          status: 'planning',
+          status: 'on_hold',
           priority: 'medium'
         }}
       >
+        {!isEdit && <>
+          <Form.Item name="opportunity_source" label="Origen de la oportunidad" initialValue="direct"><Select options={[{ value: 'direct', label: 'Contacto directo con el equipo' }, { value: 'sales', label: 'Traída por un comercial' }]} /></Form.Item>
+          <Form.Item name="client_id" label="Cliente"><Select allowClear showSearch optionFilterProp="label" placeholder="Selecciona el cliente" options={clients.map((client) => ({ value: client.id, label: client.name }))} /></Form.Item>
+          <Form.Item noStyle shouldUpdate={(previous, current) => previous.client_id !== current.client_id}>
+            {({ getFieldValue }) => {
+              const selectedClient = clients.find((client) => client.id === getFieldValue('client_id'));
+              return <Form.Item name="client_contact_id" label="Contacto del cliente"><Select allowClear showSearch optionFilterProp="label" placeholder="Contacto principal u otro contacto" options={(selectedClient?.contacts || []).map((contact: any) => ({ value: contact.id, label: `${contact.name}${contact.is_primary ? ' · Principal' : ''}` }))} /></Form.Item>;
+            }}
+          </Form.Item>
+          <Form.Item name="sales_rep_id" label="Comercial responsable"><Select allowClear showSearch optionFilterProp="label" placeholder="Origen directo o comercial" options={salesReps.map((rep) => ({ value: rep.id, label: rep.name }))} /></Form.Item>
+        </>}
         <Form.Item
           name="name"
-          label="Project Name"
+          label="Nombre del proyecto"
           rules={[
-            { required: true, message: 'Please enter project name' },
-            { min: 3, message: 'Project name must be at least 3 characters' },
-            { max: 100, message: 'Project name must be less than 100 characters' }
+            { required: true, message: 'Ingresa el nombre del proyecto' },
+            { min: 3, message: 'El nombre debe tener al menos 3 caracteres' },
+            { max: 100, message: 'El nombre debe tener menos de 100 caracteres' }
           ]}
         >
-          <Input placeholder="Enter project name" />
+          <Input placeholder="Ingresa el nombre del proyecto" />
         </Form.Item>
 
         <Form.Item
           name="description"
-          label="Description"
+          label="Descripción"
           rules={[
-            { max: 500, message: 'Description must be less than 500 characters' }
+            { max: 500, message: 'La descripción debe tener menos de 500 caracteres' }
           ]}
         >
           <TextArea 
             rows={3} 
-            placeholder="Enter project description"
+            placeholder="Ingresa una descripción del proyecto"
             showCount
             maxLength={500}
           />
         </Form.Item>
 
-        <Form.Item
+        {isEdit && <Form.Item
           name="status"
           label="Status"
           rules={[{ required: true, message: 'Please select project status' }]}
         >
           <Select options={statusOptions} placeholder="Select status" />
-        </Form.Item>
+        </Form.Item>}
 
         <Form.Item
           name="priority"
-          label="Priority"
-          rules={[{ required: true, message: 'Please select project priority' }]}
+          label="Prioridad"
+          rules={[{ required: true, message: 'Selecciona la prioridad del proyecto' }]}
         >
-          <Select options={priorityOptions} placeholder="Select priority" />
+          <Select options={priorityOptions} placeholder="Selecciona una prioridad" />
         </Form.Item>
 
         <Form.Item
           name="budget"
-          label="Budget ($)"
+          label="Presupuesto inicial (CLP)"
           rules={[
-            { type: 'number', min: 0, message: 'Budget must be a positive number' }
+            { type: 'number', min: 0, message: 'El presupuesto debe ser igual o mayor que cero' }
           ]}
         >
           <InputNumber
             style={{ width: '100%' }}
-            placeholder="Enter budget amount"
+            placeholder="Ingresa el presupuesto en pesos chilenos"
             formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
             parser={value => value!.replace(/\$\s?|(,*)/g, '')}
             precision={2}
@@ -299,7 +334,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
         <Form.Item
           name="dates"
-          label="Project Timeline"
+          label="Fechas del proyecto"
           rules={[
             {
               validator: (_, value) => {
@@ -318,40 +353,50 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           />
         </Form.Item>
 
-        <Form.Item
-          name="assigned_users"
-          label="Assigned Team Members"
-          rules={[{ required: true, message: 'Please assign at least one team member' }]}
-        >
-          <Select 
-            mode="multiple"
-            options={teamMembers.map(member => ({
-              ...member,
-              label: `${member.label} (${getTeamMemberRole(member.value)})`
-            }))} 
-            placeholder="Select team members"
-            allowClear
-            maxTagCount="responsive"
-            optionFilterProp="label"
-          />
-        </Form.Item>
+        {user?.role === 'rpa_operations' ? (
+          <Alert type="info" message="Quedarás asignado a este proyecto" showIcon style={{ marginBottom: 24 }} />
+        ) : (
+          <>
+            <Form.Item
+              name="assigned_users"
+              label="Personas asignadas"
+              rules={[]}
+            >
+              <Select
+                mode="multiple"
+                options={teamMembers.map(member => ({
+                  ...member,
+                  label: `${member.label} (${getTeamMemberRole(member.value)})`
+                }))}
+                placeholder="Selecciona personas del equipo"
+                allowClear
+                maxTagCount="responsive"
+                optionFilterProp="label"
+              />
+            </Form.Item>
 
-        <Form.Item
-          name="default_allocation"
-          label="Default Allocation per Member (%)"
-          tooltip="Default percentage of time each team member will dedicate to this project"
-        >
-          <InputNumber
-            min={1}
-            max={100}
-            placeholder="100"
-            formatter={(value) => `${value}%`}
-            parser={(value) => parseInt(value!.replace('%', '')) as 1 | 100}
-            style={{ width: '100%' }}
-          />
-        </Form.Item>
+            <Form.Item
+              name="default_allocation"
+              label="Dedicación por persona (%)"
+              tooltip="Porcentaje del tiempo de trabajo comprometido para este proyecto"
+            >
+              <InputNumber
+                min={1}
+                max={100}
+                placeholder="100"
+                formatter={(value) => `${value}%`}
+                parser={(value) => parseInt(value!.replace('%', '')) as 1 | 100}
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
 
-        {user?.role === 'team_lead' && (
+            <Form.Item name="budgeted_hours_per_person" label="Horas presupuestadas por persona" tooltip="Puedes asignar el equipo después de aprobar la oportunidad.">
+              <InputNumber min={0} precision={1} style={{ width: '100%' }} placeholder="Por definir" />
+            </Form.Item>
+          </>
+        )}
+
+        {user?.role === 'team_lead' && editProject?.project_type === 'internal' && (
           <>
             <Form.Item
               name="sale_price"
@@ -371,7 +416,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
             <Form.Item
               name="hours_budgeted"
-              label="Budgeted Hours"
+              label="Horas presupuestadas"
               rules={[
                 { type: 'number', min: 0, message: 'Hours must be a positive number' }
               ]}
@@ -385,6 +430,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             </Form.Item>
           </>
         )}
+        {user?.role === 'team_lead' && !isEdit && <Alert type="info" showIcon message="La oportunidad se crea en cotización. Precio y costo se registran como una versión desde la ficha comercial." style={{ marginTop: 8 }} />}
       </Form>
     </Modal>
   );

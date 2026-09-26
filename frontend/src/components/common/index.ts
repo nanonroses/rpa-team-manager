@@ -7,3 +7,4 @@ export type {
   MatrixItemRenderer,
   MatrixSummary 
 } from './PriorityMatrix';
+export { LoadingState, EmptyState, ErrorState, InlineErrorState, SuccessState, ConfirmAction } from './FeedbackStates';

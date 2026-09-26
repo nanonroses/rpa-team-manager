@@ -30,13 +30,22 @@ global.ResizeObserver = class ResizeObserver {
 // Mock de scrollTo para tests de navegación
 window.scrollTo = () => { };
 
-// Mock de localStorage
+// Mock de localStorage - implementacion real en memoria (no un stub que siempre
+// devuelve null), para que componentes que guardan preferencias (ej. filtros de
+// TasksPage) se puedan probar de verdad. Se limpia sola entre tests via afterEach.
+const localStorageStore = new Map<string, string>();
 const localStorageMock = {
-    getItem: (_key: string) => null,
-    setItem: (_key: string, _value: string) => { },
-    removeItem: (_key: string) => { },
-    clear: () => { },
-    length: 0,
-    key: (_index: number) => null,
+    getItem: (key: string) => (localStorageStore.has(key) ? localStorageStore.get(key)! : null),
+    setItem: (key: string, value: string) => { localStorageStore.set(key, String(value)); },
+    removeItem: (key: string) => { localStorageStore.delete(key); },
+    clear: () => { localStorageStore.clear(); },
+    key: (index: number) => Array.from(localStorageStore.keys())[index] ?? null,
+    get length() { return localStorageStore.size; },
 };
 Object.defineProperty(window, 'localStorage', { value: localStorageMock });
+
+// Aisla los tests entre si: sin esto, un valor guardado por un test podria
+// filtrarse al siguiente test dentro del mismo archivo.
+afterEach(() => {
+    localStorageStore.clear();
+});

@@ -19,6 +19,7 @@ router.post('/tasks', authenticate, validate({ body: createTaskSchema }), taskCo
 // Specific routes MUST come before parameterized routes
 router.post('/tasks/batch', authenticate, taskController.batchCreateTasks);
 router.delete('/tasks/batch', authenticate, taskController.batchDeleteTasks);
+router.patch('/tasks/batch', authenticate, taskController.batchUpdateTasks);
 
 // Parameterized routes come after specific routes
 router.put('/tasks/:id', authenticate, taskController.updateTask);
@@ -33,6 +34,28 @@ router.get('/tasks/:taskId/subtasks', authenticate, taskController.getTaskSubtas
 router.post('/tasks/:taskId/subtasks', authenticate, taskController.createTaskSubtask);
 router.patch('/tasks/:taskId/subtasks/:subtaskId', authenticate, taskController.updateTaskSubtask);
 router.delete('/tasks/:taskId/subtasks/:subtaskId', authenticate, taskController.deleteTaskSubtask);
+
+// Dependencias entre tareas - path de 3 segmentos, no colisiona con /tasks/:id
+router.get('/tasks/:taskId/dependencies', authenticate, taskController.getTaskDependencies);
+router.post('/tasks/:taskId/dependencies', authenticate, taskController.createTaskDependency);
+router.delete('/tasks/:taskId/dependencies/:dependencyId', authenticate, taskController.deleteTaskDependency);
+
+// Comentarios con @menciones - path de 3 segmentos, no colisiona con /tasks/:id
+router.get('/tasks/:taskId/comments', authenticate, taskController.getTaskComments);
+router.post('/tasks/:taskId/comments', authenticate, taskController.createTaskComment);
+router.patch('/tasks/:taskId/comments/:commentId', authenticate, taskController.updateTaskComment);
+router.delete('/tasks/:taskId/comments/:commentId', authenticate, taskController.deleteTaskComment);
+router.get('/tasks/:taskId/mentionable-users', authenticate, taskController.getTaskMentionableUsers);
+
+// Etiquetas de texto libre - mismo patrón de 3 segmentos que subtareas
+router.get('/tasks/:taskId/tags', authenticate, taskController.getTaskTags);
+router.post('/tasks/:taskId/tags', authenticate, taskController.createTaskTag);
+router.delete('/tasks/:taskId/tags/:tagId', authenticate, taskController.deleteTaskTag);
+
+// Colaboradores adicionales (multi-asignados aditivo) - mismo patrón de 3 segmentos
+router.get('/tasks/:taskId/collaborators', authenticate, taskController.getTaskCollaborators);
+router.post('/tasks/:taskId/collaborators', authenticate, taskController.addTaskCollaborator);
+router.delete('/tasks/:taskId/collaborators/:collaboratorId', authenticate, taskController.removeTaskCollaborator);
 
 router.get('/tasks/my-tasks', authenticate, taskController.getMyTasks);
 router.get('/tasks/project/:projectId', authenticate, taskController.getProjectTasks);

@@ -90,7 +90,7 @@ export const TeamManagementPage: React.FC = () => {
       const usersData = await apiService.getUsers();
       setUsers(usersData);
     } catch (error: any) {
-      message.error('Failed to load users');
+      message.error('No se pudo cargar el equipo');
     } finally {
       setLoading(false);
     }
@@ -99,10 +99,10 @@ export const TeamManagementPage: React.FC = () => {
 
   const getRoleLabel = (role: string) => {
     switch (role) {
-      case 'team_lead': return 'Team Lead';
-      case 'rpa_developer': return 'RPA Developer';
-      case 'rpa_operations': return 'RPA Operations';
-      case 'it_support': return 'IT Support';
+      case 'team_lead': return 'Líder de equipo';
+      case 'rpa_developer': return 'Desarrollador RPA';
+      case 'rpa_operations': return 'Operaciones RPA';
+      case 'it_support': return 'Soporte TI';
       default: return role;
     }
   };
@@ -116,12 +116,12 @@ export const TeamManagementPage: React.FC = () => {
         role: values.role,
         password: values.password
       });
-      message.success('User created successfully');
+      message.success('Usuario creado correctamente');
       setCreateModalVisible(false);
       createForm.resetFields();
       loadUsers();
     } catch (error: any) {
-      message.error(error.response?.data?.error || 'Failed to create user');
+      message.error(error.response?.data?.error?.message || error.response?.data?.error || 'No se pudo crear el usuario');
     } finally {
       setLoading(false);
     }
@@ -138,13 +138,13 @@ export const TeamManagementPage: React.FC = () => {
         role: values.role,
         is_active: values.is_active
       });
-      message.success('User updated successfully');
+      message.success('Usuario actualizado correctamente');
       setEditModalVisible(false);
       setSelectedUser(null);
       editForm.resetFields();
       loadUsers();
     } catch (error: any) {
-      message.error(error.response?.data?.error || 'Failed to update user');
+      message.error(error.response?.data?.error || 'No se pudo actualizar el usuario');
     } finally {
       setLoading(false);
     }
@@ -154,10 +154,10 @@ export const TeamManagementPage: React.FC = () => {
     try {
       setLoading(true);
       await apiService.deleteUser(userId);
-      message.success('User deleted successfully');
+      message.success('Usuario eliminado correctamente');
       loadUsers();
     } catch (error: any) {
-      message.error(error.response?.data?.error || 'Failed to delete user');
+      message.error(error.response?.data?.error || 'No se pudo eliminar el usuario');
     } finally {
       setLoading(false);
     }
@@ -169,12 +169,12 @@ export const TeamManagementPage: React.FC = () => {
     try {
       setLoading(true);
       await apiService.resetUserPassword(selectedUser.id, values.newPassword);
-      message.success('Password reset successfully');
+      message.success('Contraseña restablecida correctamente');
       setResetPasswordModalVisible(false);
       setSelectedUser(null);
       resetPasswordForm.resetFields();
     } catch (error: any) {
-      message.error(error.response?.data?.error || 'Failed to reset password');
+      message.error(error.response?.data?.error || 'No se pudo restablecer la contraseña');
     } finally {
       setLoading(false);
     }
@@ -198,7 +198,7 @@ export const TeamManagementPage: React.FC = () => {
 
   const columns: ColumnsType<User> = [
     {
-      title: 'Name',
+      title: 'Nombre',
       dataIndex: 'full_name',
       key: 'full_name',
       render: (text, record) => (
@@ -212,12 +212,12 @@ export const TeamManagementPage: React.FC = () => {
       )
     },
     {
-      title: 'Email',
+      title: 'Correo',
       dataIndex: 'email',
       key: 'email',
     },
     {
-      title: 'Role',
+      title: 'Rol',
       dataIndex: 'role',
       key: 'role',
       render: (role) => (
@@ -225,23 +225,25 @@ export const TeamManagementPage: React.FC = () => {
       )
     },
     {
-      title: 'Status',
+      title: 'Estado',
       dataIndex: 'is_active',
       key: 'is_active',
       render: (isActive) => (
         <Tag color={isActive ? 'green' : 'red'}>
-          {isActive ? 'Active' : 'Inactive'}
+          {isActive ? 'Activo' : 'Inactivo'}
         </Tag>
       )
     },
     {
-      title: 'Created',
+      title: 'Creado',
       dataIndex: 'created_at',
       key: 'created_at',
-      render: (date) => new Date(date).toLocaleDateString()
+      render: (date?: string | null) => date && !Number.isNaN(Date.parse(date))
+        ? new Date(date).toLocaleDateString('es-CL')
+        : 'Sin fecha'
     },
     {
-      title: 'Actions',
+      title: 'Acciones',
       key: 'actions',
       render: (_, record) => (
         <Space size="small">
@@ -251,7 +253,7 @@ export const TeamManagementPage: React.FC = () => {
             icon={<EditOutlined />}
             onClick={() => openEditModal(record)}
           >
-            Edit
+            Editar
           </Button>
           <Button
             type="text"
@@ -259,15 +261,15 @@ export const TeamManagementPage: React.FC = () => {
             icon={<LockOutlined />}
             onClick={() => openResetPasswordModal(record)}
           >
-            Reset Password
+            Restablecer clave
           </Button>
           {record.id !== currentUser?.id && (
             <Popconfirm
-              title="Delete User"
-              description={`Are you sure you want to delete ${record.full_name}?`}
+              title="Eliminar usuario"
+              description={`¿Quieres eliminar a ${record.full_name}?`}
               onConfirm={() => handleDeleteUser(record.id)}
-              okText="Delete"
-              cancelText="Cancel"
+              okText="Eliminar"
+              cancelText="Cancelar"
               okType="danger"
             >
               <Button
@@ -276,7 +278,7 @@ export const TeamManagementPage: React.FC = () => {
                 danger
                 icon={<DeleteOutlined />}
               >
-                Delete
+                Eliminar
               </Button>
             </Popconfirm>
           )}
@@ -297,14 +299,14 @@ export const TeamManagementPage: React.FC = () => {
   const stats = getUserStats();
 
   return (
-    <div style={{ padding: '24px' }}>
+    <div className="page-container">
       <div style={{ marginBottom: '24px' }}>
         <Title level={2}>
           <TeamOutlined style={{ marginRight: '8px' }} />
-          Team Management
+          Administración del equipo
         </Title>
         <Text type="secondary">
-          Manage team members, roles, and permissions
+          Gestiona usuarios, roles y acceso a la plataforma.
         </Text>
       </div>
 
@@ -312,13 +314,13 @@ export const TeamManagementPage: React.FC = () => {
       <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
         <Col xs={12} sm={6}>
           <Card size="small">
-            <Statistic title="Total Users" value={stats.total} prefix={<UserOutlined />} />
+            <Statistic title="Usuarios" value={stats.total} prefix={<UserOutlined />} />
           </Card>
         </Col>
         <Col xs={12} sm={6}>
           <Card size="small">
             <Statistic 
-              title="Active Users" 
+              title="Usuarios activos"
               value={stats.active} 
               valueStyle={{ color: '#52c41a' }}
             />
@@ -327,7 +329,7 @@ export const TeamManagementPage: React.FC = () => {
         <Col xs={12} sm={6}>
           <Card size="small">
             <Statistic 
-              title="Team Leads" 
+              title="Líderes de equipo"
               value={stats.teamLeads}
               valueStyle={{ color: '#faad14' }}
             />
@@ -336,7 +338,7 @@ export const TeamManagementPage: React.FC = () => {
         <Col xs={12} sm={6}>
           <Card size="small">
             <Statistic 
-              title="Developers" 
+              title="Desarrolladores"
               value={stats.developers}
               valueStyle={{ color: '#1890ff' }}
             />
@@ -346,14 +348,14 @@ export const TeamManagementPage: React.FC = () => {
 
       {/* Users Table */}
       <Card 
-        title="Team Members"
+        title="Usuarios del equipo"
         extra={
           <Button 
             type="primary" 
             icon={<PlusOutlined />} 
             onClick={() => setCreateModalVisible(true)}
           >
-            Add User
+            Crear usuario
           </Button>
         }
       >
@@ -365,14 +367,14 @@ export const TeamManagementPage: React.FC = () => {
           pagination={{
             pageSize: 10,
             showSizeChanger: true,
-            showTotal: (total) => `Total ${total} users`
+            showTotal: (total) => `${total} usuarios`
           }}
         />
       </Card>
 
       {/* Create User Modal */}
       <Modal
-        title="Create New User"
+        title="Crear usuario"
         open={createModalVisible}
         onCancel={() => {
           setCreateModalVisible(false);
@@ -391,7 +393,7 @@ export const TeamManagementPage: React.FC = () => {
             label="Full Name"
             rules={[{ required: true, message: 'Please enter full name' }]}
           >
-            <Input prefix={<IdcardOutlined />} placeholder="Enter full name" />
+            <Input prefix={<IdcardOutlined />} aria-label="Nombre completo" placeholder="Ingresa el nombre completo" />
           </Form.Item>
 
           <Form.Item
@@ -402,7 +404,7 @@ export const TeamManagementPage: React.FC = () => {
               { type: 'email', message: 'Please enter valid email' }
             ]}
           >
-            <Input prefix={<MailOutlined />} placeholder="Enter email address" />
+            <Input prefix={<MailOutlined />} aria-label="Correo electrónico" placeholder="Ingresa el correo electrónico" />
           </Form.Item>
 
           <Form.Item
@@ -410,48 +412,52 @@ export const TeamManagementPage: React.FC = () => {
             label="Role"
             rules={[{ required: true, message: 'Please select role' }]}
           >
-            <Select placeholder="Select role">
-              <Select.Option value="rpa_developer">RPA Developer</Select.Option>
-              <Select.Option value="rpa_operations">RPA Operations</Select.Option>
-              <Select.Option value="it_support">IT Support</Select.Option>
-              <Select.Option value="team_lead">Team Lead</Select.Option>
+            <Select aria-label="Rol del usuario" placeholder="Selecciona un rol">
+              <Select.Option value="rpa_developer">Desarrollador RPA</Select.Option>
+              <Select.Option value="rpa_operations">Operaciones RPA</Select.Option>
+              <Select.Option value="it_support">Soporte TI</Select.Option>
+              <Select.Option value="team_lead">Líder de equipo</Select.Option>
             </Select>
           </Form.Item>
 
           <Form.Item
             name="password"
-            label="Password"
+            label="Contraseña"
             rules={[
-              { required: true, message: 'Please enter password' },
-              { min: 6, message: 'Password must be at least 6 characters' }
+              { required: true, message: 'Ingresa una contraseña' },
+              { min: 8, message: 'Debe tener al menos 8 caracteres' },
+              { pattern: /[A-Z]/, message: 'Incluye al menos una mayúscula' },
+              { pattern: /[a-z]/, message: 'Incluye al menos una minúscula' },
+              { pattern: /\d/, message: 'Incluye al menos un número' },
+              { pattern: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>/?]/, message: 'Incluye al menos un carácter especial' }
             ]}
           >
             <Input.Password
               prefix={<LockOutlined />}
-              placeholder="Enter password"
+              placeholder="Ingresa la contraseña"
               iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
             />
           </Form.Item>
 
           <Form.Item
             name="confirmPassword"
-            label="Confirm Password"
+            label="Confirmar contraseña"
             dependencies={['password']}
             rules={[
-              { required: true, message: 'Please confirm password' },
+              { required: true, message: 'Confirma la contraseña' },
               ({ getFieldValue }) => ({
                 validator(_, value) {
                   if (!value || getFieldValue('password') === value) {
                     return Promise.resolve();
                   }
-                  return Promise.reject(new Error('Passwords do not match'));
+                  return Promise.reject(new Error('Las contraseñas no coinciden'));
                 },
               }),
             ]}
           >
             <Input.Password
               prefix={<LockOutlined />}
-              placeholder="Confirm password"
+              placeholder="Confirma la contraseña"
               iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
             />
           </Form.Item>
@@ -462,10 +468,10 @@ export const TeamManagementPage: React.FC = () => {
                 setCreateModalVisible(false);
                 createForm.resetFields();
               }}>
-                Cancel
+                Cancelar
               </Button>
               <Button type="primary" htmlType="submit" loading={loading}>
-                Create User
+                Crear usuario
               </Button>
             </Space>
           </Form.Item>
@@ -474,7 +480,7 @@ export const TeamManagementPage: React.FC = () => {
 
       {/* Edit User Modal */}
       <Modal
-        title="Edit User"
+        title="Editar usuario"
         open={editModalVisible}
         onCancel={() => {
           setEditModalVisible(false);
@@ -491,44 +497,44 @@ export const TeamManagementPage: React.FC = () => {
         >
           <Form.Item
             name="full_name"
-            label="Full Name"
-            rules={[{ required: true, message: 'Please enter full name' }]}
+            label="Nombre completo"
+            rules={[{ required: true, message: 'Ingresa el nombre completo' }]}
           >
-            <Input prefix={<IdcardOutlined />} placeholder="Enter full name" />
+            <Input prefix={<IdcardOutlined />} placeholder="Ingresa el nombre completo" />
           </Form.Item>
 
           <Form.Item
             name="email"
-            label="Email"
+            label="Correo electrónico"
             rules={[
-              { required: true, message: 'Please enter email' },
-              { type: 'email', message: 'Please enter valid email' }
+              { required: true, message: 'Ingresa el correo electrónico' },
+              { type: 'email', message: 'Ingresa un correo válido' }
             ]}
           >
-            <Input prefix={<MailOutlined />} placeholder="Enter email address" />
+            <Input prefix={<MailOutlined />} placeholder="Ingresa el correo electrónico" />
           </Form.Item>
 
           <Form.Item
             name="role"
-            label="Role"
-            rules={[{ required: true, message: 'Please select role' }]}
+            label="Rol"
+            rules={[{ required: true, message: 'Selecciona un rol' }]}
           >
-            <Select placeholder="Select role">
-              <Select.Option value="rpa_developer">RPA Developer</Select.Option>
-              <Select.Option value="rpa_operations">RPA Operations</Select.Option>
-              <Select.Option value="it_support">IT Support</Select.Option>
-              <Select.Option value="team_lead">Team Lead</Select.Option>
+            <Select placeholder="Selecciona un rol">
+              <Select.Option value="rpa_developer">Desarrollador RPA</Select.Option>
+              <Select.Option value="rpa_operations">Operaciones RPA</Select.Option>
+              <Select.Option value="it_support">Soporte TI</Select.Option>
+              <Select.Option value="team_lead">Líder de equipo</Select.Option>
             </Select>
           </Form.Item>
 
           <Form.Item
             name="is_active"
-            label="Account Status"
+            label="Estado de la cuenta"
             valuePropName="checked"
           >
             <Switch 
-              checkedChildren="Active" 
-              unCheckedChildren="Inactive"
+              checkedChildren="Activa"
+              unCheckedChildren="Inactiva"
             />
           </Form.Item>
 
@@ -539,10 +545,10 @@ export const TeamManagementPage: React.FC = () => {
                 setSelectedUser(null);
                 editForm.resetFields();
               }}>
-                Cancel
+                Cancelar
               </Button>
               <Button type="primary" htmlType="submit" loading={loading}>
-                Update User
+                Guardar cambios
               </Button>
             </Space>
           </Form.Item>
@@ -551,7 +557,7 @@ export const TeamManagementPage: React.FC = () => {
 
       {/* Reset Password Modal */}
       <Modal
-        title="Reset Password"
+        title="Restablecer contraseña"
         open={resetPasswordModalVisible}
         onCancel={() => {
           setResetPasswordModalVisible(false);
@@ -564,7 +570,7 @@ export const TeamManagementPage: React.FC = () => {
         {selectedUser && (
           <div style={{ marginBottom: '16px' }}>
             <Alert
-              message={`Resetting password for: ${selectedUser.full_name}`}
+              message={`Se cambiará la contraseña de ${selectedUser.full_name}`}
               type="info"
               showIcon
             />
@@ -578,38 +584,38 @@ export const TeamManagementPage: React.FC = () => {
         >
           <Form.Item
             name="newPassword"
-            label="New Password"
+            label="Nueva contraseña"
             rules={[
-              { required: true, message: 'Please enter new password' },
-              { min: 6, message: 'Password must be at least 6 characters' }
+              { required: true, message: 'Ingresa la nueva contraseña' },
+              { min: 6, message: 'Debe tener al menos 6 caracteres' }
             ]}
           >
             <Input.Password
               prefix={<LockOutlined />}
-              placeholder="Enter new password"
+              placeholder="Ingresa la nueva contraseña"
               iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
             />
           </Form.Item>
 
           <Form.Item
             name="confirmPassword"
-            label="Confirm New Password"
+            label="Confirmar nueva contraseña"
             dependencies={['newPassword']}
             rules={[
-              { required: true, message: 'Please confirm new password' },
+              { required: true, message: 'Confirma la nueva contraseña' },
               ({ getFieldValue }) => ({
                 validator(_, value) {
                   if (!value || getFieldValue('newPassword') === value) {
                     return Promise.resolve();
                   }
-                  return Promise.reject(new Error('Passwords do not match'));
+                  return Promise.reject(new Error('Las contraseñas no coinciden'));
                 },
               }),
             ]}
           >
             <Input.Password
               prefix={<LockOutlined />}
-              placeholder="Confirm new password"
+              placeholder="Confirma la nueva contraseña"
               iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
             />
           </Form.Item>
@@ -621,10 +627,10 @@ export const TeamManagementPage: React.FC = () => {
                 setSelectedUser(null);
                 resetPasswordForm.resetFields();
               }}>
-                Cancel
+                Cancelar
               </Button>
               <Button type="primary" htmlType="submit" loading={loading} danger>
-                Reset Password
+                Restablecer contraseña
               </Button>
             </Space>
           </Form.Item>

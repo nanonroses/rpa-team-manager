@@ -426,8 +426,10 @@ export class TimesheetService {
         );
 
         const estimatedByPerson = await db.query(
-            `SELECT t.assignee_id as user_id, COALESCE(SUM(t.estimated_hours), 0) as estimated_hours
-             FROM tasks t WHERE t.assignee_id IS NOT NULL GROUP BY t.assignee_id`
+            `SELECT ta.user_id as user_id, COALESCE(SUM(t.estimated_hours), 0) as estimated_hours
+             FROM task_assignees ta
+             JOIN tasks t ON t.id = ta.task_id
+             GROUP BY ta.user_id`
         );
         const estimatedMap = new Map<number, number>(estimatedByPerson.map((r: any) => [r.user_id, r.estimated_hours]));
 

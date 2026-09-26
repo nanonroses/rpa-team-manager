@@ -74,7 +74,8 @@ export class FinanceService {
         const row = await db.get(
             `SELECT setting_value FROM global_settings WHERE setting_key = 'monthly_hours'`
         );
-        return row ? parseFloat(row.setting_value) : 176;
+        const hours = row ? parseFloat(row.setting_value) : NaN;
+        return Number.isFinite(hours) && hours > 0 ? hours : 168;
     }
 
     /**
@@ -183,10 +184,13 @@ export class FinanceService {
         const hourlyRateUF = financials?.hourly_rate || 0;
         const ufValueCLP = await this.getExchangeRate('UF');
 
-        const salePrice = await this.toCLP(
-            plannedHours * hourlyRateUF,
-            (financials?.hourly_rate_currency as Currency) || 'UF'
-        );
+        // Precio guardado en el proyecto (alta/edición); si no hay, se mantiene el cálculo histórico horas × tarifa.
+        const salePrice = financials?.sale_price > 0
+            ? await this.toCLP(financials.sale_price, (financials.sale_price_currency as Currency) || 'CLP')
+            : await this.toCLP(
+                plannedHours * hourlyRateUF,
+                (financials?.hourly_rate_currency as Currency) || 'UF'
+            );
 
         const { hourlyCostCLP: engineerHourlyCost, breakdown: userCostBreakdown } =
             await this.getBlendedHourlyCostCLP(projectId);

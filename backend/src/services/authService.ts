@@ -190,7 +190,8 @@ export class AuthService {
     }
 
     async createUser(userData: Partial<User> & { password: string }): Promise<User> {
-        const { password, email, username, role, full_name } = userData;
+        const { password, email, role, full_name } = userData;
+        const username = await this.getAvailableUsername(userData.username?.trim() || this.generateUsername(email!, full_name!));
 
         // Check if user already exists
         const existingUser = await this.findUserByEmail(email!);
@@ -219,6 +220,35 @@ export class AuthService {
             throw new Error('Failed to retrieve created user');
         }
         return createdUser;
+    }
+
+    private generateUsername(email: string, fullName: string): string {
+        const emailPrefix = email.split('@')[0] || '';
+        const normalized = emailPrefix
+            .normalize('NFKD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9._-]+/g, '.')
+            .replace(/^[._-]+|[._-]+$/g, '')
+            .slice(0, 40);
+        const fallback = fullName
+            .normalize('NFKD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '.')
+            .replace(/^[.]+|[.]+$/g, '')
+            .slice(0, 40);
+        return normalized || fallback || 'user';
+    }
+
+    private async getAvailableUsername(base: string): Promise<string> {
+        let candidate = base.slice(0, 50);
+        let suffix = 1;
+        while (await db.get('SELECT id FROM users WHERE username = ?', [candidate])) {
+            const suffixText = `.${suffix++}`;
+            candidate = `${base.slice(0, 50 - suffixText.length)}${suffixText}`;
+        }
+        return candidate;
     }
 
     async getUserPermissions(role: UserRole): Promise<string[]> {
@@ -310,18 +340,18 @@ export class AuthService {
         return user || null;
     }
 
-    async getActiveUsers(): Promise<{ id: number; full_name: string; email: string; role: string }[]> {
+    async getActiveUsers(): Promise<{ id: number; username: string; full_name: string; email: string; role: string }[]> {
         const users = await db.query(
-            'SELECT id, full_name, email, role FROM users WHERE is_active = 1 ORDER BY full_name',
+            'SELECT id, username, full_name, email, role FROM users WHERE is_active = 1 ORDER BY full_name',
             []
         );
         return users;
     }
 
     // Admin method to get all users (active and inactive)
-    async getAllUsersForAdmin(): Promise<{ id: number; full_name: string; email: string; role: string; is_active: boolean }[]> {
+    async getAllUsersForAdmin(): Promise<{ id: number; username: string; full_name: string; email: string; role: string; is_active: boolean; created_at: string | null }[]> {
         const users = await db.query(
-            'SELECT id, full_name, email, role, is_active FROM users ORDER BY full_name',
+            'SELECT id, username, full_name, email, role, is_active, created_at FROM users ORDER BY full_name',
             []
         );
         return users;
@@ -511,4 +541,4 @@ export class AuthService {
             throw error;
         }
     }
-} 
+}

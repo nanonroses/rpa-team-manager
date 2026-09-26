@@ -1,12 +1,5 @@
 # RPA Team Manager - Reglas Globales
 
-## Stack
-- **Backend**: Node.js, Express, TypeScript, SQLite
-- **Frontend**: React 18, TypeScript, Vite, Ant Design
-- **ML**: Python, FastAPI, scikit-learn, XGBoost
-- **Auth**: JWT + bcrypt
-- **Deploy**: Docker Compose
-
 ## Comandos
 
 ```bash
@@ -25,25 +18,6 @@ cd frontend && npm test
 
 # Linting
 npm run lint
-```
-
-## Estructura del Proyecto
-
-```
-├── backend/src/         # API Express
-│   ├── controllers/     # Lógica de endpoints
-│   ├── routes/          # Definición de rutas
-│   ├── database/        # SQLite + migraciones
-│   └── middleware/      # Auth, validation, security
-├── frontend/src/        # React SPA
-│   ├── pages/           # Páginas principales
-│   ├── components/      # Componentes reutilizables
-│   └── services/        # API client
-├── ml-service/src/      # Python ML
-│   ├── models/          # Predictores
-│   └── api/             # FastAPI endpoints
-├── reference/           # 📖 Docs por tipo de tarea
-└── docs/                # Documentación general
 ```
 
 ## Code Quality - CRÍTICO

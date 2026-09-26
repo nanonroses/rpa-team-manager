@@ -220,7 +220,10 @@ describe('NotificationService.checkLoginReminders', () => {
 
         await service.checkLoginReminders(5, 0);
 
-        expect(db.query).toHaveBeenCalledWith(expect.stringContaining('assignee_id = ?'), [5, 3]);
+        expect(db.query).toHaveBeenCalledWith(
+            expect.stringContaining('EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = tasks.id AND ta.user_id = ?)'),
+            [5, 3]
+        );
         expect(db.run).toHaveBeenCalledWith(
             expect.stringContaining('INSERT INTO notifications'),
             expect.arrayContaining(['task_due_soon'])

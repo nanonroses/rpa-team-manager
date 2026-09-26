@@ -70,3 +70,23 @@ describe('AuthService.login', () => {
         expect(notificationService.checkLoginReminders).not.toHaveBeenCalled();
     });
 });
+
+describe('AuthService.getActiveUsers / getAllUsersForAdmin', () => {
+    it('getActiveUsers incluye username en el SELECT', async () => {
+        (db.query as jest.Mock).mockResolvedValue([]);
+        const authService = new AuthService();
+
+        await authService.getActiveUsers();
+
+        expect(db.query).toHaveBeenCalledWith(expect.stringContaining('SELECT id, username, full_name'), []);
+    });
+
+    it('getAllUsersForAdmin incluye username en el SELECT', async () => {
+        (db.query as jest.Mock).mockResolvedValue([]);
+        const authService = new AuthService();
+
+        await authService.getAllUsersForAdmin();
+
+        expect(db.query).toHaveBeenCalledWith(expect.stringContaining('SELECT id, username, full_name'), []);
+    });
+});

@@ -1,23 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Card, 
-  Button, 
-  Select, 
-  Typography, 
-  Space, 
-  Row, 
-  Col, 
-  Tag, 
-  Avatar,
+import {
+  Card,
+  Button,
+  Select,
+  Typography,
+  Space,
+  Row,
+  Col,
+  Tag,
+  Checkbox,
   Modal,
   Form,
   Input,
   DatePicker,
   message,
-  Empty,
   Tooltip,
   Badge,
-  Spin,
   Divider
 } from 'antd';
 import {
@@ -28,12 +26,17 @@ import {
   DeleteOutlined,
   ClockCircleOutlined,
   DollarOutlined,
-  CheckSquareOutlined
+  CheckSquareOutlined,
+  TeamOutlined
 } from '@ant-design/icons';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { apiService } from '@/services/api';
 import { TaskSubtasksChecklist } from '@/components/tasks/TaskSubtasksChecklist';
+import { CommentsThread } from '@/components/comments/CommentsThread';
+import { TaskTagsEditor } from '@/components/tasks/TaskTagsEditor';
+import { TaskCollaboratorsEditor } from '@/components/tasks/TaskCollaboratorsEditor';
+import { EmptyState, LoadingState } from '@/components/common';
 import { getPriorityColor } from '@/utils';
 import dayjs from 'dayjs';
 
@@ -50,6 +53,7 @@ interface User {
   id: number;
   full_name: string;
   avatar_url?: string;
+  username?: string;
 }
 
 interface TaskColumn {
@@ -73,6 +77,8 @@ interface Task {
   assignee_id?: number;
   assignee_name?: string;
   assignee_avatar?: string;
+  assignee_ids?: string | null;
+  assignee_names?: string | null;
   reporter_name?: string;
   estimated_hours?: number;
   story_points?: number;
@@ -82,6 +88,9 @@ interface Task {
   total_value?: number;
   subtasks_total?: number;
   subtasks_done?: number;
+  tags?: string | null;
+  collaborators_count?: number;
+  collaborators_names?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -95,6 +104,32 @@ interface Board {
   project_name: string;
   columns: TaskColumn[];
   tasks: Task[];
+}
+
+const TASKS_FILTERS_STORAGE_KEY = 'tasksPage:filters';
+
+interface PersistedTaskFilters {
+  priority?: string;
+  taskType?: string;
+  assigneeId?: number;
+}
+
+function loadPersistedFilters(): PersistedTaskFilters {
+  try {
+    const raw = localStorage.getItem(TASKS_FILTERS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePersistedFilters(filters: PersistedTaskFilters): void {
+  try {
+    localStorage.setItem(TASKS_FILTERS_STORAGE_KEY, JSON.stringify(filters));
+  } catch {
+    // localStorage no disponible (modo privado, cuota excedida, etc.) - los filtros
+    // simplemente no sobreviven al recargo, sin romper la página.
+  }
 }
 
 export const TasksPage: React.FC = () => {
@@ -116,7 +151,33 @@ export const TasksPage: React.FC = () => {
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [selectedColumn, setSelectedColumn] = useState<number | null>(null);
-  
+
+  // Filtros del board (persistidos en localStorage para que sobrevivan a un recargo de pagina)
+  const [filterPriority, setFilterPriority] = useState<string | undefined>(
+    () => loadPersistedFilters().priority
+  );
+  const [filterTaskType, setFilterTaskType] = useState<string | undefined>(
+    () => loadPersistedFilters().taskType
+  );
+  const [filterAssigneeId, setFilterAssigneeId] = useState<number | undefined>(
+    () => loadPersistedFilters().assigneeId
+  );
+
+  useEffect(() => {
+    savePersistedFilters({
+      priority: filterPriority,
+      taskType: filterTaskType,
+      assigneeId: filterAssigneeId
+    });
+  }, [filterPriority, filterTaskType, filterAssigneeId]);
+
+  // Edición masiva
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<number[]>([]);
+  const [bulkPriority, setBulkPriority] = useState<string | undefined>(undefined);
+  const [bulkAssigneeId, setBulkAssigneeId] = useState<number | undefined>(undefined);
+  const [bulkColumnId, setBulkColumnId] = useState<number | undefined>(undefined);
+
   const [form] = Form.useForm();
   const [boardForm] = Form.useForm();
 
@@ -373,6 +434,53 @@ export const TasksPage: React.FC = () => {
     }
   };
 
+  const toggleSelectionMode = () => {
+    if (selectionMode) {
+      exitSelectionMode();
+    } else {
+      setSelectionMode(true);
+    }
+  };
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedTaskIds([]);
+    setBulkPriority(undefined);
+    setBulkAssigneeId(undefined);
+    setBulkColumnId(undefined);
+  };
+
+  const toggleTaskSelection = (taskId: number) => {
+    setSelectedTaskIds((prev) =>
+      prev.includes(taskId) ? prev.filter((id) => id !== taskId) : [...prev, taskId]
+    );
+  };
+
+  const handleBulkApply = async () => {
+    const updates: { priority?: string; assignee_ids?: number[]; column_id?: number } = {};
+    if (bulkPriority !== undefined) updates.priority = bulkPriority;
+    if (bulkAssigneeId !== undefined) updates.assignee_ids = [bulkAssigneeId];
+    if (bulkColumnId !== undefined) updates.column_id = bulkColumnId;
+
+    if (Object.keys(updates).length === 0) {
+      message.warning('Elegí al menos un cambio para aplicar');
+      return;
+    }
+
+    try {
+      await apiService.batchUpdateTasks(selectedTaskIds, updates);
+      message.success('Tareas actualizadas exitosamente');
+      exitSelectionMode();
+
+      if (selectedBoard) {
+        loadBoard(selectedBoard.id);
+      }
+    } catch (error: any) {
+      console.error('Error en edición masiva:', error);
+      message.error(error.response?.data?.error || 'Error al actualizar tareas');
+    }
+  };
+
   const handleDragEnd = async (result: DropResult) => {
     if (!result.destination || !selectedBoard) return;
 
@@ -440,6 +548,14 @@ export const TasksPage: React.FC = () => {
     }
   };
 
+  const clearFilters = () => {
+    setFilterPriority(undefined);
+    setFilterTaskType(undefined);
+    setFilterAssigneeId(undefined);
+  };
+
+  const hasActiveFilters = filterPriority !== undefined || filterTaskType !== undefined || filterAssigneeId !== undefined;
+
   const openCreateTaskModal = (columnId?: number) => {
     setSelectedColumn(columnId || null);
     setIsCreateTaskModalOpen(true);
@@ -454,7 +570,7 @@ export const TasksPage: React.FC = () => {
       description: task.description,
       task_type: task.task_type,
       priority: task.priority,
-      assignee_id: task.assignee_id,
+      assignee_ids: task.assignee_ids ? task.assignee_ids.split('||').map(Number) : (task.assignee_id ? [task.assignee_id] : []),
       estimated_hours: task.estimated_hours,
       story_points: task.story_points,
       due_date: task.due_date ? dayjs(task.due_date) : null,
@@ -497,6 +613,15 @@ export const TasksPage: React.FC = () => {
                 position: 'relative'
               }}
             >
+              {selectionMode && (
+                <Checkbox
+                  aria-label={`Seleccionar tarea ${task.title}`}
+                  checked={selectedTaskIds.includes(task.id)}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={() => toggleTaskSelection(task.id)}
+                  style={{ position: 'absolute', top: 8, right: 8, zIndex: 20 }}
+                />
+              )}
               {/* Drag handle area */}
               <div
                 {...provided.dragHandleProps}
@@ -510,7 +635,7 @@ export const TasksPage: React.FC = () => {
                   <span style={{ marginRight: 8 }}>{getTaskTypeIcon(task.task_type)}</span>
                   <Text strong style={{ flex: 1 }}>{task.title}</Text>
                   <Tag color={getPriorityColor(task.priority)}>
-                    {task.priority.toUpperCase()}
+                    {{ critical: 'Crítica', high: 'Alta', medium: 'Media', low: 'Baja' }[task.priority]}
                   </Tag>
                 </div>
 
@@ -522,11 +647,16 @@ export const TasksPage: React.FC = () => {
                 )}
 
                 <Space wrap size="small">
-                  {task.assignee_name && (
-                    <Tooltip title={task.assignee_name}>
-                      <Avatar size="small" icon={<UserOutlined />} />
-                    </Tooltip>
-                  )}
+                  {task.assignee_names && (() => {
+                    const names = task.assignee_names!.split('||');
+                    return (
+                      <Tooltip title={`Responsables: ${names.join(', ')}`}>
+                        <Tag icon={<UserOutlined />}>
+                          +{names.length}
+                        </Tag>
+                      </Tooltip>
+                    );
+                  })()}
 
                   {task.due_date && (
                     <Tooltip title={`Vence: ${dayjs(task.due_date).format('DD/MM/YYYY')}`}>
@@ -559,6 +689,18 @@ export const TasksPage: React.FC = () => {
                       </Tag>
                     </Tooltip>
                   )}
+
+                  {task.tags && task.tags.split('||').map((tag) => (
+                    <Tag key={tag} color="blue">{tag}</Tag>
+                  ))}
+
+                  {!!task.collaborators_count && (
+                    <Tooltip title={`Colaboradores: ${(task.collaborators_names || '').split('||').join(', ')}`}>
+                      <Tag icon={<TeamOutlined />}>
+                        +{task.collaborators_count}
+                      </Tag>
+                    </Tooltip>
+                  )}
                 </Space>
               </div>
 
@@ -586,6 +728,7 @@ export const TasksPage: React.FC = () => {
                     size="small"
                     type="text"
                     icon={<EditOutlined />}
+                    aria-label="Editar tarea"
                     onClick={(e) => {
                       console.log('✏️ Edit button clicked for task:', task.id);
                       e.stopPropagation();
@@ -632,7 +775,17 @@ export const TasksPage: React.FC = () => {
   };
 
   const renderColumn = (column: TaskColumn) => {
-    const columnTasks = selectedBoard?.tasks.filter(task => task.column_id === column.id) || [];
+    const columnTasks = (selectedBoard?.tasks || [])
+      .filter(task => task.column_id === column.id)
+      .filter(task => !filterPriority || task.priority === filterPriority)
+      .filter(task => !filterTaskType || task.task_type === filterTaskType)
+      .filter(task => {
+        if (filterAssigneeId === undefined) return true;
+        const assigneeIds = task.assignee_ids
+          ? task.assignee_ids.split('||').map(Number)
+          : (task.assignee_id ? [task.assignee_id] : []);
+        return assigneeIds.includes(filterAssigneeId);
+      });
 
     // Debug log
     if (selectedBoard) {
@@ -679,11 +832,7 @@ export const TasksPage: React.FC = () => {
                 {provided.placeholder}
                 
                 {columnTasks.length === 0 && (
-                  <Empty 
-                    image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description="No hay tareas"
-                    style={{ marginTop: 50 }}
-                  />
+                  <EmptyState description="No hay tareas" />
                 )}
               </div>
             )}
@@ -694,20 +843,15 @@ export const TasksPage: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div style={{ padding: '24px', textAlign: 'center' }}>
-        <Spin size="large" />
-        <div style={{ marginTop: 16 }}>Cargando...</div>
-      </div>
-    );
+    return <LoadingState tip="Cargando tareas…" minHeight={220} />;
   }
 
   return (
     <div style={{ padding: '24px' }}>
       <div style={{ marginBottom: '24px' }}>
-        <Title level={2}>📋 Tasks Management</Title>
+        <Title level={2}>Tareas del equipo</Title>
         <Text type="secondary">
-          Gestiona tareas con boards Kanban y seguimiento de tiempo
+          Organiza el trabajo por proyecto, revisa responsables, prioridades y fechas, y registra el tiempo dedicado.
         </Text>
       </div>
 
@@ -720,7 +864,11 @@ export const TasksPage: React.FC = () => {
               <Select
                 style={{ minWidth: 200 }}
                 value={selectedProject}
-                onChange={setSelectedProject}
+                onChange={(value) => {
+                  clearFilters();
+                  exitSelectionMode();
+                  setSelectedProject(value);
+                }}
                 placeholder="Seleccionar proyecto"
               >
                 {projects.map(project => (
@@ -736,9 +884,14 @@ export const TasksPage: React.FC = () => {
             <Space>
               <Text strong>Board:</Text>
               <Select
+                aria-label="Board"
                 style={{ minWidth: 200 }}
                 value={selectedBoard?.id}
-                onChange={loadBoard}
+                onChange={(value) => {
+                  clearFilters();
+                  exitSelectionMode();
+                  loadBoard(value);
+                }}
                 placeholder="Seleccionar board"
                 loading={boardLoading}
               >
@@ -769,18 +922,155 @@ export const TasksPage: React.FC = () => {
               >
                 Nueva Tarea
               </Button>
+
+              <Button
+                type={selectionMode ? 'primary' : 'default'}
+                onClick={toggleSelectionMode}
+                disabled={!selectedBoard}
+              >
+                {selectionMode ? 'Salir de selección' : 'Selección múltiple'}
+              </Button>
             </Space>
           </Col>
         </Row>
       </Card>
 
+      {selectedProject && (
+        <Card size="small" style={{ marginBottom: 16 }}>
+          <Space wrap>
+            <Text strong>Proyecto de este tablero:</Text>
+            <Link to={`/projects/${selectedProject}`}>{projects.find(project => project.id === selectedProject)?.name || 'Ver proyecto'}</Link>
+            <Button type="link" size="small"><Link to={`/projects/${selectedProject}`}>Abrir ficha del proyecto</Link></Button>
+          </Space>
+        </Card>
+      )}
+
+      {/* Filtros */}
+      {selectedBoard && (
+        <Card size="small" style={{ marginBottom: 16 }}>
+          <Row gutter={16} align="middle">
+            <Col>
+              <Text strong>Filtrar:</Text>
+            </Col>
+            <Col>
+              <Select
+                aria-label="Filtrar por prioridad"
+                placeholder="Prioridad"
+                style={{ width: 160 }}
+                value={filterPriority}
+                onChange={setFilterPriority}
+                allowClear
+              >
+                <Option value="critical">🔴 Crítica</Option>
+                <Option value="high">🟠 Alta</Option>
+                <Option value="medium">🔵 Media</Option>
+                <Option value="low">🟢 Baja</Option>
+              </Select>
+            </Col>
+            <Col>
+              <Select
+                aria-label="Filtrar por tipo"
+                placeholder="Tipo"
+                style={{ width: 160 }}
+                value={filterTaskType}
+                onChange={setFilterTaskType}
+                allowClear
+              >
+                <Option value="task">📋 Tarea</Option>
+                <Option value="bug">🐛 Bug</Option>
+                <Option value="feature">✨ Feature</Option>
+                <Option value="research">🔍 Investigación</Option>
+                <Option value="documentation">📄 Documentación</Option>
+              </Select>
+            </Col>
+            <Col>
+              <Select
+                aria-label="Filtrar por asignado"
+                placeholder="Asignado a"
+                style={{ width: 180 }}
+                value={filterAssigneeId}
+                onChange={setFilterAssigneeId}
+                allowClear
+              >
+                {users.map(user => (
+                  <Option key={user.id} value={user.id}>{user.full_name}</Option>
+                ))}
+              </Select>
+            </Col>
+            {hasActiveFilters && (
+              <Col>
+                <Button onClick={clearFilters}>Limpiar filtros</Button>
+              </Col>
+            )}
+          </Row>
+        </Card>
+      )}
+
+      {/* Edición masiva */}
+      {selectionMode && selectedTaskIds.length > 0 && (
+        <Card size="small" style={{ marginBottom: 16, backgroundColor: '#e6f4ff' }}>
+          <Row gutter={16} align="middle">
+            <Col>
+              <Text strong>{selectedTaskIds.length} tarea(s) seleccionada(s)</Text>
+            </Col>
+            <Col>
+              <Select
+                aria-label="Cambiar prioridad"
+                placeholder="Prioridad"
+                style={{ width: 160 }}
+                value={bulkPriority}
+                onChange={setBulkPriority}
+                allowClear
+              >
+                <Option value="critical">🔴 Crítica</Option>
+                <Option value="high">🟠 Alta</Option>
+                <Option value="medium">🔵 Media</Option>
+                <Option value="low">🟢 Baja</Option>
+              </Select>
+            </Col>
+            <Col>
+              <Select
+                aria-label="Reasignar a"
+                placeholder="Reasignar a"
+                style={{ width: 180 }}
+                value={bulkAssigneeId}
+                onChange={setBulkAssigneeId}
+                allowClear
+              >
+                {users.map((user) => (
+                  <Option key={user.id} value={user.id}>{user.full_name}</Option>
+                ))}
+              </Select>
+            </Col>
+            <Col>
+              <Select
+                aria-label="Mover a columna"
+                placeholder="Mover a columna"
+                style={{ width: 180 }}
+                value={bulkColumnId}
+                onChange={setBulkColumnId}
+                allowClear
+              >
+                {selectedBoard?.columns.map((column) => (
+                  <Option key={column.id} value={column.id}>{column.name}</Option>
+                ))}
+              </Select>
+            </Col>
+            <Col>
+              <Button type="primary" onClick={handleBulkApply}>Aplicar</Button>
+            </Col>
+            <Col>
+              <Button onClick={exitSelectionMode}>Cancelar selección</Button>
+            </Col>
+          </Row>
+        </Card>
+      )}
+
       {/* Kanban Board */}
       {selectedBoard ? (
         <DragDropContext onDragEnd={handleDragEnd}>
           {boardLoading ? (
-            <div style={{ textAlign: 'center', padding: 50 }}>
-              <Spin size="large" />
-            </div>
+            <LoadingState tip="Cargando tablero…" minHeight={150} />
           ) : (
             <Row gutter={16}>
               {selectedBoard.columns.map(column => renderColumn(column))}
@@ -789,23 +1079,21 @@ export const TasksPage: React.FC = () => {
         </DragDropContext>
       ) : (
         <Card style={{ textAlign: 'center', padding: 50 }}>
-          <Empty
+          <EmptyState
             description={
               selectedProject 
                 ? "No hay boards disponibles. Crea uno para comenzar."
                 : "Selecciona un proyecto para ver los boards"
             }
-          />
-          {selectedProject && (
-            <Button
+            action={selectedProject && <Button
               type="primary"
               icon={<PlusOutlined />}
               onClick={() => setIsCreateBoardModalOpen(true)}
               style={{ marginTop: 16 }}
             >
-              Crear Primer Board
-            </Button>
-          )}
+              Crear primer tablero
+            </Button>}
+          />
         </Card>
       )}
 
@@ -935,8 +1223,8 @@ export const TasksPage: React.FC = () => {
           
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="assignee_id" label="Asignado a">
-                <Select placeholder="Seleccionar usuario" allowClear>
+              <Form.Item name="assignee_ids" label="Responsables">
+                <Select mode="multiple" placeholder="Seleccionar responsables" allowClear optionFilterProp="children">
                   {users.map(user => (
                     <Option key={user.id} value={user.id}>
                       {user.full_name}
@@ -970,9 +1258,25 @@ export const TasksPage: React.FC = () => {
           {editingTask && (
             <>
               <Divider />
+              <TaskTagsEditor
+                taskId={editingTask.id}
+                onChange={() => selectedBoard && loadBoard(selectedBoard.id)}
+              />
+              <Divider />
+              <TaskCollaboratorsEditor
+                taskId={editingTask.id}
+                users={users}
+                onChange={() => selectedBoard && loadBoard(selectedBoard.id)}
+              />
+              <Divider />
               <TaskSubtasksChecklist
                 taskId={editingTask.id}
                 onChange={() => selectedBoard && loadBoard(selectedBoard.id)}
+              />
+              <Divider />
+              <CommentsThread
+                entityType="task"
+                entityId={editingTask.id}
               />
             </>
           )}

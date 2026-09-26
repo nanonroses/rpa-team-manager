@@ -60,7 +60,7 @@ router.post('/scope-changes/:changeId/reject', approvalRoles, lifecycleControlle
 // ========================================
 // ANALYTICS & REPORTING
 // ========================================
-router.get('/projects/:projectId/roi-analysis', lifecycleController.getProjectROIAnalysis);
+router.get('/projects/:projectId/roi-analysis', approvalRoles, lifecycleController.getProjectROIAnalysis);
 router.get('/projects/:projectId/metrics', lifecycleController.getProjectLifecycleMetrics);
 router.get('/projects/:projectId/summary', lifecycleController.getProjectLifecycleSummary);
 

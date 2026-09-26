@@ -136,7 +136,7 @@ CREATE TABLE IF NOT EXISTS time_entries (
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id),
     FOREIGN KEY (task_id) REFERENCES tasks(id),
-    FOREIGN KEY (project_id) REFERENCES projects(id)
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
 );
 
 -- Issues and problems tracking
@@ -168,7 +168,7 @@ CREATE TABLE IF NOT EXISTS issues (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     
-    FOREIGN KEY (project_id) REFERENCES projects(id),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
     FOREIGN KEY (task_id) REFERENCES tasks(id),
     FOREIGN KEY (reported_by) REFERENCES users(id),
     FOREIGN KEY (assigned_to) REFERENCES users(id)

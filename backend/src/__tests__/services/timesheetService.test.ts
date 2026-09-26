@@ -372,7 +372,7 @@ describe('TimesheetService', () => {
                         { user_id: 1, user_name: 'Dev Uno', real_hours: 80, billable_hours: 60 }
                     ]);
                 }
-                if (sql.includes('SUM(t.estimated_hours)') && sql.includes('assignee_id')) {
+                if (sql.includes('SUM(t.estimated_hours)') && sql.includes('task_assignees')) {
                     return Promise.resolve([{ user_id: 1, estimated_hours: 100 }]);
                 }
                 if (sql.includes('LEFT JOIN time_entries') && sql.includes('GROUP BY t.id')) {

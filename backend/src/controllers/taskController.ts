@@ -10,6 +10,8 @@ import {
 } from '../utils/batch-deletion.utils';
 import { activityLogService } from '../services/activityLogService';
 import { notificationService } from '../services/notificationService';
+import { taskDependencyService, TaskDependencyError } from '../services/taskDependencyService';
+import { commentService } from '../services/commentService';
 
 export class TaskController {
 
@@ -90,7 +92,11 @@ export class TaskController {
           te.total_hours,
           te.total_value,
           COALESCE(st.subtasks_total, 0) as subtasks_total,
-          COALESCE(st.subtasks_done, 0) as subtasks_done
+          COALESCE(st.subtasks_done, 0) as subtasks_done,
+          tg.tags as tags,
+          COALESCE(col.collaborators_count, 0) as collaborators_count,
+          col.collaborators_names as collaborators_names,
+          tas.assignee_ids, tas.assignee_names
         FROM tasks t
         LEFT JOIN users u_assignee ON t.assignee_id = u_assignee.id
         LEFT JOIN users u_reporter ON t.reporter_id = u_reporter.id
@@ -111,6 +117,31 @@ export class TaskController {
           FROM task_subtasks
           GROUP BY task_id
         ) st ON t.id = st.task_id
+        LEFT JOIN (
+          SELECT
+            task_id,
+            GROUP_CONCAT(tag, '||') as tags
+          FROM task_tags
+          GROUP BY task_id
+        ) tg ON t.id = tg.task_id
+        LEFT JOIN (
+          SELECT
+            tc.task_id,
+            COUNT(*) as collaborators_count,
+            GROUP_CONCAT(u.full_name, '||') as collaborators_names
+          FROM task_collaborators tc
+          JOIN users u ON tc.user_id = u.id
+          GROUP BY tc.task_id
+        ) col ON t.id = col.task_id
+        LEFT JOIN (
+          SELECT
+            ta.task_id,
+            GROUP_CONCAT(ta.user_id, '||') as assignee_ids,
+            GROUP_CONCAT(u_ta.full_name, '||') as assignee_names
+          FROM task_assignees ta
+          JOIN users u_ta ON ta.user_id = u_ta.id
+          GROUP BY ta.task_id
+        ) tas ON t.id = tas.task_id
         WHERE t.board_id = ?
         ORDER BY t.position ASC
       `, [id]);
@@ -200,14 +231,15 @@ export class TaskController {
   getTasks = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const userId = req.user?.id;
-      const { 
-        board_id, 
-        project_id, 
-        assignee_id, 
-        status, 
+      const {
+        board_id,
+        project_id,
+        assignee_id,
+        status,
         priority,
-        limit = 100, 
-        offset = 0 
+        search,
+        limit = 100,
+        offset = 0
       } = req.query;
 
       let query = `
@@ -220,7 +252,8 @@ export class TaskController {
           u_assignee.avatar_url as assignee_avatar,
           u_reporter.full_name as reporter_name,
           te.total_hours,
-          te.total_value
+          te.total_value,
+          tas.assignee_ids, tas.assignee_names
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
@@ -228,15 +261,24 @@ export class TaskController {
         LEFT JOIN users u_assignee ON t.assignee_id = u_assignee.id
         LEFT JOIN users u_reporter ON t.reporter_id = u_reporter.id
         LEFT JOIN (
-          SELECT 
-            task_id, 
+          SELECT
+            task_id,
             SUM(hours) as total_hours,
             SUM(hours * hourly_rate) as total_value
-          FROM time_entries 
-          WHERE task_id IS NOT NULL 
+          FROM time_entries
+          WHERE task_id IS NOT NULL
           GROUP BY task_id
         ) te ON t.id = te.task_id
-        WHERE (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        LEFT JOIN (
+          SELECT
+            ta.task_id,
+            GROUP_CONCAT(ta.user_id, '||') as assignee_ids,
+            GROUP_CONCAT(u_ta.full_name, '||') as assignee_names
+          FROM task_assignees ta
+          JOIN users u_ta ON ta.user_id = u_ta.id
+          GROUP BY ta.task_id
+        ) tas ON t.id = tas.task_id
+        WHERE (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `;
 
       const params: any[] = [userId, userId, userId];
@@ -252,7 +294,7 @@ export class TaskController {
       }
 
       if (assignee_id) {
-        query += ' AND t.assignee_id = ?';
+        query += ' AND EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?)';
         params.push(assignee_id);
       }
 
@@ -264,6 +306,12 @@ export class TaskController {
       if (priority) {
         query += ' AND t.priority = ?';
         params.push(priority);
+      }
+
+      if (search) {
+        query += ' AND (t.title LIKE ? OR t.description LIKE ?)';
+        const likeSearch = `%${search}%`;
+        params.push(likeSearch, likeSearch);
       }
 
       query += ' ORDER BY t.created_at DESC LIMIT ? OFFSET ?';
@@ -289,6 +337,7 @@ export class TaskController {
         task_type = 'task',
         priority = 'medium',
         assignee_id,
+        assignee_ids,
         estimated_hours,
         story_points,
         due_date
@@ -314,24 +363,49 @@ export class TaskController {
 
       // Get next position in column
       const lastTask = await db.get(`
-        SELECT MAX(position) as max_position 
-        FROM tasks 
+        SELECT MAX(position) as max_position
+        FROM tasks
         WHERE column_id = ?
       `, [column_id]);
 
       const position = (lastTask?.max_position || 0) + 1;
 
-      // Create task
-      const result = await db.run(`
-        INSERT INTO tasks (
+      // assignee_ids (nuevo, lista) y assignee_id (legacy, unico) se normalizan a una sola
+      // lista de ids unicos y numericos antes de usarse: evita duplicados que violan el
+      // UNIQUE(task_id, user_id) y strings sin coercion que rompen las comparaciones de
+      // "recien agregado" usadas para notificar.
+      const effectiveAssigneeIds: number[] = Array.isArray(assignee_ids)
+        ? assignee_ids
+        : (assignee_id !== undefined && assignee_id !== null ? [assignee_id] : []);
+      const resolvedAssigneeIds: number[] = [...new Set(effectiveAssigneeIds.map(Number))]
+        .filter((n) => Number.isInteger(n) && n > 0);
+      const principalAssigneeId = resolvedAssigneeIds[0] ?? null;
+
+      // Create task + task_assignees rows atomically
+      let result: { id?: number; changes: number };
+      await db.beginTransaction('IMMEDIATE');
+      try {
+        result = await db.run(`
+          INSERT INTO tasks (
+            board_id, column_id, title, description, task_type, priority,
+            assignee_id, reporter_id, estimated_hours, story_points,
+            due_date, position, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `, [
           board_id, column_id, title, description, task_type, priority,
-          assignee_id, reporter_id, estimated_hours, story_points, 
-          due_date, position, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `, [
-        board_id, column_id, title, description, task_type, priority,
-        assignee_id, userId, estimated_hours, story_points, due_date, position
-      ]);
+          principalAssigneeId, userId, estimated_hours, story_points, due_date, position
+        ]);
+
+        for (const uid of resolvedAssigneeIds) {
+          await db.run(`INSERT INTO task_assignees (task_id, user_id) VALUES (?, ?)`, [result.id, uid]);
+        }
+
+        await db.commit();
+      } catch (transactionError) {
+        await db.rollback();
+        logger.error('Create task transaction error:', transactionError);
+        throw transactionError;
+      }
 
       // Get created task with related data
       const newTask = await db.get(`
@@ -355,17 +429,19 @@ export class TaskController {
         { title, task_type, priority, column_id, board_id }
       );
 
-      if (assignee_id !== undefined && assignee_id !== null && assignee_id !== userId) {
-        await notificationService.notify({
-          userId: assignee_id,
-          eventKey: 'task_assigned',
-          title: 'Te asignaron una tarea',
-          message: title,
-          entityType: 'task',
-          entityId: result.id!,
-          senderId: userId,
-          link: `/tasks?taskId=${result.id}`
-        });
+      for (const uid of resolvedAssigneeIds) {
+        if (uid !== userId) {
+          await notificationService.notify({
+            userId: uid,
+            eventKey: 'task_assigned',
+            title: 'Te asignaron una tarea',
+            message: title,
+            entityType: 'task',
+            entityId: result.id!,
+            senderId: userId,
+            link: `/tasks?taskId=${result.id}`
+          });
+        }
       }
 
       res.status(201).json(newTask);
@@ -382,11 +458,22 @@ export class TaskController {
       const userId = req.user?.id;
 
       const task = await db.get(`
-        SELECT t.*, tb.project_id
+        SELECT
+          t.*, tb.project_id,
+          ta2.assignee_ids, ta2.assignee_names
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        LEFT JOIN (
+          SELECT
+            ta2.task_id,
+            GROUP_CONCAT(ta2.user_id, '||') as assignee_ids,
+            GROUP_CONCAT(u_ta.full_name, '||') as assignee_names
+          FROM task_assignees ta2
+          JOIN users u_ta ON ta2.user_id = u_ta.id
+          GROUP BY ta2.task_id
+        ) ta2 ON t.id = ta2.task_id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [id, userId, userId, userId]);
 
       if (!task) {
@@ -413,6 +500,7 @@ export class TaskController {
         status,
         priority,
         assignee_id,
+        assignee_ids,
         estimated_hours,
         story_points,
         start_date,
@@ -427,7 +515,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [id, userId, userId, userId]);
 
       if (!task) {
@@ -461,15 +549,53 @@ export class TaskController {
         `, [column_id, newPosition, id]);
       }
 
-      // Update other fields
+      // assignee_ids (nuevo, lista) y assignee_id (legacy, unico) se normalizan a una sola
+      // lista antes de usarse: si el caller manda assignee_ids, esa es la fuente de verdad;
+      // si solo manda el legacy assignee_id, se trata como lista de un elemento y reusa la
+      // misma logica de sync (delete-then-insert en task_assignees + tasks.assignee_id como
+      // el primero de la lista), en vez de duplicarla. La lista tambien se dedupe y coerciona
+      // a numeros: ids repetidos violarian el UNIQUE(task_id, user_id) y strings sin coercion
+      // rompen las comparaciones de "recien agregado" de mas abajo.
+      const effectiveAssigneeIds: number[] | undefined = Array.isArray(assignee_ids)
+        ? assignee_ids
+        : (assignee_id !== undefined && assignee_id !== null ? [assignee_id] : undefined);
+      const normalizedAssigneeIds: number[] | undefined = effectiveAssigneeIds !== undefined
+        ? [...new Set(effectiveAssigneeIds.map(Number))].filter((n) => Number.isInteger(n) && n > 0)
+        : undefined;
+      let newlyAddedAssigneeIds: number[] = [];
+
+      if (normalizedAssigneeIds !== undefined) {
+        await db.beginTransaction('IMMEDIATE');
+        try {
+          const currentRows = await db.query(`SELECT user_id FROM task_assignees WHERE task_id = ?`, [id]);
+          const currentIds: number[] = currentRows.map((r: any) => r.user_id);
+          newlyAddedAssigneeIds = normalizedAssigneeIds.filter((uid) => !currentIds.includes(uid));
+
+          await db.run(`DELETE FROM task_assignees WHERE task_id = ?`, [id]);
+          for (const uid of normalizedAssigneeIds) {
+            await db.run(`INSERT INTO task_assignees (task_id, user_id) VALUES (?, ?)`, [id, uid]);
+          }
+
+          const principalAssigneeId = normalizedAssigneeIds[0] ?? null;
+          await db.run(`UPDATE tasks SET assignee_id = ? WHERE id = ?`, [principalAssigneeId, id]);
+
+          await db.commit();
+        } catch (transactionError) {
+          await db.rollback();
+          logger.error('Update task assignees transaction error:', transactionError);
+          throw transactionError;
+        }
+      }
+
+      // Update other fields (assignee_id ya se sincronizo arriba cuando corresponde -no se
+      // vuelve a tocar aqui para no pisarlo con un valor sin normalizar/deduplicar).
       await db.run(`
-        UPDATE tasks 
+        UPDATE tasks
         SET title = COALESCE(?, title),
             description = COALESCE(?, description),
             task_type = COALESCE(?, task_type),
             status = COALESCE(?, status),
             priority = COALESCE(?, priority),
-            assignee_id = COALESCE(?, assignee_id),
             estimated_hours = COALESCE(?, estimated_hours),
             story_points = COALESCE(?, story_points),
             start_date = COALESCE(?, start_date),
@@ -478,7 +604,7 @@ export class TaskController {
         WHERE id = ?
       `, [
         title, description, task_type, status, priority,
-        assignee_id, estimated_hours, story_points, start_date, due_date, id
+        estimated_hours, story_points, start_date, due_date, id
       ]);
 
       // Get updated task
@@ -500,7 +626,7 @@ export class TaskController {
 
       const updatePayload = {
         title, description, task_type, status, priority,
-        assignee_id, estimated_hours, story_points, start_date, due_date, column_id, position
+        assignee_id, assignee_ids, estimated_hours, story_points, start_date, due_date, column_id, position
       };
       const hasChanges = Object.values(updatePayload).some((value) => value !== undefined);
       if (hasChanges) {
@@ -510,17 +636,19 @@ export class TaskController {
       const taskId = parseInt(id);
       const taskLink = `/tasks?taskId=${id}`;
 
-      if (assignee_id !== undefined && assignee_id !== null && assignee_id !== task.assignee_id && assignee_id !== userId) {
-        await notificationService.notify({
-          userId: assignee_id,
-          eventKey: 'task_assigned',
-          title: 'Te asignaron una tarea',
-          message: updatedTask.title,
-          entityType: 'task',
-          entityId: taskId,
-          senderId: userId,
-          link: taskLink
-        });
+      for (const uid of newlyAddedAssigneeIds) {
+        if (uid !== userId) {
+          await notificationService.notify({
+            userId: uid,
+            eventKey: 'task_assigned',
+            title: 'Te asignaron una tarea',
+            message: updatedTask.title,
+            entityType: 'task',
+            entityId: taskId,
+            senderId: userId,
+            link: taskLink
+          });
+        }
       }
 
       if (status !== undefined && status !== task.status && task.reporter_id && task.reporter_id !== userId) {
@@ -665,7 +793,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [id, userId, userId, userId]);
 
       if (!task) {
@@ -748,7 +876,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -787,7 +915,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -824,7 +952,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -868,7 +996,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [taskId, userId, userId, userId]);
 
       if (!task) {
@@ -892,6 +1020,378 @@ export class TaskController {
     }
   };
 
+  // GET /api/tasks/:taskId/dependencies - List dependencies for a task (depends_on / blocks)
+  getTaskDependencies = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const dependencies = await taskDependencyService.getDependenciesForTask(Number(taskId));
+
+      res.json(dependencies);
+    } catch (error) {
+      logger.error('Get task dependencies error:', error);
+      res.status(500).json({ error: 'Failed to get dependencies' });
+    }
+  };
+
+  // POST /api/tasks/:taskId/dependencies - Create a dependency (:taskId depends on depends_on_task_id)
+  createTaskDependency = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+      const { depends_on_task_id, dependency_type, lag_days } = req.body;
+
+      if (!depends_on_task_id) {
+        res.status(400).json({ error: 'depends_on_task_id is required' });
+        return;
+      }
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const dependsOnTask = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
+      `, [depends_on_task_id, userId, userId, userId]);
+
+      if (!dependsOnTask) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const dependency = await taskDependencyService.createDependency(
+        Number(taskId),
+        Number(depends_on_task_id),
+        dependency_type,
+        lag_days
+      );
+
+      res.status(201).json(dependency);
+    } catch (error) {
+      if (error instanceof TaskDependencyError) {
+        res.status(error.status).json({ error: error.message });
+        return;
+      }
+      logger.error('Create task dependency error:', error);
+      res.status(500).json({ error: 'Failed to create dependency' });
+    }
+  };
+
+  // DELETE /api/tasks/:taskId/dependencies/:dependencyId - Delete a dependency
+  deleteTaskDependency = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId, dependencyId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      await taskDependencyService.deleteDependency(Number(taskId), Number(dependencyId));
+
+      res.json({ success: true, deletedId: dependencyId });
+    } catch (error) {
+      if (error instanceof TaskDependencyError) {
+        res.status(error.status).json({ error: error.message });
+        return;
+      }
+      logger.error('Delete task dependency error:', error);
+      res.status(500).json({ error: 'Failed to delete dependency' });
+    }
+  };
+
+  // GET /api/tasks/:taskId/tags - List a task's tags
+  getTaskTags = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const tags = await db.query(`
+        SELECT id, task_id, tag, created_at
+        FROM task_tags
+        WHERE task_id = ?
+        ORDER BY id ASC
+      `, [taskId]);
+
+      res.json(tags);
+    } catch (error) {
+      logger.error('Get task tags error:', error);
+      res.status(500).json({ error: 'Failed to get tags' });
+    }
+  };
+
+  // POST /api/tasks/:taskId/tags - Add a tag to a task
+  createTaskTag = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+      const { tag } = req.body;
+
+      const normalizedTag = (tag || '').trim().toLowerCase();
+
+      if (!normalizedTag) {
+        res.status(400).json({ error: 'Tag is required' });
+        return;
+      }
+
+      if (normalizedTag.length > 50) {
+        res.status(400).json({ error: 'Tag must be 50 characters or fewer' });
+        return;
+      }
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const existing = await db.get(`
+        SELECT id FROM task_tags WHERE task_id = ? AND tag = ?
+      `, [taskId, normalizedTag]);
+
+      if (existing) {
+        res.status(409).json({ error: 'Tag already exists on this task' });
+        return;
+      }
+
+      const result = await db.run(`
+        INSERT INTO task_tags (task_id, tag)
+        VALUES (?, ?)
+      `, [taskId, normalizedTag]);
+
+      const created = await db.get(`
+        SELECT id, task_id, tag, created_at
+        FROM task_tags WHERE id = ?
+      `, [result.id]);
+
+      res.status(201).json(created);
+    } catch (error) {
+      logger.error('Create task tag error:', error);
+      res.status(500).json({ error: 'Failed to create tag' });
+    }
+  };
+
+  // DELETE /api/tasks/:taskId/tags/:tagId - Remove a tag from a task
+  deleteTaskTag = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId, tagId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const result = await db.run(`
+        DELETE FROM task_tags WHERE id = ? AND task_id = ?
+      `, [tagId, taskId]);
+
+      if (result.changes === 0) {
+        res.status(404).json({ error: 'Tag not found' });
+        return;
+      }
+
+      res.json({ success: true, deletedId: tagId });
+    } catch (error) {
+      logger.error('Delete task tag error:', error);
+      res.status(500).json({ error: 'Failed to delete tag' });
+    }
+  };
+
+  // GET /api/tasks/:taskId/collaborators - List a task's additional collaborators
+  getTaskCollaborators = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const collaborators = await db.query(`
+        SELECT tc.id, tc.task_id, tc.user_id, u.full_name, u.avatar_url
+        FROM task_collaborators tc
+        JOIN users u ON tc.user_id = u.id
+        WHERE tc.task_id = ?
+        ORDER BY tc.id ASC
+      `, [taskId]);
+
+      res.json(collaborators);
+    } catch (error) {
+      logger.error('Get task collaborators error:', error);
+      res.status(500).json({ error: 'Failed to get collaborators' });
+    }
+  };
+
+  // POST /api/tasks/:taskId/collaborators - Add a collaborator to a task
+  addTaskCollaborator = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+      const { user_id } = req.body;
+
+      if (!user_id) {
+        res.status(400).json({ error: 'user_id is required' });
+        return;
+      }
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const targetUser = await db.get(`
+        SELECT id, full_name, avatar_url FROM users WHERE id = ?
+      `, [user_id]);
+
+      if (!targetUser) {
+        res.status(404).json({ error: 'User not found' });
+        return;
+      }
+
+      const existing = await db.get(`
+        SELECT id FROM task_collaborators WHERE task_id = ? AND user_id = ?
+      `, [taskId, user_id]);
+
+      if (existing) {
+        res.status(409).json({ error: 'User is already a collaborator on this task' });
+        return;
+      }
+
+      const result = await db.run(`
+        INSERT INTO task_collaborators (task_id, user_id)
+        VALUES (?, ?)
+      `, [taskId, user_id]);
+
+      res.status(201).json({
+        id: result.id,
+        task_id: Number(taskId),
+        user_id: targetUser.id,
+        full_name: targetUser.full_name,
+        avatar_url: targetUser.avatar_url
+      });
+    } catch (error) {
+      logger.error('Add task collaborator error:', error);
+      res.status(500).json({ error: 'Failed to add collaborator' });
+    }
+  };
+
+  // DELETE /api/tasks/:taskId/collaborators/:collaboratorId - Remove a collaborator from a task
+  removeTaskCollaborator = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId, collaboratorId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const result = await db.run(`
+        DELETE FROM task_collaborators WHERE id = ? AND task_id = ?
+      `, [collaboratorId, taskId]);
+
+      if (result.changes === 0) {
+        res.status(404).json({ error: 'Collaborator not found' });
+        return;
+      }
+
+      res.json({ success: true, deletedId: collaboratorId });
+    } catch (error) {
+      logger.error('Remove task collaborator error:', error);
+      res.status(500).json({ error: 'Failed to remove collaborator' });
+    }
+  };
+
   // GET /api/tasks/my-tasks - Get current user's assigned tasks
   getMyTasks = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
@@ -909,7 +1409,7 @@ export class TaskController {
         LEFT JOIN projects p ON tb.project_id = p.id
         LEFT JOIN task_columns tc ON t.column_id = tc.id
         LEFT JOIN users u_reporter ON t.reporter_id = u_reporter.id
-        WHERE t.assignee_id = ? AND t.status != 'done'
+        WHERE EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?) AND t.status != 'done'
         ORDER BY 
           CASE t.priority 
             WHEN 'critical' THEN 1 
@@ -1071,6 +1571,7 @@ export class TaskController {
             task_type = 'task',
             priority = 'medium',
             assignee_id,
+            assignee_ids,
             estimated_hours,
             story_points,
             start_date,
@@ -1081,6 +1582,16 @@ export class TaskController {
             continue; // Skip invalid tasks
           }
 
+          // assignee_ids (nuevo, lista) y assignee_id (legacy, unico) se normalizan a una
+          // sola lista, igual que en createTask: evita que las tareas creadas en batch (ej.
+          // import de Mermaid) queden sin fila en task_assignees para su responsable.
+          const effectiveAssigneeIds: number[] = Array.isArray(assignee_ids)
+            ? assignee_ids
+            : (assignee_id !== undefined && assignee_id !== null ? [assignee_id] : []);
+          const normalizedAssigneeIds: number[] = [...new Set(effectiveAssigneeIds.map(Number))]
+            .filter((n) => Number.isInteger(n) && n > 0);
+          const principalAssigneeId = normalizedAssigneeIds[0] ?? null;
+
           // Get next position for this column
           const currentMaxPos = columnMap.get(column_id) || 0;
           const position = currentMaxPos + 1;
@@ -1090,13 +1601,17 @@ export class TaskController {
           const result = await db.run(`
             INSERT INTO tasks (
               board_id, column_id, title, description, task_type, priority,
-              assignee_id, reporter_id, estimated_hours, story_points, 
+              assignee_id, reporter_id, estimated_hours, story_points,
               start_date, due_date, position, created_at, updated_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
           `, [
             board_id, column_id, title, description, task_type, priority,
-            assignee_id, userId, estimated_hours, story_points, start_date, due_date, position
+            principalAssigneeId, userId, estimated_hours, story_points, start_date, due_date, position
           ]);
+
+          for (const uid of normalizedAssigneeIds) {
+            await db.run(`INSERT INTO task_assignees (task_id, user_id) VALUES (?, ?)`, [result.id, uid]);
+          }
 
           createdTasks.push({
             id: result.id,
@@ -1129,6 +1644,172 @@ export class TaskController {
     } catch (error) {
       logger.error('Batch create tasks error:', error);
       res.status(500).json({ error: 'Failed to create tasks in batch' });
+    }
+  };
+
+  // PATCH /api/tasks/batch - Bulk update priority/assignee_id/column_id for multiple tasks
+  batchUpdateTasks = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      const { taskIds, updates } = req.body;
+
+      const validation = validateBatchDeletionInput(taskIds);
+      if (!validation.isValid) {
+        res.status(400).json({ error: validation.error, code: 'INVALID_INPUT' });
+        return;
+      }
+      const validTaskIds = validation.validIds;
+
+      if (!updates || typeof updates !== 'object' || Array.isArray(updates)) {
+        res.status(400).json({ error: 'updates object is required' });
+        return;
+      }
+
+      const { priority, assignee_id, assignee_ids, column_id } = updates;
+      const hasField = priority !== undefined || assignee_id !== undefined || assignee_ids !== undefined || column_id !== undefined;
+      if (!hasField) {
+        res.status(400).json({ error: 'At least one field to update is required (priority, assignee_id, column_id)' });
+        return;
+      }
+
+      const validPriorities = ['critical', 'high', 'medium', 'low'];
+      if (priority !== undefined && !validPriorities.includes(priority)) {
+        res.status(400).json({ error: 'Invalid priority value' });
+        return;
+      }
+
+      const placeholders = validTaskIds.map(() => '?').join(', ');
+      const accessibleTasks = await db.query(`
+        SELECT t.id, t.column_id, t.position, t.assignee_id, tb.id as board_id, tb.project_id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id IN (${placeholders}) AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
+      `, [...validTaskIds, userId, userId, userId]);
+
+      const accessibleIds = accessibleTasks.map((t: any) => t.id);
+      const skipped = validTaskIds.filter((id: number) => !accessibleIds.includes(id));
+
+      if (accessibleTasks.length === 0) {
+        res.json({ success: true, updated: [], updatedCount: 0, skipped });
+        return;
+      }
+
+      let targetColumnId: number | undefined;
+      if (column_id !== undefined) {
+        const targetColumn = await db.get(`SELECT id, board_id FROM task_columns WHERE id = ?`, [column_id]);
+        if (!targetColumn) {
+          res.status(400).json({ error: 'Target column not found' });
+          return;
+        }
+        const boardIds = new Set(accessibleTasks.map((t: any) => t.board_id));
+        if (boardIds.size > 1 || !boardIds.has(targetColumn.board_id)) {
+          res.status(400).json({ error: 'Target column must belong to the same board as the selected tasks' });
+          return;
+        }
+        targetColumnId = column_id;
+      }
+
+      const projectCounts: Map<number, number> = new Map();
+      for (const task of accessibleTasks) {
+        projectCounts.set(task.project_id, (projectCounts.get(task.project_id) || 0) + 1);
+      }
+
+      // assignee_ids (nuevo, lista) y assignee_id (legacy, unico) se normalizan a una sola
+      // lista: si el caller manda assignee_ids, esa es la fuente de verdad; si solo manda el
+      // legacy assignee_id, se trata como lista de un elemento y reusa la misma logica de
+      // sync (delete-then-insert en task_assignees + tasks.assignee_id como el primero de la
+      // lista) en vez de duplicarla. Tambien se dedupe y coerciona a numeros para evitar
+      // choques con el UNIQUE(task_id, user_id) y comparaciones rotas por ids como string.
+      const effectiveAssigneeIds: number[] | undefined = Array.isArray(assignee_ids)
+        ? assignee_ids
+        : (assignee_id !== undefined && assignee_id !== null ? [assignee_id] : undefined);
+      const normalizedAssigneeIds: number[] | undefined = effectiveAssigneeIds !== undefined
+        ? [...new Set(effectiveAssigneeIds.map(Number))].filter((n) => Number.isInteger(n) && n > 0)
+        : undefined;
+
+      let usersNewlyAssigned: Map<number, number> = new Map();
+
+      await db.beginTransaction('IMMEDIATE');
+
+      try {
+        if (priority !== undefined) {
+          const idPlaceholders = accessibleIds.map(() => '?').join(', ');
+          await db.run(
+            `UPDATE tasks SET priority = ?, updated_at = CURRENT_TIMESTAMP WHERE id IN (${idPlaceholders})`,
+            [priority, ...accessibleIds]
+          );
+        }
+
+        if (targetColumnId !== undefined) {
+          const maxPosRow = await db.get(`SELECT MAX(position) as max_position FROM tasks WHERE column_id = ?`, [targetColumnId]);
+          let nextPosition = maxPosRow?.max_position || 0;
+
+          for (const task of accessibleTasks) {
+            if (task.column_id === targetColumnId) continue;
+            nextPosition += 1;
+            await db.run(
+              `UPDATE tasks SET column_id = ?, position = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+              [targetColumnId, nextPosition, task.id]
+            );
+          }
+        }
+
+        if (normalizedAssigneeIds !== undefined) {
+          for (const task of accessibleTasks) {
+            const currentRows = await db.query(`SELECT user_id FROM task_assignees WHERE task_id = ?`, [task.id]);
+            const currentIds: number[] = currentRows.map((r: any) => r.user_id);
+
+            await db.run(`DELETE FROM task_assignees WHERE task_id = ?`, [task.id]);
+            for (const uid of normalizedAssigneeIds) {
+              await db.run(`INSERT INTO task_assignees (task_id, user_id) VALUES (?, ?)`, [task.id, uid]);
+              if (!currentIds.includes(uid)) {
+                usersNewlyAssigned.set(uid, (usersNewlyAssigned.get(uid) || 0) + 1);
+              }
+            }
+
+            const principalAssigneeId = normalizedAssigneeIds[0] ?? null;
+            await db.run(`UPDATE tasks SET assignee_id = ? WHERE id = ?`, [principalAssigneeId, task.id]);
+          }
+        }
+
+        for (const [projectId, count] of projectCounts) {
+          await activityLogService.logActivity(
+            userId, 'project', projectId, 'tasks_batch_updated', null,
+            { count, fields: Object.keys(updates) }
+          );
+        }
+
+        await db.commit();
+      } catch (transactionError) {
+        await db.rollback();
+        logger.error('Batch update tasks transaction error:', transactionError);
+        throw transactionError;
+      }
+
+      // El bloque legacy de assignee_id ahora se normaliza junto con assignee_ids arriba y
+      // comparte la misma logica de sync (task_assignees) y de conteo de "recien asignados"
+      // (usersNewlyAssigned), asi que una unica notificacion agrupada por usuario cubre
+      // ambos casos sin duplicar el envio.
+      for (const [uid, count] of usersNewlyAssigned) {
+        if (uid !== userId) {
+          await notificationService.notify({
+            userId: uid,
+            eventKey: 'task_assigned',
+            title: 'Te asignaron tareas',
+            message: `Se te asignaron ${count} tarea(s)`,
+            entityType: 'task',
+            senderId: userId,
+            link: '/tasks'
+          });
+        }
+      }
+
+      logger.info(`Batch update completed: ${accessibleIds.length} tasks updated by user ${userId}`);
+      res.json({ success: true, updated: accessibleIds, updatedCount: accessibleIds.length, skipped });
+    } catch (error) {
+      logger.error('Batch update tasks error:', error);
+      res.status(500).json({ error: 'Failed to update tasks in batch' });
     }
   };
 
@@ -1187,7 +1868,7 @@ export class TaskController {
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
-        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR t.assignee_id = ?)
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `, [id, userId, userId, userId]);
 
       if (!task) {
@@ -1205,6 +1886,173 @@ export class TaskController {
     } catch (error) {
       logger.error('Get task activity error:', error);
       res.status(500).json({ error: 'Failed to get task activity' });
+    }
+  };
+
+  // GET /api/tasks/:taskId/comments - List comments for a task
+  getTaskComments = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const comments = await commentService.getForEntity('task', parseInt(taskId));
+      res.json(comments);
+    } catch (error) {
+      logger.error('Get task comments error:', error);
+      res.status(500).json({ error: 'Failed to get comments' });
+    }
+  };
+
+  // POST /api/tasks/:taskId/comments - Create a comment on a task
+  createTaskComment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id as number;
+      const { content } = req.body;
+
+      if (!content || typeof content !== 'string' || !content.trim()) {
+        res.status(400).json({ error: 'Content is required' });
+        return;
+      }
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const comment = await commentService.create('task', parseInt(taskId), userId, content);
+      res.status(201).json(comment);
+    } catch (error) {
+      logger.error('Create task comment error:', error);
+      res.status(500).json({ error: 'Failed to create comment' });
+    }
+  };
+
+  // PATCH /api/tasks/:taskId/comments/:commentId - Update own comment on a task
+  updateTaskComment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId, commentId } = req.params;
+      const userId = req.user?.id;
+      const { content } = req.body;
+
+      if (!content || typeof content !== 'string' || !content.trim()) {
+        res.status(400).json({ error: 'Content is required' });
+        return;
+      }
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const comment = await commentService.findById(parseInt(commentId));
+      if (!comment || comment.entity_type !== 'task' || comment.entity_id !== parseInt(taskId)) {
+        res.status(404).json({ error: 'Comment not found' });
+        return;
+      }
+      if (comment.user_id !== userId) {
+        res.status(403).json({ error: 'You can only edit your own comments' });
+        return;
+      }
+
+      const updated = await commentService.update(parseInt(commentId), content);
+      res.json(updated);
+    } catch (error) {
+      logger.error('Update task comment error:', error);
+      res.status(500).json({ error: 'Failed to update comment' });
+    }
+  };
+
+  // DELETE /api/tasks/:taskId/comments/:commentId - Delete own comment on a task
+  deleteTaskComment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId, commentId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const comment = await commentService.findById(parseInt(commentId));
+      if (!comment || comment.entity_type !== 'task' || comment.entity_id !== parseInt(taskId)) {
+        res.status(404).json({ error: 'Comment not found' });
+        return;
+      }
+      if (comment.user_id !== userId) {
+        res.status(403).json({ error: 'You can only delete your own comments' });
+        return;
+      }
+
+      await commentService.delete(parseInt(commentId));
+      res.json({ success: true, deletedId: parseInt(commentId) });
+    } catch (error) {
+      logger.error('Delete task comment error:', error);
+      res.status(500).json({ error: 'Failed to delete comment' });
+    }
+  };
+
+  // GET /api/tasks/:taskId/mentionable-users - Users who can be @mentioned in comments on this task
+  getTaskMentionableUsers = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { taskId } = req.params;
+      const userId = req.user?.id;
+
+      const task = await db.get(`
+        SELECT t.id
+        FROM tasks t
+        LEFT JOIN task_boards tb ON t.board_id = tb.id
+        LEFT JOIN projects p ON tb.project_id = p.id
+        WHERE t.id = ? AND (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
+      `, [taskId, userId, userId, userId]);
+
+      if (!task) {
+        res.status(404).json({ error: 'Task not found or access denied' });
+        return;
+      }
+
+      const users = await commentService.getMentionableUsers('task', parseInt(taskId));
+      res.json(users);
+    } catch (error) {
+      logger.error('Get task mentionable users error:', error);
+      res.status(500).json({ error: 'Failed to get mentionable users' });
     }
   };
 }

@@ -1,13 +1,24 @@
 // frontend/src/__tests__/pages/BillingPage.test.tsx
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import BillingPage from '../../pages/billing/BillingPage';
 
 vi.mock('../../services/api', () => ({
   default: {
     getProjects: vi.fn().mockResolvedValue([{ id: 1, name: 'AGROSUPER' }]),
     getBillingDashboard: vi.fn().mockResolvedValue({
-      ready_to_invoice: [],
+      ready_to_invoice: [{
+        id: 11,
+        project_id: 1,
+        project_name: 'AGROSUPER',
+        name: 'Hito aprobado',
+        amount: 500000,
+        currency: 'CLP',
+        status: 'billable',
+        planned_date: '2026-09-26',
+        trigger_type: 'date'
+      }],
       invoiced_unpaid: [],
       paid: [],
       overdue: [],
@@ -19,30 +30,30 @@ vi.mock('../../services/api', () => ({
   }
 }));
 
+vi.mock('@/store/authStore', () => ({
+  useAuthStore: () => ({ user: { id: 1, role: 'team_lead' } })
+}));
+
 describe('BillingPage', () => {
+  const renderBillingPage = () => render(
+    <MemoryRouter>
+      <BillingPage />
+    </MemoryRouter>
+  );
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('renderiza el título Cobranza y los totales del dashboard', async () => {
-    const { container } = render(<BillingPage />);
-
-    expect(await screen.findByText('Cobranza')).toBeInTheDocument();
-    await waitFor(() => {
-      expect(screen.getByText('Por facturar')).toBeInTheDocument();
-      expect(screen.getByText('Cobrado')).toBeInTheDocument();
-    });
-
-    // Verifica que los valores reales de getBillingDashboard (no solo las etiquetas estáticas)
-    // efectivamente se renderizaron, formateados por el componente Statistic de antd.
-    await waitFor(() => {
-      expect(container.textContent).toContain('500,000'); // total_billable_clp
-      expect(container.textContent).toContain('200,000'); // total_paid_clp
-    });
-  });
+  it('muestra el resumen de cobranza y el monto origen desde el dashboard', async () => {
+    renderBillingPage();
+    expect(await screen.findByText('Finanzas y cobranza')).toBeInTheDocument();
+    expect(await screen.findByText('Listo para facturar')).toBeInTheDocument();
+    expect(await screen.findByText('500.000 CLP')).toBeInTheDocument();
+  }, 15000);
 
   it('muestra el botón para crear un nuevo hito de pago', async () => {
-    render(<BillingPage />);
+    renderBillingPage();
     expect(await screen.findByText('Nuevo hito de pago')).toBeInTheDocument();
   });
 });

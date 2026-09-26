@@ -28,7 +28,7 @@ import {
   RightOutlined,
   SendOutlined
 } from '@ant-design/icons';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { apiService } from '@/services/api';
 import {
   SaveWeekEntryInput,
@@ -39,6 +39,7 @@ import {
 } from '@/types/timesheet';
 import { useAuthStore } from '@/store/authStore';
 import dayjs from 'dayjs';
+import 'dayjs/locale/es';
 
 const { Title, Text } = Typography;
 const { Option } = Select;
@@ -64,6 +65,10 @@ function mondayOf(date: dayjs.Dayjs): string {
   const diffFromMonday = weekday === 0 ? 6 : weekday - 1;
   return date.subtract(diffFromMonday, 'day').format('YYYY-MM-DD');
 }
+
+const formatReminderDate = (date: string) => new Intl.DateTimeFormat('es-CL', {
+  day: '2-digit', month: '2-digit', year: 'numeric'
+}).format(new Date(`${date.slice(0, 10)}T00:00:00`));
 
 const WeekGrid: React.FC<{ projects: Project[]; refreshSignal: number }> = ({ projects, refreshSignal }) => {
   const [weekStart, setWeekStart] = useState(mondayOf(dayjs()));
@@ -165,19 +170,19 @@ const WeekGrid: React.FC<{ projects: Project[]; refreshSignal: number }> = ({ pr
     <div>
       <Row justify="space-between" align="middle" style={{ marginBottom: 16 }}>
         <Space>
-          <Button icon={<LeftOutlined />} onClick={() => setWeekStart(mondayOf(dayjs(weekStart).subtract(7, 'day')))} />
+          <Button aria-label="Semana anterior" icon={<LeftOutlined />} onClick={() => setWeekStart(mondayOf(dayjs(weekStart).subtract(7, 'day')))} />
           <Text strong>Semana del {dayjs(weekStart).format('DD/MM/YYYY')}</Text>
-          <Button icon={<RightOutlined />} onClick={() => setWeekStart(mondayOf(dayjs(weekStart).add(7, 'day')))} />
+          <Button aria-label="Semana siguiente" icon={<RightOutlined />} onClick={() => setWeekStart(mondayOf(dayjs(weekStart).add(7, 'day')))} />
         </Space>
         <Space>
-          <Statistic title="Total semana" value={weekTotal} suffix="hrs" precision={2} />
+          <Statistic title="Total de la semana" value={weekTotal} suffix="h" precision={2} />
           {week?.period && (
             <Tag color={
               week.period.status === 'approved' ? 'green' :
               week.period.status === 'submitted' ? 'blue' :
               week.period.status === 'rejected' ? 'red' : 'default'
             }>
-              {week.period.status.toUpperCase()}
+              {({ approved: 'Aprobada', submitted: 'En revisión', rejected: 'Rechazada', draft: 'Borrador', open: 'Abierta' } as Record<string, string>)[week.period.status] || 'Borrador'}
             </Tag>
           )}
         </Space>
@@ -198,7 +203,7 @@ const WeekGrid: React.FC<{ projects: Project[]; refreshSignal: number }> = ({ pr
           <Col xs={24} md={12} lg={8} key={day.date}>
             <Card
               size="small"
-              title={dayjs(day.date).format('dddd DD/MM')}
+              title={dayjs(day.date).locale('es').format('dddd DD/MM')}
               extra={<Text type="secondary">{(draftByDay[day.date] || []).reduce((s, e) => s + (e.hours || 0), 0)}h</Text>}
             >
               {(draftByDay[day.date] || []).map((entry, idx) => (
@@ -206,6 +211,7 @@ const WeekGrid: React.FC<{ projects: Project[]; refreshSignal: number }> = ({ pr
                   <Col span={9}>
                     <Select
                       size="small"
+                      aria-label={`Proyecto para registro ${idx + 1}, ${dayjs(day.date).locale('es').format('dddd DD/MM')}`}
                       style={{ width: '100%' }}
                       value={entry.project_id}
                       disabled={isLocked}
@@ -218,6 +224,7 @@ const WeekGrid: React.FC<{ projects: Project[]; refreshSignal: number }> = ({ pr
                     <Input
                       size="small"
                       placeholder="Descripción"
+                      aria-label={`Descripción para registro ${idx + 1}, ${dayjs(day.date).locale('es').format('dddd DD/MM')}`}
                       disabled={isLocked}
                       value={entry.description || ''}
                       onChange={(e) => updateRow(day.date, idx, { description: e.target.value })}
@@ -226,6 +233,7 @@ const WeekGrid: React.FC<{ projects: Project[]; refreshSignal: number }> = ({ pr
                   <Col span={5}>
                     <InputNumber
                       size="small"
+                      aria-label={`Horas para registro ${idx + 1}, ${dayjs(day.date).locale('es').format('dddd DD/MM')}`}
                       min={0.25}
                       max={24}
                       step={0.25}
@@ -237,6 +245,7 @@ const WeekGrid: React.FC<{ projects: Project[]; refreshSignal: number }> = ({ pr
                   </Col>
                   <Col span={2}>
                     <Checkbox
+                      aria-label={`Facturable, registro ${idx + 1}, ${dayjs(day.date).locale('es').format('dddd DD/MM')}`}
                       checked={entry.is_billable !== false}
                       disabled={isLocked}
                       onChange={(e) => updateRow(day.date, idx, { is_billable: e.target.checked })}
@@ -246,6 +255,7 @@ const WeekGrid: React.FC<{ projects: Project[]; refreshSignal: number }> = ({ pr
                     <Button
                       size="small"
                       type="text"
+                      aria-label={`Eliminar registro ${idx + 1}, ${dayjs(day.date).locale('es').format('dddd DD/MM')}`}
                       danger
                       icon={<DeleteOutlined />}
                       disabled={isLocked}
@@ -413,8 +423,8 @@ export const TimeTrackingPage: React.FC = () => {
   return (
     <div style={{ padding: '24px' }}>
       <div style={{ marginBottom: '24px' }}>
-        <Title level={2}>⏱️ Tiempo</Title>
-        <Text type="secondary">Carga tu semana, revisa aprobaciones y efectividad del equipo</Text>
+        <Title level={2}>Registro de tiempo</Title>
+        <Text type="secondary">Registra horas por proyecto y tarea. Consulta el estado del periodo y, según tu rol, gestiona aprobaciones o revisa la efectividad del equipo.</Text>
       </div>
 
       {reminderDates.length > 0 && (
@@ -423,7 +433,7 @@ export const TimeTrackingPage: React.FC = () => {
           showIcon
           style={{ marginBottom: 16 }}
           message={`Tienes ${reminderDates.length} día(s) hábil(es) sin horas registradas en las últimas 2 semanas`}
-          description={reminderDates.join(', ')}
+          description={reminderDates.map(formatReminderDate).join(', ')}
         />
       )}
 
@@ -442,7 +452,7 @@ export const TimeTrackingPage: React.FC = () => {
               <Statistic title="Tiempo transcurrido" value={formatElapsedTime(elapsedTime)} valueStyle={{ fontFamily: 'monospace' }} />
             </Col>
             <Col flex="auto">
-              <Text strong>{activeTimer.project_name}</Text>
+              <Link to={`/projects/${activeTimer.project_id}`}>{activeTimer.project_name || 'Abrir proyecto'}</Link>
             </Col>
             <Col>
               <Button type="primary" danger icon={<PauseCircleOutlined />} loading={timerLoading} onClick={handleStopTimer}>
@@ -532,7 +542,7 @@ const ApprovalsTab: React.FC = () => {
       rowKey="id"
       columns={[
         { title: 'Persona', dataIndex: 'user_name' },
-        { title: 'Semana', render: (_: any, r: TimesheetPeriod) => `${dayjs(r.period_start).format('DD/MM')} - ${dayjs(r.period_end).format('DD/MM')}` },
+        { title: 'Semana', render: (_: any, r: TimesheetPeriod) => `${dayjs(r.period_start).format('DD/MM/YY')}–${dayjs(r.period_end).format('DD/MM/YY')}` },
         { title: 'Horas', dataIndex: 'total_hours' },
         {
           title: 'Acciones',
@@ -567,6 +577,7 @@ const EffectivenessTab: React.FC = () => {
       <Title level={4}>Por persona (mes actual)</Title>
       <Table
         loading={loading}
+        locale={{ emptyText: 'No hay registros de efectividad para este mes.' }}
         dataSource={metrics?.by_person || []}
         rowKey="user_id"
         columns={[
@@ -580,6 +591,7 @@ const EffectivenessTab: React.FC = () => {
       <Title level={4} style={{ marginTop: 24 }}>Por tarea (mes actual)</Title>
       <Table
         loading={loading}
+        locale={{ emptyText: 'No hay tareas con tiempo registrado este mes.' }}
         dataSource={metrics?.by_task || []}
         rowKey="task_id"
         columns={[

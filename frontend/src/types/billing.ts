@@ -11,6 +11,7 @@ export interface PaymentMilestone {
   description: string | null;
   amount: number;
   currency: Currency;
+  rate_missing?: boolean;
   trigger_type: TriggerType;
   trigger_value: number | null;
   planned_date: string | null;
@@ -18,6 +19,7 @@ export interface PaymentMilestone {
   billable_at: string | null;
   sort_order: number;
   project_name?: string;
+  source_milestone_name?: string;
 }
 
 export interface InvoiceLine {
@@ -43,6 +45,7 @@ export interface Invoice {
   id: number;
   project_id: number;
   project_name?: string;
+  client_name?: string;
   invoice_number: string;
   issue_date: string;
   due_date: string;
@@ -52,6 +55,7 @@ export interface Invoice {
   notes: string | null;
   lines: InvoiceLine[];
   payments: Payment[];
+  totals?: { paid_amount: number };
 }
 
 export interface BillingDashboardRow {
@@ -61,7 +65,7 @@ export interface BillingDashboardRow {
   name: string;
   amount: number;
   currency: Currency;
-  amount_clp: number;
+  amount_clp: number | null;
   status: PaymentMilestoneStatus;
   planned_date: string | null;
   trigger_type: TriggerType;

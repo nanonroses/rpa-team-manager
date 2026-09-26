@@ -6,6 +6,7 @@ import { LLMService, QuoteData } from '../services/llmService';
 import { DocumentParserService } from '../services/documentParserService';
 import { projectHealthService } from '../services/projectHealthService';
 import { activityLogService } from '../services/activityLogService';
+import { commentService } from '../services/commentService';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -18,39 +19,123 @@ export class ProjectController {
         this.documentParserService = new DocumentParserService();
     }
 
+    // Campo del body -> columna de project_financials.
+    private static readonly FINANCIAL_FIELD_MAP: Record<string, string> = {
+        budget: 'budgeted_cost',
+        sale_price: 'sale_price',
+        sale_price_currency: 'sale_price_currency',
+        hours_budgeted: 'budgeted_hours'
+    };
+
+    // Solo team_lead fija precio/horas vendidas; el presupuesto (budget) lo puede fijar cualquier rol que edite el proyecto.
+    private static readonly TEAM_LEAD_ONLY_FINANCIAL_FIELDS = ['sale_price', 'sale_price_currency', 'hours_budgeted'];
+
+    private static readonly FINANCIAL_RESPONSE_FIELDS = ['budget', 'budgeted_cost', 'budget_spent', 'delay_cost', 'penalty_cost', 'sale_price'];
+
+    private static readonly FINANCIAL_LOG_FIELDS = [
+        ...ProjectController.FINANCIAL_RESPONSE_FIELDS, 'sale_price_currency', 'hours_budgeted'
+    ];
+
+    private financialInputFor(user: AuthenticatedRequest['user'], body: Record<string, any>): Record<string, any> {
+        if (user?.role === 'team_lead') return body;
+        const filtered = { ...body };
+        for (const field of ProjectController.TEAM_LEAD_ONLY_FINANCIAL_FIELDS) delete filtered[field];
+        return filtered;
+    }
+
+    // UPSERT parcial: escribe solo las columnas recibidas y nunca borra la fila (hourly_rate y demás se conservan).
+    private async upsertProjectFinancials(projectId: number, input: Record<string, any>): Promise<void> {
+        const entries = Object.entries(ProjectController.FINANCIAL_FIELD_MAP)
+            .filter(([field]) => input[field] !== undefined)
+            .map(([field, column]) => [column, input[field]] as [string, any]);
+        if (entries.length === 0) return;
+
+        const existing = await db.get('SELECT id FROM project_financials WHERE project_id = ?', [projectId]);
+        if (existing) {
+            await db.run(
+                `UPDATE project_financials SET ${entries.map(([column]) => `${column} = ?`).join(', ')}, updated_at = datetime('now') WHERE project_id = ?`,
+                [...entries.map(([, value]) => value), projectId]
+            );
+        } else {
+            await db.run(
+                `INSERT INTO project_financials (project_id, ${entries.map(([column]) => column).join(', ')}) VALUES (?, ${entries.map(() => '?').join(', ')})`,
+                [projectId, ...entries.map(([, value]) => value)]
+            );
+        }
+    }
+
+    private stripFinancialFields<T extends Record<string, any> | null | undefined>(user: AuthenticatedRequest['user'], row: T): T {
+        if (!row || user?.role === 'team_lead') return row;
+        const copy: Record<string, any> = { ...row };
+        for (const field of ProjectController.FINANCIAL_RESPONSE_FIELDS) delete copy[field];
+        return copy as T;
+    }
+
+    // activity_log lo leen todos los roles con acceso al proyecto: se limpia siempre, sin importar quién edita.
+    private stripFinancialFieldsForLog<T extends Record<string, any> | null | undefined>(values: T): T {
+        if (!values) return values;
+        const copy: Record<string, any> = { ...values };
+        for (const field of ProjectController.FINANCIAL_LOG_FIELDS) delete copy[field];
+        return copy as T;
+    }
+
+    // old_values/new_values pueden venir como JSON crudo (query directa) o ya parseados (activityLogService).
+    private stripFinancialFieldsFromActivity<T extends { old_values?: any; new_values?: any }>(
+        user: AuthenticatedRequest['user'],
+        entry: T
+    ): T {
+        if (user?.role === 'team_lead') return entry;
+        const clean = (value: any): any => {
+            if (typeof value !== 'string') return this.stripFinancialFieldsForLog(value);
+            try {
+                return JSON.stringify(this.stripFinancialFieldsForLog(JSON.parse(value)));
+            } catch {
+                return null;
+            }
+        };
+        return { ...entry, old_values: clean(entry.old_values), new_values: clean(entry.new_values) };
+    }
+
     // GET /api/projects
     getProjects = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             let query = `
-                SELECT p.*, 
+                SELECT p.*,
                        u1.full_name as created_by_name,
                        u2.full_name as assigned_to_name,
-                       COUNT(t.id) as total_tasks,
-                       SUM(CASE WHEN t.status = 'done' THEN 1 ELSE 0 END) as completed_tasks,
-                       SUM(te.hours) as total_hours_logged
+                       c.name as client_name,
+                       sr.name as sales_rep_name,
+                       (SELECT COUNT(*) FROM tasks t JOIN task_boards tb ON t.board_id = tb.id
+                         WHERE tb.project_id = p.id) as total_tasks,
+                       (SELECT COUNT(*) FROM tasks t JOIN task_boards tb ON t.board_id = tb.id
+                         WHERE tb.project_id = p.id AND t.status = 'done') as completed_tasks,
+                       (SELECT COALESCE(SUM(te.hours), 0) FROM time_entries te
+                         WHERE te.project_id = p.id AND te.approval_status = 'approved') as total_hours_logged
                 FROM projects p
                 LEFT JOIN users u1 ON p.created_by = u1.id
                 LEFT JOIN users u2 ON p.assigned_to = u2.id
-                LEFT JOIN task_boards tb ON p.id = tb.project_id
-                LEFT JOIN tasks t ON tb.id = t.board_id
-                LEFT JOIN time_entries te ON p.id = te.project_id
+                LEFT JOIN clients c ON c.id = p.client_id
+                LEFT JOIN sales_reps sr ON sr.id = p.sales_rep_id
             `;
 
             const params: any[] = [];
+            const includeLost = req.query.include_lost === 'true';
+            if (!includeLost) query += " WHERE COALESCE(p.commercial_stage, 'approved') <> 'lost'";
 
             // Filter based on user role
             if (req.user?.role === 'rpa_developer') {
-                query += ' WHERE (p.assigned_to = ? OR p.created_by = ?)';
+                query += includeLost ? ' WHERE (p.assigned_to = ? OR p.created_by = ?)'
+                    : ' AND (p.assigned_to = ? OR p.created_by = ?)';
                 params.push(req.user.id, req.user.id);
             }
 
-            query += ' GROUP BY p.id ORDER BY p.created_at DESC';
+            query += ' ORDER BY p.created_at DESC';
 
             const projects = await db.query(query, params);
 
             // Calculate progress percentage for each project
             const projectsWithProgress = projects.map(project => ({
-                ...project,
+                ...this.stripFinancialFields(req.user, project),
                 progress_percentage: project.total_tasks > 0 
                     ? Math.round((project.completed_tasks / project.total_tasks) * 100)
                     : 0,
@@ -73,6 +158,8 @@ export class ProjectController {
                 SELECT p.*, 
                        u1.full_name as created_by_name,
                        u2.full_name as assigned_to_name,
+                       c.name as client_name,
+                       sr.name as sales_rep_name,
                        pf.budgeted_cost,
                        pf.actual_cost as budget_spent,
                        pf.budgeted_hours as hours_budgeted,
@@ -83,6 +170,8 @@ export class ProjectController {
                 FROM projects p
                 LEFT JOIN users u1 ON p.created_by = u1.id
                 LEFT JOIN users u2 ON p.assigned_to = u2.id
+                LEFT JOIN clients c ON c.id = p.client_id
+                LEFT JOIN sales_reps sr ON sr.id = p.sales_rep_id
                 LEFT JOIN project_financials pf ON p.id = pf.project_id
                 WHERE p.id = ?
             `, [id]);
@@ -126,9 +215,9 @@ export class ProjectController {
             `, [id]);
 
             res.json({
-                ...project,
+                ...this.stripFinancialFields(req.user, project),
                 tasks_summary: tasksSummary,
-                recent_activities: recentActivities
+                recent_activities: recentActivities.map(activity => this.stripFinancialFieldsFromActivity(req.user, activity))
             });
         } catch (error) {
             logger.error('Get project error:', error);
@@ -139,35 +228,57 @@ export class ProjectController {
     // POST /api/projects
     createProject = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
-            const { 
-                name, 
-                description, 
-                status = 'planning',
+            const {
+                name,
+                description,
+                status = 'on_hold',
                 priority = 'medium',
                 budget,
                 start_date,
                 end_date,
-                assigned_to
+                assigned_to,
+                client_id,
+                client_contact_id,
+                sales_rep_id,
+                opportunity_source = 'direct',
+                area_id,
+                pm_user_id,
+                project_type = 'commercial',
+                currency = 'CLP'
             } = req.body;
 
-            // Debug logging
-            logger.info('Creating project with data:', {
-                name, description, status, priority, budget, start_date, end_date, assigned_to,
-                user_id: req.user?.id,
-                user_role: req.user?.role
-            });
+            if (!['direct', 'sales'].includes(opportunity_source)) {
+                res.status(400).json({ error: 'El origen de la oportunidad no es válido' });
+                return;
+            }
+            if (opportunity_source === 'sales' && !sales_rep_id) {
+                res.status(400).json({ error: 'Selecciona el comercial que trajo la oportunidad' });
+                return;
+            }
+            if (client_contact_id) {
+                const contact = await db.get('SELECT client_id FROM client_contacts WHERE id = ? AND is_active = 1', [client_contact_id]);
+                if (!contact || Number(contact.client_id) !== Number(client_id)) {
+                    res.status(400).json({ error: 'El contacto seleccionado no pertenece al cliente activo' });
+                    return;
+                }
+            }
 
             if (!name) {
                 res.status(400).json({ error: 'Project name is required' });
                 return;
             }
 
+            // rpa_operations siempre se autoasigna al crear; se ignora cualquier assigned_to del body para este rol.
+            const isSelfAssigningOps = req.user?.role === 'rpa_operations';
+            const effectiveAssignedTo = isSelfAssigningOps ? req.user!.id : (assigned_to || null);
+            const effectiveStatus = project_type === 'commercial' ? 'on_hold' : status;
+            const commercialStage = project_type === 'commercial' ? 'quoting' : 'approved';
+
             // Validate assigned_to user exists if provided
-            if (assigned_to) {
-                const assignedUser = await db.get('SELECT id FROM users WHERE id = ?', [assigned_to]);
+            if (effectiveAssignedTo && !isSelfAssigningOps) {
+                const assignedUser = await db.get('SELECT id FROM users WHERE id = ?', [effectiveAssignedTo]);
                 if (!assignedUser) {
-                    logger.error(`Assigned user ${assigned_to} does not exist`);
-                    res.status(400).json({ error: `Assigned user with ID ${assigned_to} does not exist` });
+                    res.status(400).json({ error: `Assigned user with ID ${effectiveAssignedTo} does not exist` });
                     return;
                 }
             }
@@ -175,20 +286,28 @@ export class ProjectController {
             // Create project
             const result = await db.run(`
                 INSERT INTO projects (
-                    name, description, status, priority, budget, 
-                    start_date, end_date, assigned_to, created_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `, [name, description, status, priority, budget, start_date, end_date, assigned_to || null, req.user?.id]);
+                    name, description, status, priority, budget,
+                    start_date, end_date, assigned_to, created_by,
+                    client_id, client_contact_id, sales_rep_id, opportunity_source, area_id, pm_user_id, project_type, currency, commercial_stage
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
+                name, description, effectiveStatus, priority, budget ?? null,
+                start_date ?? null, end_date ?? null, effectiveAssignedTo, req.user?.id,
+                client_id ?? null, client_contact_id ?? null, sales_rep_id ?? null, opportunity_source, area_id ?? null, pm_user_id ?? null, project_type, currency, commercialStage
+            ]);
 
             const projectId = result.id!;
 
-            // Create default financial record
-            if (budget) {
+            if (project_type === 'internal') {
+                await this.upsertProjectFinancials(projectId, this.financialInputFor(req.user, req.body));
+            }
+
+            if (isSelfAssigningOps && project_type === 'internal') {
                 await db.run(`
-                    INSERT INTO project_financials (
-                        project_id, budgeted_cost, budgeted_hours
-                    ) VALUES (?, ?, ?)
-                `, [projectId, budget, 0]);
+                    INSERT INTO project_assignments (
+                        project_id, user_id, role, allocation_percentage, start_date, end_date, assigned_by, is_active
+                    ) VALUES (?, ?, 'lead', 100, NULL, NULL, ?, 1)
+                `, [projectId, req.user!.id, req.user!.id]);
             }
 
             // Create default task board
@@ -225,18 +344,20 @@ export class ProjectController {
                 projectId,
                 'created',
                 null,
-                { name, status, priority }
+                { name, status: effectiveStatus, priority, commercial_stage: commercialStage }
             );
 
             // Get the created project with details
             const createdProject = await db.get(`
-                SELECT p.*, u.full_name as created_by_name
+                SELECT p.*, u.full_name as created_by_name,
+                       pf.budgeted_cost, pf.budgeted_hours as hours_budgeted, pf.sale_price
                 FROM projects p
                 LEFT JOIN users u ON p.created_by = u.id
+                LEFT JOIN project_financials pf ON p.id = pf.project_id
                 WHERE p.id = ?
             `, [projectId]);
 
-            res.status(201).json(createdProject);
+            res.status(201).json(this.stripFinancialFields(req.user, createdProject));
         } catch (error) {
             logger.error('Create project error:', error);
             res.status(500).json({ error: 'Failed to create project' });
@@ -248,9 +369,6 @@ export class ProjectController {
         try {
             const { id } = req.params;
             const updates = req.body;
-            
-            console.log('Received update request for project:', id);
-            console.log('Update data received:', updates);
 
             // Get current project
             const currentProject = await db.get('SELECT * FROM projects WHERE id = ?', [id]);
@@ -260,8 +378,8 @@ export class ProjectController {
             }
 
             // Check permissions
-            if (req.user?.role === 'rpa_developer' && 
-                currentProject.created_by !== req.user.id && 
+            if (req.user?.role === 'rpa_developer' &&
+                currentProject.created_by !== req.user.id &&
                 currentProject.assigned_to !== req.user.id) {
                 res.status(403).json({ error: 'Access denied' });
                 return;
@@ -271,54 +389,69 @@ export class ProjectController {
             const allowedFields = [
                 'name', 'description', 'status', 'priority', 'budget',
                 'start_date', 'end_date', 'actual_start_date', 'actual_end_date',
-                'assigned_to', 'progress_percentage'
+                'assigned_to', 'progress_percentage',
+                'client_id', 'client_contact_id', 'sales_rep_id', 'opportunity_source', 'area_id', 'pm_user_id', 'currency'
             ];
 
-            const updateFields = Object.keys(updates).filter(key => allowedFields.includes(key));
-            
-            if (updateFields.length === 0) {
+            // Solo team_lead puede reasignar el proyecto (assigned_to); otros roles lo ven descartado silenciosamente.
+            const updatesForFields = req.user?.role === 'team_lead' ? updates : (() => {
+                const { assigned_to, ...rest } = updates;
+                return rest;
+            })();
+
+            const updateFields = Object.keys(updatesForFields).filter(key => allowedFields.includes(key) && updatesForFields[key] !== undefined);
+            const nextClientId = updatesForFields.client_id ?? currentProject.client_id;
+            const nextContactId = updatesForFields.client_contact_id ?? currentProject.client_contact_id;
+            if (nextContactId) {
+                const contact = await db.get('SELECT client_id FROM client_contacts WHERE id = ? AND is_active = 1', [nextContactId]);
+                if (!contact || Number(contact.client_id) !== Number(nextClientId)) {
+                    res.status(400).json({ error: 'El contacto seleccionado no pertenece al cliente del proyecto' });
+                    return;
+                }
+            }
+            const financialInput = this.financialInputFor(req.user, updates);
+            const hasFinancialChanges = Object.keys(ProjectController.FINANCIAL_FIELD_MAP)
+                .some(field => financialInput[field] !== undefined);
+
+            const lockedCommercialFields = ['sale_price', 'sale_price_currency', 'hours_budgeted'];
+            if (currentProject.project_type === 'commercial' && lockedCommercialFields.some(field => financialInput[field] !== undefined)) {
+                res.status(400).json({ error: 'El precio y las horas comerciales se actualizan mediante una versión de cotización' });
+                return;
+            }
+            if (updatesForFields.status === 'active' && currentProject.commercial_stage === 'quoting') {
+                res.status(409).json({ error: 'Aprueba una cotización y registra la aprobación del cliente antes de iniciar la ejecución' });
+                return;
+            }
+            if (updatesForFields.status === 'active' && currentProject.require_purchase_order) {
+                const purchaseOrder = await db.get(`SELECT id FROM project_commercial_documents WHERE project_id = ? AND document_type = 'purchase_order' LIMIT 1`, [id]);
+                if (!purchaseOrder) {
+                    res.status(409).json({ error: 'Registra la orden de compra obligatoria antes de iniciar ejecución' });
+                    return;
+                }
+            }
+            if (updatesForFields.status === 'completed' && !currentProject.delivery_accepted_at) {
+                res.status(409).json({ error: 'Registra la aceptación del cliente para cerrar la entrega del proyecto' });
+                return;
+            }
+
+            if (updateFields.length === 0 && !hasFinancialChanges) {
                 res.status(400).json({ error: 'No valid fields to update' });
                 return;
             }
 
-            const setClause = updateFields.map(field => `${field} = ?`).join(', ');
-            const values = updateFields.map(field => updates[field]);
-            values.push(id);
+            if (updateFields.length > 0) {
+                const setClause = updateFields.map(field => `${field} = ?`).join(', ');
+                const values = updateFields.map(field => updatesForFields[field]);
+                values.push(id);
 
-            await db.run(`
-                UPDATE projects 
-                SET ${setClause}, updated_at = datetime('now')
-                WHERE id = ?
-            `, values);
-
-            // Update financial information if financial fields changed
-            if (updates.budget || updates.sale_price || updates.hours_budgeted) {
-                console.log('Updating financial data:', {
-                    project_id: id,
-                    budget: updates.budget,
-                    sale_price: updates.sale_price,
-                    budgeted_hours: updates.hours_budgeted
-                });
-                
-                // First, delete any existing financial records for this project
-                await db.run(`DELETE FROM project_financials WHERE project_id = ?`, [id]);
-                
-                // Then, insert the new financial data
                 await db.run(`
-                    INSERT INTO project_financials (
-                        project_id, 
-                        budgeted_cost, 
-                        sale_price, 
-                        budgeted_hours,
-                        updated_at
-                    ) VALUES (?, ?, ?, ?, datetime('now'))
-                `, [
-                    id, 
-                    updates.budget || null, 
-                    updates.sale_price || null, 
-                    updates.hours_budgeted || null
-                ]);
+                    UPDATE projects
+                    SET ${setClause}, updated_at = datetime('now')
+                    WHERE id = ?
+                `, values);
             }
+
+            await this.upsertProjectFinancials(parseInt(id), financialInput);
 
             // Log activity
             await activityLogService.logActivity(
@@ -326,15 +459,18 @@ export class ProjectController {
                 'project',
                 parseInt(id),
                 'updated',
-                currentProject,
-                updates
+                this.stripFinancialFieldsForLog(currentProject),
+                this.stripFinancialFieldsForLog(updates)
             );
 
             // Get updated project with financial data
             const updatedProject = await db.get(`
-                SELECT p.*, 
+                SELECT p.*,
                        u1.full_name as created_by_name,
                        u2.full_name as assigned_to_name,
+                       c.name as client_name,
+                       cc.name as client_contact_name,
+                       sr.name as sales_rep_name,
                        pf.budgeted_cost,
                        pf.actual_cost as budget_spent,
                        pf.budgeted_hours as hours_budgeted,
@@ -345,11 +481,14 @@ export class ProjectController {
                 FROM projects p
                 LEFT JOIN users u1 ON p.created_by = u1.id
                 LEFT JOIN users u2 ON p.assigned_to = u2.id
+                LEFT JOIN clients c ON c.id = p.client_id
+                LEFT JOIN client_contacts cc ON cc.id = p.client_contact_id
+                LEFT JOIN sales_reps sr ON sr.id = p.sales_rep_id
                 LEFT JOIN project_financials pf ON p.id = pf.project_id
                 WHERE p.id = ?
             `, [id]);
 
-            res.json(updatedProject);
+            res.json(this.stripFinancialFields(req.user, updatedProject));
         } catch (error) {
             logger.error('Update project error:', error);
             res.status(500).json({ error: 'Failed to update project' });
@@ -382,7 +521,7 @@ export class ProjectController {
                 'project',
                 parseInt(id),
                 'deleted',
-                project,
+                this.stripFinancialFieldsForLog(project),
                 null
             );
 
@@ -397,6 +536,18 @@ export class ProjectController {
     getProjectGantt = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             const { id } = req.params;
+
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [id]);
+
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
 
             // Get all tasks for the project with dependencies
             const tasks = await db.query(`
@@ -461,6 +612,18 @@ export class ProjectController {
     getProjectHealth = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             const projectId = parseInt(req.params.id);
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [projectId]);
+
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
+
             const health = await projectHealthService.getProjectHealth(projectId);
             res.json(health);
         } catch (error) {
@@ -494,7 +657,7 @@ export class ProjectController {
             const offset = Math.max(Number.isNaN(parsedOffset) ? 0 : parsedOffset, 0);
 
             const activity = await activityLogService.getProjectActivity(projectId, { limit, offset });
-            res.json(activity);
+            res.json(activity.map(entry => this.stripFinancialFieldsFromActivity(req.user, entry)));
         } catch (error) {
             logger.error('Get project activity error:', error);
             res.status(500).json({ error: 'Failed to get project activity' });
@@ -510,6 +673,158 @@ export class ProjectController {
         }
         return true;
     }
+
+    // GET /api/projects/:id/comments
+    getProjectComments = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.id);
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [projectId]);
+
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
+
+            const comments = await commentService.getForEntity('project', projectId);
+            res.json(comments);
+        } catch (error) {
+            logger.error('Get project comments error:', error);
+            res.status(500).json({ error: 'Failed to get comments' });
+        }
+    };
+
+    // POST /api/projects/:id/comments
+    createProjectComment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.id);
+            const userId = req.user?.id as number;
+            const { content } = req.body;
+
+            if (!content || typeof content !== 'string' || !content.trim()) {
+                res.status(400).json({ error: 'Content is required' });
+                return;
+            }
+
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [projectId]);
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
+
+            const comment = await commentService.create('project', projectId, userId, content);
+            res.status(201).json(comment);
+        } catch (error) {
+            logger.error('Create project comment error:', error);
+            res.status(500).json({ error: 'Failed to create comment' });
+        }
+    };
+
+    // PATCH /api/projects/:id/comments/:commentId
+    updateProjectComment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.id);
+            const commentId = parseInt(req.params.commentId);
+            const userId = req.user?.id;
+            const { content } = req.body;
+
+            if (!content || typeof content !== 'string' || !content.trim()) {
+                res.status(400).json({ error: 'Content is required' });
+                return;
+            }
+
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [projectId]);
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
+
+            const comment = await commentService.findById(commentId);
+            if (!comment || comment.entity_type !== 'project' || comment.entity_id !== projectId) {
+                res.status(404).json({ error: 'Comment not found' });
+                return;
+            }
+            if (comment.user_id !== userId) {
+                res.status(403).json({ error: 'You can only edit your own comments' });
+                return;
+            }
+
+            const updated = await commentService.update(commentId, content);
+            res.json(updated);
+        } catch (error) {
+            logger.error('Update project comment error:', error);
+            res.status(500).json({ error: 'Failed to update comment' });
+        }
+    };
+
+    // DELETE /api/projects/:id/comments/:commentId
+    deleteProjectComment = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.id);
+            const commentId = parseInt(req.params.commentId);
+            const userId = req.user?.id;
+
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [projectId]);
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
+
+            const comment = await commentService.findById(commentId);
+            if (!comment || comment.entity_type !== 'project' || comment.entity_id !== projectId) {
+                res.status(404).json({ error: 'Comment not found' });
+                return;
+            }
+            if (comment.user_id !== userId) {
+                res.status(403).json({ error: 'You can only delete your own comments' });
+                return;
+            }
+
+            await commentService.delete(commentId);
+            res.json({ success: true, deletedId: commentId });
+        } catch (error) {
+            logger.error('Delete project comment error:', error);
+            res.status(500).json({ error: 'Failed to delete comment' });
+        }
+    };
+
+    // GET /api/projects/:id/mentionable-users - Users who can be @mentioned in comments on this project
+    getProjectMentionableUsers = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.id);
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [projectId]);
+
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
+
+            const users = await commentService.getMentionableUsers('project', projectId);
+            res.json(users);
+        } catch (error) {
+            logger.error('Get project mentionable users error:', error);
+            res.status(500).json({ error: 'Failed to get mentionable users' });
+        }
+    };
 
     // DEBUG: Temporary endpoint to check financial data
     debugFinancialData = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
@@ -574,6 +889,18 @@ export class ProjectController {
         try {
             const { id } = req.params;
 
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [id]);
+
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
+
             const assignments = await db.query(`
                 SELECT 
                     pa.*,
@@ -589,18 +916,24 @@ export class ProjectController {
                 ORDER BY pa.created_at ASC
             `, [id]);
 
-            res.json(assignments);
+            if (req.user?.role === 'team_lead') {
+                res.json(assignments);
+                return;
+            }
+            res.json(assignments.map(({ monthly_cost, hourly_rate, ...rest }: any) => rest));
         } catch (error) {
             logger.error('Get project assignments error:', error);
             res.status(500).json({ error: 'Failed to get project assignments' });
         }
     };
 
+    private static readonly ASSIGNMENT_ROLES = ['lead', 'contributor', 'reviewer', 'observer'];
+
     // POST /api/projects/:id/assignments
     addProjectAssignments = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             const { id } = req.params;
-            const { user_assignments } = req.body; // Array of {user_id, allocation_percentage, role}
+            const { user_assignments } = req.body;
             const userId = req.user?.id;
 
             if (!userId) {
@@ -613,42 +946,67 @@ export class ProjectController {
                 return;
             }
 
-            // Start transaction
+            const project = await db.get('SELECT id FROM projects WHERE id = ?', [id]);
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+
+            // Validar todo ANTES de borrar: un payload inválido nunca debe dejar el proyecto sin equipo.
+            const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+            const seen = new Set<number>();
+            const normalized: Array<{ user_id: number; role: string; allocation_percentage: number; start_date: string | null; end_date: string | null; budgeted_hours: number | null }> = [];
+
+            for (const assignment of user_assignments) {
+                const { user_id, allocation_percentage = 100, role = 'contributor', start_date = null, end_date = null, budgeted_hours = null } = assignment || {};
+
+                if (!Number.isInteger(user_id) || user_id <= 0) {
+                    res.status(400).json({ error: 'Cada asignación requiere un user_id válido' });
+                    return;
+                }
+                if (seen.has(user_id)) {
+                    res.status(400).json({ error: `El usuario ${user_id} está repetido en la asignación` });
+                    return;
+                }
+                if (!ProjectController.ASSIGNMENT_ROLES.includes(role)) {
+                    res.status(400).json({ error: `Rol de asignación inválido: ${role}` });
+                    return;
+                }
+                if (!Number.isInteger(allocation_percentage) || allocation_percentage < 0 || allocation_percentage > 100) {
+                    res.status(400).json({ error: 'La dedicación debe ser un entero entre 0 y 100' });
+                    return;
+                }
+                if (budgeted_hours !== null && (!Number.isFinite(Number(budgeted_hours)) || Number(budgeted_hours) < 0)) {
+                    res.status(400).json({ error: 'Las horas presupuestadas deben ser un número mayor o igual a cero' });
+                    return;
+                }
+                if ((start_date !== null && !datePattern.test(start_date)) || (end_date !== null && !datePattern.test(end_date))) {
+                    res.status(400).json({ error: 'Las fechas deben tener formato YYYY-MM-DD' });
+                    return;
+                }
+                const userExists = await db.get('SELECT id FROM users WHERE id = ? AND is_active = 1', [user_id]);
+                if (!userExists) {
+                    res.status(400).json({ error: `El usuario ${user_id} no existe o está inactivo` });
+                    return;
+                }
+
+                seen.add(user_id);
+                normalized.push({ user_id, role, allocation_percentage, start_date, end_date, budgeted_hours: budgeted_hours === null ? null : Number(budgeted_hours) });
+            }
+
             await db.beginTransaction();
-
             try {
-                // Delete existing assignments to avoid unique constraint conflicts
-                await db.run(`
-                    DELETE FROM project_assignments 
-                    WHERE project_id = ?
-                `, [id]);
+                await db.run('DELETE FROM project_assignments WHERE project_id = ?', [id]);
 
-                // Add new assignments
                 const newAssignments = [];
-                for (const assignment of user_assignments) {
-                    const { user_id, allocation_percentage = 100, role = 'member' } = assignment;
-
-                    // Validate user exists
-                    const userExists = await db.get(`SELECT id FROM users WHERE id = ?`, [user_id]);
-                    if (!userExists) {
-                        throw new Error(`User with id ${user_id} not found`);
-                    }
-
+                for (const a of normalized) {
                     const result = await db.run(`
                         INSERT INTO project_assignments (
-                            project_id, user_id, role, allocation_percentage, created_by, is_active
-                        ) VALUES (?, ?, ?, ?, ?, 1)
-                    `, [id, user_id, role, allocation_percentage, userId]);
+                            project_id, user_id, role, allocation_percentage, start_date, end_date, assigned_by, is_active, budgeted_hours
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)
+                    `, [id, a.user_id, a.role, a.allocation_percentage, a.start_date, a.end_date, userId, a.budgeted_hours]);
 
-                    newAssignments.push({
-                        id: result.id,
-                        project_id: id,
-                        user_id,
-                        role,
-                        allocation_percentage,
-                        created_by: userId,
-                        is_active: 1
-                    });
+                    newAssignments.push({ id: result.id, project_id: Number(id), ...a, assigned_by: userId, is_active: 1 });
                 }
 
                 await db.commit();
@@ -658,12 +1016,10 @@ export class ProjectController {
                     message: 'Project assignments updated successfully',
                     assignments: newAssignments
                 });
-
             } catch (error) {
                 await db.rollback();
                 throw error;
             }
-
         } catch (error) {
             logger.error('Add project assignments error:', error);
             res.status(500).json({ error: 'Failed to update project assignments' });
@@ -831,7 +1187,7 @@ export class ProjectController {
                     INSERT INTO projects (
                         name, description, status, priority,
                         start_date, end_date, created_by
-                    ) VALUES (?, ?, 'planning', ?, ?, ?, ?)
+                    ) VALUES (?, ?, 'active', ?, ?, ?, ?)
                 `, [
                     quote_data.project_name,
                     `${quote_data.description}\n\nClient: ${quote_data.client_name}`,
@@ -905,8 +1261,8 @@ export class ProjectController {
                         await db.run(`
                             INSERT INTO tasks (
                                 board_id, column_id, title, description,
-                                status, priority, position, estimated_hours
-                            ) VALUES (?, ?, ?, ?, 'todo', ?, ?, ?)
+                                status, priority, position, estimated_hours, reporter_id
+                            ) VALUES (?, ?, ?, ?, 'todo', ?, ?, ?, ?)
                         `, [
                             boardId,
                             columnIds['To Do'],
@@ -914,23 +1270,25 @@ export class ProjectController {
                             task.description || null,
                             task.priority || 'medium',
                             i,
-                            task.estimated_hours || null
+                            task.estimated_hours || null,
+                            userId
                         ]);
                     }
                 }
 
                 // 6. Create milestones from quote data
                 if (quote_data.milestones && quote_data.milestones.length > 0) {
+                    const fallbackDate = quote_data.estimated_end_date || new Date().toISOString().slice(0, 10);
                     for (const milestone of quote_data.milestones) {
                         await db.run(`
                             INSERT INTO project_milestones (
-                                project_id, name, description, target_date, status
+                                project_id, name, description, planned_date, status
                             ) VALUES (?, ?, ?, ?, 'pending')
                         `, [
                             projectId,
                             milestone.name,
                             milestone.description || null,
-                            milestone.target_date || null
+                            milestone.target_date || fallbackDate
                         ]);
                     }
                 }
@@ -945,8 +1303,8 @@ export class ProjectController {
                     {
                         project_name: quote_data.project_name,
                         client: quote_data.client_name,
-                        tasks_count: quote_data.tasks.length,
-                        milestones_count: quote_data.milestones.length
+                        tasks_count: (quote_data.tasks ?? []).length,
+                        milestones_count: (quote_data.milestones ?? []).length
                     }
                 );
 
@@ -969,8 +1327,8 @@ export class ProjectController {
                 res.status(201).json({
                     message: 'Project created successfully from quote',
                     project: createdProject,
-                    tasks_created: quote_data.tasks.length,
-                    milestones_created: quote_data.milestones.length
+                    tasks_created: (quote_data.tasks ?? []).length,
+                    milestones_created: (quote_data.milestones ?? []).length
                 });
 
             } catch (error) {

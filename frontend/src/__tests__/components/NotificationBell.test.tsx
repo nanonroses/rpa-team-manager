@@ -94,12 +94,13 @@ describe('NotificationBell', () => {
     vi.useRealTimers();
   });
 
-  it('no rompe el render si getNotifications falla al abrir el dropdown', async () => {
+  it('muestra el estado de error y permite reintentar si getNotifications falla', async () => {
     (apiService.getNotifications as any).mockRejectedValue(new Error('network error'));
 
     renderBell();
     await userEvent.click(screen.getByRole('button'));
 
-    expect(await screen.findByText(/sin notificaciones/i)).toBeInTheDocument();
+    expect(await screen.findByText(/no se pudieron cargar las notificaciones/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /reintentar/i })).toBeInTheDocument();
   });
 });

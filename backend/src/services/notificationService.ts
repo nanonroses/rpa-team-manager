@@ -6,7 +6,15 @@ export type NotificationEventKey =
     | 'task_status_changed'
     | 'task_due_soon'
     | 'timesheet_submitted'
-    | 'timesheet_missing_days';
+    | 'timesheet_missing_days'
+    | 'comment_mention'
+    | 'commercial_meeting_followup'
+    | 'commercial_meeting_escalation'
+    | 'billing_due_7_days'
+    | 'billing_due_today'
+    | 'billing_overdue_weekly'
+    | 'project_delay_created'
+    | 'scope_change_pending_approval';
 
 export interface NotifyParams {
     userId: number;
@@ -119,7 +127,7 @@ export class NotificationService {
         try {
             const tasks = await db.query(`
                 SELECT id, title FROM tasks
-                WHERE assignee_id = ?
+                WHERE EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = tasks.id AND ta.user_id = ?)
                   AND status NOT IN ('done', 'blocked')
                   AND due_date IS NOT NULL
                   AND date(due_date) BETWEEN date('now') AND date('now', '+' || ? || ' days')

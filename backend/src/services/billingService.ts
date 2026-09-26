@@ -1,6 +1,7 @@
 import { db } from '../database/database';
 import { logger } from '../utils/logger';
 import { financeService, Currency } from './financeService';
+import { notificationService } from './notificationService';
 
 export interface PaymentMilestoneRow {
     id: number;
@@ -9,7 +10,7 @@ export interface PaymentMilestoneRow {
     name: string;
     amount: number;
     currency: Currency;
-    amount_clp: number;
+    amount_clp: number | null;
     status: string;
     planned_date: string | null;
     trigger_type: string;
@@ -40,6 +41,69 @@ function today(): string {
  * este servicio nunca calcula tipo de cambio por su cuenta.
  */
 export class BillingService {
+    /** Envía alertas internas deduplicadas para cobros próximos o vencidos. */
+    async sendCollectionReminders(referenceDate = today()): Promise<number> {
+        const candidates = await db.query(`
+            SELECT 'invoice' AS entity_type, i.id AS entity_id, i.project_id,
+                   i.invoice_number AS label, i.due_date AS reminder_date, i.status
+            FROM invoices i
+            WHERE i.status IN ('issued', 'partially_paid', 'overdue')
+            UNION ALL
+            SELECT 'payment_milestone' AS entity_type, pm.id AS entity_id, pm.project_id,
+                   pm.name AS label, pm.planned_date AS reminder_date, pm.status
+            FROM payment_milestones pm
+            WHERE pm.status IN ('pending', 'billable', 'overdue') AND pm.planned_date IS NOT NULL
+        `);
+        const recipientsByProject = new Map<number, number[]>();
+        let sent = 0;
+        const reference = new Date(`${referenceDate}T00:00:00Z`);
+        for (const item of candidates) {
+            if (!item.reminder_date) continue;
+            const due = new Date(`${String(item.reminder_date).slice(0, 10)}T00:00:00Z`);
+            const days = Math.round((due.getTime() - reference.getTime()) / 86400000);
+            let eventKey: 'billing_due_7_days' | 'billing_due_today' | 'billing_overdue_weekly' | null = null;
+            let deliveryDate = referenceDate;
+            if (days === 7) eventKey = 'billing_due_7_days';
+            else if (days === 0) eventKey = 'billing_due_today';
+            else if (days < 0 && Math.abs(days) % 7 === 0) eventKey = 'billing_overdue_weekly';
+            if (!eventKey) continue;
+
+            let recipients = recipientsByProject.get(item.project_id);
+            if (!recipients) {
+                const rows = await db.query(`
+                    SELECT pm_user_id AS user_id FROM projects WHERE id = ? AND pm_user_id IS NOT NULL
+                    UNION SELECT created_by AS user_id FROM projects WHERE id = ? AND created_by IS NOT NULL
+                    UNION SELECT id AS user_id FROM users WHERE role = 'team_lead' AND is_active = 1
+                `, [item.project_id, item.project_id]);
+                recipients = rows.map((row: any) => Number(row.user_id));
+                recipientsByProject.set(item.project_id, recipients);
+            }
+            for (const userId of recipients) {
+                const claim = await db.run(`
+                    INSERT OR IGNORE INTO notification_deliveries (event_key, entity_type, entity_id, user_id, scheduled_for)
+                    VALUES (?, ?, ?, ?, ?)
+                `, [eventKey, item.entity_type, item.entity_id, userId, deliveryDate]);
+                if (!claim.changes) continue;
+                const overdueDays = Math.abs(days);
+                const title = eventKey === 'billing_due_7_days' ? 'Cobro vence en 7 días'
+                    : eventKey === 'billing_due_today' ? 'Cobro vence hoy'
+                        : `Cobro vencido hace ${overdueDays} días`;
+                const project = await db.get('SELECT name FROM projects WHERE id = ?', [item.project_id]);
+                await notificationService.notify({
+                    userId, eventKey,
+                    title,
+                    message: `${item.label} · ${project?.name || 'Proyecto'}`,
+                    type: eventKey === 'billing_overdue_weekly' ? 'error' : 'warning',
+                    entityType: item.entity_type,
+                    entityId: item.entity_id,
+                    link: item.entity_type === 'invoice' ? `/billing?tab=invoices&project_id=${item.project_id}` : `/billing?tab=milestones&project_id=${item.project_id}`
+                });
+                sent++;
+            }
+        }
+        return sent;
+    }
+
     /**
      * Evalúa los hitos de pago 'pending' y los pasa a 'billable' si su disparador se cumplió.
      * No hay scheduler en este proyecto: se llama de forma perezosa antes de leer el dashboard/listas.
@@ -93,30 +157,30 @@ export class BillingService {
         return { transitioned };
     }
 
-    /** Marca overdue los hitos invoiced cuya factura venció sin estar paga. */
+    /** Marca vencidas las facturas con saldo abierto sin alterar los pagos parciales. */
     async evaluateOverdue(projectId?: number): Promise<{ transitioned: number }> {
         const projectFilter = projectId ? 'AND pm.project_id = ?' : '';
         const projectParams = projectId ? [projectId] : [];
 
         const overdueRows = await db.query(
-            `SELECT DISTINCT pm.id, pm.project_id, i.id as invoice_id, i.due_date
-             FROM payment_milestones pm
-             JOIN invoice_lines il ON il.payment_milestone_id = pm.id
-             JOIN invoices i ON i.id = il.invoice_id
-             WHERE pm.status = 'invoiced' AND i.due_date < ?
-               AND i.status NOT IN ('paid', 'cancelled') ${projectFilter}`,
-            [today(), ...projectParams]
+            `SELECT DISTINCT pm.id, pm.project_id, i.id as invoice_id, i.due_date,
+                    CAST(julianday(?) - julianday(i.due_date) AS INTEGER) AS days_overdue
+             FROM invoices i
+             JOIN invoice_lines il ON il.invoice_id = i.id
+             LEFT JOIN payment_milestones pm ON pm.id = il.payment_milestone_id
+            WHERE i.due_date < ? AND i.status NOT IN ('paid', 'cancelled') ${projectFilter}`,
+            [today(), today(), ...projectParams]
         );
 
         let transitioned = 0;
         for (const row of overdueRows) {
-            const daysOverdue = Math.floor((Date.now() - new Date(row.due_date).getTime()) / 86400000);
-            await db.run(`UPDATE payment_milestones SET status = 'overdue' WHERE id = ?`, [row.id]);
+            const daysOverdue = Number(row.days_overdue || 0);
+            if (row.id != null) await db.run(`UPDATE payment_milestones SET status = 'overdue' WHERE id = ?`, [row.id]);
             await db.run(
                 `UPDATE invoices SET status = 'overdue' WHERE id = ? AND status NOT IN ('paid', 'cancelled')`,
                 [row.invoice_id]
             );
-            await this.syncOverdueAlert(row.id, projectId ?? row.project_id, daysOverdue);
+            if (row.id != null) await this.syncOverdueAlert(row.id, projectId ?? row.project_id, daysOverdue);
             transitioned++;
         }
 
@@ -153,11 +217,8 @@ export class BillingService {
     }
 
     private async toRow(raw: any): Promise<PaymentMilestoneRow> {
-        const amountCLP = await financeService.toCLP(raw.amount, raw.currency as Currency);
-        // Cuando no hay tipo de cambio configurado, financeService.getExchangeRate devuelve 0
-        // (con solo un logger.warn) y el monto convertido queda en 0 aunque el monto original
-        // sea positivo. Detectamos ese caso para no reportar el hito como si valiera $0.
-        const rateMissing = raw.currency !== 'CLP' && amountCLP === 0 && raw.amount > 0;
+        const amountCLP = raw.currency === 'CLP' ? Number(raw.amount) : await financeService.toCLP(Number(raw.amount), raw.currency as Currency);
+        const rateMissing = raw.currency !== 'CLP' && amountCLP === 0 && Number(raw.amount) > 0;
         return {
             id: raw.id,
             project_id: raw.project_id,
@@ -165,7 +226,7 @@ export class BillingService {
             name: raw.name,
             amount: raw.amount,
             currency: raw.currency,
-            amount_clp: Math.round(amountCLP),
+            amount_clp: rateMissing ? null : Math.round(amountCLP),
             status: raw.status,
             planned_date: raw.planned_date,
             trigger_type: raw.trigger_type,
@@ -198,13 +259,13 @@ export class BillingService {
         const overdue = rows.filter(r => r.status === 'overdue');
         const pending = rows.filter(r => r.status === 'pending');
 
-        const sum = (list: PaymentMilestoneRow[]) => list.reduce((s, r) => s + r.amount_clp, 0);
+        const sum = (list: PaymentMilestoneRow[]) => list.reduce((s, r) => s + (r.amount_clp ?? 0), 0);
 
-        const cashflowSource = [...pending, ...ready_to_invoice, ...invoiced_unpaid];
+        const cashflowSource = [...pending, ...ready_to_invoice];
         const cashflowMap = new Map<string, number>();
         for (const row of cashflowSource) {
             const month = (row.planned_date || today()).slice(0, 7);
-            cashflowMap.set(month, (cashflowMap.get(month) || 0) + row.amount_clp);
+            if (row.amount_clp !== null) cashflowMap.set(month, (cashflowMap.get(month) || 0) + row.amount_clp);
         }
         const cashflow_projection = Array.from(cashflowMap.entries())
             .sort(([a], [b]) => a.localeCompare(b))

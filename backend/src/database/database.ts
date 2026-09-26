@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs';
 import { logger } from '../utils/logger';
 import { MigrationManager } from './migrations';
 import { migrations } from './migrationList';
+import { repairTimeEntriesApprovalColumns } from './schemaRepair';
 
 export class DatabaseManager {
     private static instance: DatabaseManager;
@@ -121,7 +122,10 @@ export class DatabaseManager {
             
             // Manual fix for files table if it doesn't have the required columns
             await this.fixFilesTableIfNeeded();
-            
+
+            // Repair time_entries approval columns if they're missing (can happen if table was recreated)
+            await repairTimeEntriesApprovalColumns(this);
+
             logger.info('Database schema initialized successfully through migrations');
         
         // Apply UTF-8 character corrections

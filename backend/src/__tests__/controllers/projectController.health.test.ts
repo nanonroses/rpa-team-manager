@@ -1,3 +1,6 @@
+jest.mock('../../database/database', () => ({
+    db: { get: jest.fn(), run: jest.fn(), query: jest.fn() }
+}));
 jest.mock('../../services/projectHealthService', () => ({
     projectHealthService: {
         freezeBaseline: jest.fn(),
@@ -7,6 +10,7 @@ jest.mock('../../services/projectHealthService', () => ({
 
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../../middleware/auth';
+import { db } from '../../database/database';
 import { projectHealthService } from '../../services/projectHealthService';
 import { ProjectController } from '../../controllers/projectController';
 
@@ -71,16 +75,39 @@ describe('ProjectController - baseline y health', () => {
 
     describe('getProjectHealth', () => {
         it('devuelve 200 con la salud del proyecto', async () => {
+            (db.get as jest.Mock).mockResolvedValueOnce({ id: 7, assigned_to: 3, created_by: 3 });
             (projectHealthService.getProjectHealth as jest.Mock).mockResolvedValue({
                 project_id: 7, status: 'ok', semaphore: 'green'
             });
-            const req = { params: { id: '7' } } as unknown as AuthenticatedRequest;
+            const req = { params: { id: '7' }, user: { id: 3, role: 'team_lead' } } as unknown as AuthenticatedRequest;
             const res = mockRes();
 
             await controller.getProjectHealth(req, res);
 
             expect(projectHealthService.getProjectHealth).toHaveBeenCalledWith(7);
             expect(res.json).toHaveBeenCalledWith({ project_id: 7, status: 'ok', semaphore: 'green' });
+        });
+
+        it('devuelve 404 si el proyecto no existe', async () => {
+            (db.get as jest.Mock).mockResolvedValueOnce(null);
+            const req = { params: { id: '999' }, user: { id: 3, role: 'team_lead' } } as unknown as AuthenticatedRequest;
+            const res = mockRes();
+
+            await controller.getProjectHealth(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(404);
+            expect(projectHealthService.getProjectHealth).not.toHaveBeenCalled();
+        });
+
+        it('devuelve 403 si un rpa_developer sin pertenencia pide la salud del proyecto', async () => {
+            (db.get as jest.Mock).mockResolvedValueOnce({ id: 7, assigned_to: 2, created_by: 3 });
+            const req = { params: { id: '7' }, user: { id: 1, role: 'rpa_developer' } } as unknown as AuthenticatedRequest;
+            const res = mockRes();
+
+            await controller.getProjectHealth(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(403);
+            expect(projectHealthService.getProjectHealth).not.toHaveBeenCalled();
         });
     });
 });

@@ -1,8 +1,8 @@
 import React, { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { Spin } from 'antd';
 import { useAuthStore } from '@/store/authStore';
 import { UserRole } from '@/types/auth';
+import { LoadingState } from '@/components/common';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -48,18 +48,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Show loading spinner while checking authentication
   if (isLoading) {
-    return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh'
-      }}>
-        <Spin size="large" tip="Loading...">
-          <div style={{ minHeight: '200px' }} />
-        </Spin>
-      </div>
-    );
+    return <LoadingState tip="Verificando acceso…" minHeight="100vh" />;
   }
 
   // Redirect to login if not authenticated

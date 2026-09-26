@@ -4,6 +4,7 @@ import { Project } from '@/types/project';
 import { ProjectHealth, ProjectBaseline } from '../types/projectHealth';
 import { ActivityLogEntry } from '../types/activity';
 import { NotificationItem } from '../types/notification';
+import { TeamCostsResponse } from '@/types/teamCosts';
 
 interface RequestCache {
   [key: string]: {
@@ -365,6 +366,11 @@ class ApiService {
     return response.data;
   }
 
+  async getTeamCosts(): Promise<TeamCostsResponse> {
+    const response = await this.api.get('/financial/team-costs');
+    return response.data;
+  }
+
   async getProjectROI(projectId: number): Promise<any> {
     const response = await this.api.get(`/financial/project-roi/${projectId}`);
     return response.data;
@@ -410,6 +416,11 @@ class ApiService {
 
   async getTaskById(taskId: number): Promise<any> {
     const response = await this.api.get(`/tasks/${taskId}`);
+    return response.data;
+  }
+
+  async searchTasks(search: string): Promise<any[]> {
+    const response = await this.api.get('/tasks', { params: { search, limit: 10 } });
     return response.data;
   }
 
@@ -576,6 +587,11 @@ class ApiService {
     return response.data;
   }
 
+  async batchUpdateTasks(taskIds: number[], updates: { priority?: string; assignee_id?: number | null; column_id?: number }): Promise<any> {
+    const response = await this.api.patch('/tasks/batch', { taskIds, updates });
+    return response.data;
+  }
+
   async moveTask(taskId: number, moveData: { column_id: number; position: number }): Promise<any> {
     const response = await this.api.post(`/tasks/${taskId}/move`, moveData);
     return response.data;
@@ -603,6 +619,61 @@ class ApiService {
 
   async deleteTaskSubtask(taskId: number, subtaskId: number): Promise<any> {
     const response = await this.api.delete(`/tasks/${taskId}/subtasks/${subtaskId}`);
+    return response.data;
+  }
+
+  async getComments(entityType: 'task' | 'project', entityId: number): Promise<any[]> {
+    const response = await this.api.get(`/${entityType}s/${entityId}/comments`);
+    return response.data;
+  }
+
+  async createComment(entityType: 'task' | 'project', entityId: number, content: string): Promise<any> {
+    const response = await this.api.post(`/${entityType}s/${entityId}/comments`, { content });
+    return response.data;
+  }
+
+  async updateComment(entityType: 'task' | 'project', entityId: number, commentId: number, content: string): Promise<any> {
+    const response = await this.api.patch(`/${entityType}s/${entityId}/comments/${commentId}`, { content });
+    return response.data;
+  }
+
+  async deleteComment(entityType: 'task' | 'project', entityId: number, commentId: number): Promise<any> {
+    const response = await this.api.delete(`/${entityType}s/${entityId}/comments/${commentId}`);
+    return response.data;
+  }
+
+  async getMentionableUsers(entityType: 'task' | 'project', entityId: number): Promise<any[]> {
+    const response = await this.api.get(`/${entityType}s/${entityId}/mentionable-users`);
+    return response.data;
+  }
+
+  async getTaskTags(taskId: number): Promise<any[]> {
+    const response = await this.api.get(`/tasks/${taskId}/tags`);
+    return response.data;
+  }
+
+  async createTaskTag(taskId: number, tag: string): Promise<any> {
+    const response = await this.api.post(`/tasks/${taskId}/tags`, { tag });
+    return response.data;
+  }
+
+  async deleteTaskTag(taskId: number, tagId: number): Promise<any> {
+    const response = await this.api.delete(`/tasks/${taskId}/tags/${tagId}`);
+    return response.data;
+  }
+
+  async getTaskCollaborators(taskId: number): Promise<any[]> {
+    const response = await this.api.get(`/tasks/${taskId}/collaborators`);
+    return response.data;
+  }
+
+  async addTaskCollaborator(taskId: number, userId: number): Promise<any> {
+    const response = await this.api.post(`/tasks/${taskId}/collaborators`, { user_id: userId });
+    return response.data;
+  }
+
+  async removeTaskCollaborator(taskId: number, collaboratorId: number): Promise<any> {
+    const response = await this.api.delete(`/tasks/${taskId}/collaborators/${collaboratorId}`);
     return response.data;
   }
 

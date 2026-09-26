@@ -1,347 +1,137 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-  Row, 
-  Col, 
-  Button, 
-  Input, 
-  Select, 
-  Space, 
-  Typography, 
-  Empty, 
-  Spin, 
-  Alert,
-  Modal,
-  message,
-  Card,
-  Statistic
-} from 'antd';
-import {
-  PlusOutlined,
-  SearchOutlined,
-  ProjectOutlined,
-  ExclamationCircleOutlined,
-  FileTextOutlined
-} from '@ant-design/icons';
+import { Button, Col, DatePicker, Empty, Input, Row, Select, Space, Typography, App } from 'antd';
+import { PlusOutlined, SearchOutlined, ProjectOutlined, ExclamationCircleOutlined, FileTextOutlined, FilterOutlined } from '@ant-design/icons';
+import dayjs, { Dayjs } from 'dayjs';
 import { ProjectCard } from '@/components/projects/ProjectCard';
-import { ProjectROICard } from '@/components/projects/ProjectROICard';
-import { ProjectHealthCard } from '@/components/projects/ProjectHealthCard';
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal';
 import { QuoteUploadModal } from '@/components/projects/QuoteUploadModal';
+import { EmptyState, ErrorState, LoadingState } from '@/components/common';
 import { useProjectStore } from '@/store/projectStore';
 import { useAuthStore } from '@/store/authStore';
+import { apiService } from '@/services/api';
 import { Project } from '@/types/project';
+import { ProjectHealth } from '@/types/projectHealth';
 
-const { Title } = Typography;
-const { Search } = Input;
+const { Title, Text } = Typography;
+const { RangePicker } = DatePicker;
+type HealthFilter = 'all' | ProjectHealth['semaphore'];
 
 export const ProjectsPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [priorityFilter, setPriorityFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState<number | 'all'>('all');
+  const [ownerFilter, setOwnerFilter] = useState<number | 'all'>('all');
+  const [commercialStageFilter, setCommercialStageFilter] = useState('all');
+  const [healthFilter, setHealthFilter] = useState<HealthFilter>('all');
+  const [period, setPeriod] = useState<[Dayjs | null, Dayjs | null] | null>(null);
+  const [sortOrder, setSortOrder] = useState('updated');
+  const [clients, setClients] = useState<Array<{ id: number; name: string }>>([]);
+  const [projectHealth, setProjectHealth] = useState<Record<number, ProjectHealth>>({});
+  const [healthLoading, setHealthLoading] = useState(false);
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [quoteUploadModalVisible, setQuoteUploadModalVisible] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
-
-  const { 
-    projects, 
-    isLoading, 
-    error, 
-    fetchProjects, 
-    deleteProject,
-    clearError 
-  } = useProjectStore();
-  
+  const { projects, isLoading, error, fetchProjects, deleteProject, clearError } = useProjectStore();
   const { user, hasPermission } = useAuthStore();
+  const { message, modal } = App.useApp();
+
+  useEffect(() => { void fetchProjects(); }, [fetchProjects]);
+  useEffect(() => {
+    let active = true;
+    apiService.request<{ data?: Array<{ id: number; name: string }> } | Array<{ id: number; name: string }>>({ url: '/clients' })
+      .then((response) => { if (active) setClients(Array.isArray(response) ? response : response?.data || []); })
+      .catch(() => { if (active) setClients([]); });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
+    if (user?.role !== 'team_lead') { setProjectHealth({}); return; }
+    let active = true;
+    setHealthLoading(true);
+    Promise.all(projects.map(async (project) => {
+      try { return [project.id, await apiService.getProjectHealth(project.id)] as const; }
+      catch { return null; }
+    })).then((results) => {
+      if (active) setProjectHealth(Object.fromEntries(results.filter((result): result is NonNullable<typeof result> => result !== null)));
+    }).finally(() => { if (active) setHealthLoading(false); });
+    return () => { active = false; };
+  }, [projects, user?.role]);
 
-  const canCreateProject = user?.role === 'team_lead' || 
-    hasPermission('projects:create') || 
-    hasPermission('projects:*');
-
-  const filteredProjects = projects.filter(project => {
-    const matchesSearch = project.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         project.description?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || project.status === statusFilter;
-    const matchesPriority = priorityFilter === 'all' || project.priority === priorityFilter;
-    
-    return matchesSearch && matchesStatus && matchesPriority;
-  });
-
-  const handleCreateProject = () => {
-    setEditingProject(null);
-    setCreateModalVisible(true);
-  };
-
-  const handleEditProject = (project: Project) => {
-    setEditingProject(project);
-    setCreateModalVisible(true);
-  };
-
-  const handleDeleteProject = (project: Project) => {
-    Modal.confirm({
-      title: 'Delete Project',
-      icon: <ExclamationCircleOutlined />,
-      content: `Are you sure you want to delete "${project.name}"? This action cannot be undone.`,
-      okText: 'Delete',
-      okType: 'danger',
-      cancelText: 'Cancel',
-      onOk: async () => {
-        try {
-          await deleteProject(project.id);
-          message.success('Project deleted successfully');
-        } catch (error) {
-          message.error('Failed to delete project');
-        }
+  const canCreateProject = user?.role === 'team_lead' || hasPermission('projects:create') || hasPermission('projects:*');
+  const availableClients = useMemo(() => {
+    const clientMap = new Map(clients.map((client) => [client.id, client]));
+    projects.forEach((project) => {
+      if (project.client_id && project.client_name && !clientMap.has(project.client_id)) {
+        clientMap.set(project.client_id, { id: project.client_id, name: project.client_name });
       }
     });
-  };
+    return Array.from(clientMap.values()).sort((a, b) => a.name.localeCompare(b.name, 'es'));
+  }, [clients, projects]);
+  const filteredProjects = useMemo(() => {
+    const search = searchTerm.trim().toLocaleLowerCase('es-CL');
+    const [from, to] = period || [null, null];
+    return projects.filter((project) => {
+      const haystack = [project.name, project.description, project.client_name, project.assigned_to_name]
+        .filter(Boolean).join(' ').toLocaleLowerCase('es-CL');
+      const matchesSearch = !search || haystack.includes(search);
+      const matchesStatus = statusFilter === 'all' || project.status === statusFilter;
+      const matchesPriority = priorityFilter === 'all' || project.priority === priorityFilter;
+      const matchesStage = commercialStageFilter === 'all' || (project.commercial_stage || 'approved') === commercialStageFilter;
+      const matchesClient = clientFilter === 'all' || project.client_id === clientFilter;
+      const matchesOwner = ownerFilter === 'all' || project.assigned_to === ownerFilter;
+      const matchesHealth = healthFilter === 'all' || projectHealth[project.id]?.semaphore === healthFilter;
+      const start = project.start_date ? dayjs(project.start_date) : null;
+      const end = project.end_date ? dayjs(project.end_date) : null;
+      const matchesPeriod = (!from && !to) || Boolean((start && (!to || !start.isAfter(to, 'day'))) && (end && (!from || !end.isBefore(from, 'day'))));
+      return matchesSearch && matchesStatus && matchesPriority && matchesStage && matchesClient && matchesOwner && matchesHealth && matchesPeriod;
+    }).sort((a, b) => {
+      if (sortOrder === 'name') return a.name.localeCompare(b.name, 'es');
+      if (sortOrder === 'end_date') return (a.end_date || '9999').localeCompare(b.end_date || '9999');
+      if (sortOrder === 'progress') return b.progress_percentage - a.progress_percentage;
+      return (b.updated_at || b.created_at).localeCompare(a.updated_at || a.created_at);
+    });
+  }, [projects, searchTerm, statusFilter, priorityFilter, commercialStageFilter, clientFilter, ownerFilter, healthFilter, projectHealth, period, sortOrder]);
 
-  const handleViewProject = (project: Project) => {
-    navigate(`/projects/${project.id}`);
-  };
+  const hasFilters = Boolean(searchTerm || statusFilter !== 'all' || priorityFilter !== 'all' || clientFilter !== 'all' || ownerFilter !== 'all' || commercialStageFilter !== 'all' || healthFilter !== 'all' || period);
+  const resetFilters = () => { setSearchTerm(''); setStatusFilter('all'); setPriorityFilter('all'); setClientFilter('all'); setOwnerFilter('all'); setCommercialStageFilter('all'); setHealthFilter('all'); setPeriod(null); };
+  const handleDeleteProject = (project: Project) => modal.confirm({
+    title: 'Eliminar proyecto', icon: <ExclamationCircleOutlined />, content: `¿Quieres eliminar “${project.name}”? Esta acción no se puede deshacer.`, okText: 'Eliminar', okType: 'danger', cancelText: 'Cancelar',
+    onOk: async () => { try { await deleteProject(project.id); message.success('Proyecto eliminado'); } catch (deleteError: any) { message.error(deleteError?.response?.data?.error || 'No se pudo eliminar el proyecto'); } }
+  });
+  const handleQuoteUploadSuccess = (project: any) => { void fetchProjects(); message.success('Proyecto creado exitosamente desde cotización'); if (project?.id) navigate(`/projects/${project.id}`); };
 
-  const handleQuoteUploadSuccess = (project: any) => {
-    fetchProjects();
-    message.success('Proyecto creado exitosamente desde cotización');
-    if (project?.id) {
-      navigate(`/projects/${project.id}`);
-    }
-  };
-
-  const getProjectStats = () => {
-    const total = projects.length;
-    const active = projects.filter(p => p.status === 'active').length;
-    const completed = projects.filter(p => p.status === 'completed').length;
-    const overdue = projects.filter(p => {
-      if (!p.end_date || p.status === 'completed') return false;
-      return new Date(p.end_date) < new Date();
-    }).length;
-
-    return { total, active, completed, overdue };
-  };
-
-  const stats = getProjectStats();
-
-  const statusOptions = [
-    { label: 'All Status', value: 'all' },
-    { label: 'Planning', value: 'planning' },
-    { label: 'Active', value: 'active' },
-    { label: 'On Hold', value: 'on_hold' },
-    { label: 'Completed', value: 'completed' },
-    { label: 'Cancelled', value: 'cancelled' }
-  ];
-
-  const priorityOptions = [
-    { label: 'All Priorities', value: 'all' },
-    { label: 'Critical', value: 'critical' },
-    { label: 'High', value: 'high' },
-    { label: 'Medium', value: 'medium' },
-    { label: 'Low', value: 'low' }
-  ];
-
-  if (error) {
-    return (
-      <div style={{ padding: '24px' }}>
-        <Alert
-          message="Failed to load projects"
-          description={error || 'Unknown error occurred'}
-          type="error"
-          showIcon
-          action={
-            <Space>
-              <Button size="small" onClick={clearError}>
-                Dismiss
-              </Button>
-              <Button type="primary" size="small" onClick={fetchProjects}>
-                Retry
-              </Button>
-            </Space>
-          }
-        />
-      </div>
-    );
-  }
+  if (error) return <main className="projects-page projects-page-state"><ErrorState title="No fue posible cargar los proyectos" description={error} action={<Space><Button size="small" onClick={clearError}>Cerrar</Button><Button type="primary" size="small" onClick={() => void fetchProjects()}>Reintentar</Button></Space>} /></main>;
 
   return (
-    <div style={{ padding: '24px' }}>
-      {/* Header */}
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <Title level={2} style={{ margin: 0 }}>
-            <ProjectOutlined style={{ marginRight: '8px' }} />
-            Projects
-          </Title>
-          {canCreateProject && (
-            <Space>
-              <Button
-                type="default"
-                icon={<FileTextOutlined />}
-                onClick={() => setQuoteUploadModalVisible(true)}
-              >
-                Crear desde Cotización
-              </Button>
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={handleCreateProject}
-              >
-                New Project
-              </Button>
-            </Space>
-          )}
-        </div>
-
-        {/* Stats Cards */}
-        <Row gutter={16} style={{ marginBottom: '24px' }}>
-          <Col xs={12} sm={6}>
-            <Card size="small">
-              <Statistic 
-                title="Total Projects" 
-                value={stats.total} 
-                valueStyle={{ color: '#1890ff' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={12} sm={6}>
-            <Card size="small">
-              <Statistic 
-                title="Active" 
-                value={stats.active} 
-                valueStyle={{ color: '#52c41a' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={12} sm={6}>
-            <Card size="small">
-              <Statistic 
-                title="Completed" 
-                value={stats.completed} 
-                valueStyle={{ color: '#722ed1' }}
-              />
-            </Card>
-          </Col>
-          <Col xs={12} sm={6}>
-            <Card size="small">
-              <Statistic 
-                title="Overdue" 
-                value={stats.overdue} 
-                valueStyle={{ color: stats.overdue > 0 ? '#ff4d4f' : '#52c41a' }}
-              />
-            </Card>
-          </Col>
+    <main className="projects-page">
+      <section className="projects-heading">
+        <div><Text className="section-kicker">REPOSITORIO Y SEGUIMIENTO</Text><Title level={1}><ProjectOutlined /> Portafolio de proyectos</Title><Text type="secondary">Busca y revisa clientes, responsables, etapas, avance y fechas de cada iniciativa.</Text></div>
+        {canCreateProject && <Space wrap className="projects-heading-actions"><Button icon={<FileTextOutlined />} onClick={() => setQuoteUploadModalVisible(true)}>Crear desde cotización</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingProject(null); setCreateModalVisible(true); }}>Nuevo proyecto</Button></Space>}
+      </section>
+      <section className="projects-toolbar" aria-label="Buscar y filtrar proyectos">
+        <Row gutter={[10, 10]} align="middle">
+          <Col xs={24} md={12} lg={8}><Input aria-label="Buscar proyectos" placeholder="Buscar por proyecto, cliente o responsable" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} allowClear prefix={<SearchOutlined />} /></Col>
+          <Col xs={12} md={6} lg={4}><Select aria-label="Filtrar por cliente" style={{ width: '100%' }} value={clientFilter} onChange={setClientFilter} showSearch optionFilterProp="label" options={[{ label: 'Todos los clientes', value: 'all' }, ...availableClients.map((client) => ({ label: client.name, value: client.id }))]} /></Col>
+          <Col xs={12} md={6} lg={4}><Select aria-label="Filtrar por responsable" style={{ width: '100%' }} value={ownerFilter} onChange={setOwnerFilter} showSearch optionFilterProp="label" options={[{ label: 'Todos los responsables', value: 'all' }, ...Array.from(new Map(projects.filter((project) => project.assigned_to && project.assigned_to_name).map((project) => [project.assigned_to, { label: project.assigned_to_name!, value: project.assigned_to! }])).values())]} /></Col>
+          <Col xs={12} md={6} lg={4}><Select aria-label="Filtrar por estado" style={{ width: '100%' }} value={statusFilter} onChange={setStatusFilter} options={[{ label: 'Todos los estados', value: 'all' }, { label: 'En ejecución', value: 'active' }, { label: 'En pausa', value: 'on_hold' }, { label: 'Completado', value: 'completed' }, { label: 'Cancelado', value: 'cancelled' }]} /></Col>
+          <Col xs={12} md={6} lg={4}><Select aria-label="Filtrar por etapa" style={{ width: '100%' }} value={commercialStageFilter} onChange={setCommercialStageFilter} options={[{ label: 'Todas las etapas', value: 'all' }, { label: 'En cotización', value: 'quoting' }, { label: 'Aprobado', value: 'approved' }, { label: 'Oportunidad perdida', value: 'lost' }]} /></Col>
+          {user?.role === 'team_lead' && <Col xs={12} md={6} lg={4}><Select aria-label="Filtrar por salud del proyecto" style={{ width: '100%' }} value={healthFilter} onChange={setHealthFilter} loading={healthLoading} options={[{ label: 'Cualquier salud', value: 'all' }, { label: 'En curso', value: 'green' }, { label: 'En riesgo', value: 'yellow' }, { label: 'Desviado', value: 'red' }, { label: 'Datos insuficientes', value: 'gray' }]} /></Col>}
+          <Col xs={24} md={12} lg={8}><RangePicker aria-label="Filtrar por periodo del proyecto" style={{ width: '100%' }} value={period} onChange={(value) => setPeriod(value as [Dayjs | null, Dayjs | null] | null)} placeholder={['Inicio desde', 'Término hasta']} /></Col>
+          <Col xs={12} md={6} lg={5}><Select aria-label="Ordenar proyectos" style={{ width: '100%' }} value={sortOrder} onChange={setSortOrder} options={[{ label: 'Actualizados recientemente', value: 'updated' }, { label: 'Nombre A-Z', value: 'name' }, { label: 'Término más próximo', value: 'end_date' }, { label: 'Mayor avance', value: 'progress' }]} /></Col>
+          <Col xs={12} md={6} lg={3}><Select aria-label="Filtrar por prioridad" style={{ width: '100%' }} value={priorityFilter} onChange={setPriorityFilter} options={[{ label: 'Toda prioridad', value: 'all' }, { label: 'Crítica', value: 'critical' }, { label: 'Alta', value: 'high' }, { label: 'Media', value: 'medium' }, { label: 'Baja', value: 'low' }]} /></Col>
         </Row>
-
-        {/* Filters */}
-        <Row gutter={[16, 16]} align="middle">
-          <Col xs={24} sm={12} md={8}>
-            <Search
-              placeholder="Search projects..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              allowClear
-              prefix={<SearchOutlined />}
-            />
-          </Col>
-          <Col xs={12} sm={6} md={4}>
-            <Select
-              style={{ width: '100%' }}
-              placeholder="Status"
-              value={statusFilter}
-              onChange={setStatusFilter}
-              options={statusOptions}
-            />
-          </Col>
-          <Col xs={12} sm={6} md={4}>
-            <Select
-              style={{ width: '100%' }}
-              placeholder="Priority"
-              value={priorityFilter}
-              onChange={setPriorityFilter}
-              options={priorityOptions}
-            />
-          </Col>
-        </Row>
-      </div>
-
-      {/* Projects Grid */}
-      {isLoading ? (
-        <div style={{ textAlign: 'center', padding: '64px 0' }}>
-          <Spin size="large" tip="Loading projects...">
-            <div style={{ minHeight: '200px' }} />
-          </Spin>
-        </div>
-      ) : filteredProjects.length === 0 ? (
-        <Empty
-          image={Empty.PRESENTED_IMAGE_SIMPLE}
-          description={
-            searchTerm || statusFilter !== 'all' || priorityFilter !== 'all'
-              ? 'No projects match your filters'
-              : 'No projects found'
-          }
-          style={{ padding: '64px 0' }}
-        >
-          {canCreateProject && !searchTerm && statusFilter === 'all' && priorityFilter === 'all' && (
-            <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateProject}>
-              Create Your First Project
-            </Button>
-          )}
-        </Empty>
-      ) : (
-        <Row gutter={[16, 16]}>
-          {filteredProjects.map(project => (
-            <Col xs={24} sm={24} lg={12} xl={12} key={project.id}>
-              <Space direction="vertical" style={{ width: '100%' }} size="middle">
-                <ProjectCard
-                  project={project}
-                  onEdit={handleEditProject}
-                  onDelete={handleDeleteProject}
-                  onView={handleViewProject}
-                  onClick={handleViewProject}
-                />
-                {user?.role === 'team_lead' && (
-                  <ProjectROICard
-                    projectId={project.id}
-                    projectName={project.name}
-                    assignedUserId={project.assigned_to}
-                  />
-                )}
-                {user?.role === 'team_lead' && (
-                  <ProjectHealthCard projectId={project.id} />
-                )}
-              </Space>
-            </Col>
-          ))}
+        <div className="projects-toolbar-footer"><Text type="secondary"><FilterOutlined /> {filteredProjects.length} de {projects.length} {filteredProjects.length === 1 ? 'proyecto' : 'proyectos'}</Text>{hasFilters && <Button type="link" size="small" onClick={resetFilters}>Limpiar filtros</Button>}</div>
+      </section>
+      {isLoading && projects.length === 0 ? <LoadingState tip="Cargando proyectos…" minHeight={200} /> : filteredProjects.length === 0 ? (hasFilters ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Ningún proyecto coincide con estos filtros"><Button onClick={resetFilters}>Limpiar filtros</Button></Empty> : <EmptyState description="Todavía no hay proyectos en el portafolio" action={canCreateProject && <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalVisible(true)}>Crear el primer proyecto</Button>} />) : (
+        <Row gutter={[16, 16]} className="projects-grid">
+          {filteredProjects.map((project) => <Col xs={24} md={12} xl={8} key={project.id}><ProjectCard project={project} health={projectHealth[project.id]} onEdit={(item) => { setEditingProject(item); setCreateModalVisible(true); }} onDelete={handleDeleteProject} onView={(item) => navigate(`/projects/${item.id}`)} onClick={(item) => navigate(`/projects/${item.id}`)} /></Col>)}
         </Row>
       )}
-
-      {/* Create/Edit Project Modal */}
-      <CreateProjectModal
-        visible={createModalVisible}
-        onCancel={() => {
-          setCreateModalVisible(false);
-          setEditingProject(null);
-        }}
-        onSuccess={(updatedProject) => {
-          fetchProjects(); // Refresh the list
-          // Update the editing project with fresh data
-          if (editingProject && updatedProject) {
-            setEditingProject(updatedProject);
-          }
-        }}
-        editProject={editingProject}
-      />
-
-      {/* Quote Upload Modal */}
-      <QuoteUploadModal
-        visible={quoteUploadModalVisible}
-        onCancel={() => setQuoteUploadModalVisible(false)}
-        onSuccess={handleQuoteUploadSuccess}
-      />
-    </div>
+      <CreateProjectModal visible={createModalVisible} onCancel={() => { setCreateModalVisible(false); setEditingProject(null); }} onSuccess={() => { void fetchProjects(); }} editProject={editingProject} />
+      <QuoteUploadModal visible={quoteUploadModalVisible} onCancel={() => setQuoteUploadModalVisible(false)} onSuccess={handleQuoteUploadSuccess} />
+    </main>
   );
 };
