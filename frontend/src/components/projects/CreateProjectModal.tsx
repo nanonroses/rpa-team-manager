@@ -29,6 +29,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   const [projectAssignments, setProjectAssignments] = useState<any[]>([]);
   const [clients, setClients] = useState<any[]>([]);
   const [salesReps, setSalesReps] = useState<any[]>([]);
+  const [businessAreas, setBusinessAreas] = useState<any[]>([]);
   const { createProject, updateProject } = useProjectStore();
   const { user } = useAuthStore();
 
@@ -98,14 +99,16 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
   const loadCommercialDirectories = async () => {
     try {
-      const [clientResponse, salesResponse] = await Promise.all([
+      const [clientResponse, salesResponse, areaResponse] = await Promise.all([
         apiService.request<any>({ url: '/clients' }),
-        apiService.request<any>({ url: '/sales-reps' })
+        apiService.request<any>({ url: '/sales-reps' }),
+        apiService.request<any>({ url: '/business-areas' })
       ]);
       setClients(clientResponse?.data || []);
       setSalesReps(salesResponse?.data || []);
+      setBusinessAreas(areaResponse?.data || []);
     } catch (error) {
-      console.warn('No se pudieron cargar clientes o comerciales:', error);
+      console.warn('No se pudieron cargar clientes, comerciales o areas:', error);
     }
   };
 
@@ -167,6 +170,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         client_id: values.client_id,
         client_contact_id: values.client_contact_id,
         sales_rep_id: values.sales_rep_id,
+        area_id: values.area_id,
         opportunity_source: values.opportunity_source || 'direct'
       };
       
@@ -272,6 +276,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             }}
           </Form.Item>
           <Form.Item name="sales_rep_id" label="Comercial responsable"><Select allowClear showSearch optionFilterProp="label" placeholder="Origen directo o comercial" options={salesReps.map((rep) => ({ value: rep.id, label: rep.name }))} /></Form.Item>
+          <Form.Item name="area_id" label="Área de negocio"><Select allowClear showSearch optionFilterProp="label" placeholder="Selecciona el área" options={businessAreas.map((area) => ({ value: area.id, label: area.name }))} /></Form.Item>
         </>}
         <Form.Item
           name="name"

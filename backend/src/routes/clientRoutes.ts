@@ -12,4 +12,5 @@ router.patch('/contacts/:contactId', clientController.updateContact);
 router.get('/sales-reps', clientController.listSalesReps);
 router.post('/sales-reps', clientController.createSalesRep);
 router.patch('/sales-reps/:salesRepId', clientController.updateSalesRep);
+router.get('/business-areas', clientController.listBusinessAreas);
 export default router;
