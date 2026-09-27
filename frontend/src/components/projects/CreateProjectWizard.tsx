@@ -143,10 +143,12 @@ export const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ visibl
         client_contact_id: basics.client_contact_id,
         sales_rep_id: basics.sales_rep_id,
         area_id: basics.area_id,
-        opportunity_source: basics.opportunity_source || 'direct'
+        opportunity_source: basics.opportunity_source || 'direct',
+        assigned_to: isOperations ? undefined : team.assigned_users?.[0]
       };
       const project = await createProject(projectData);
       setCreatedProject(project);
+      message.success('Proyecto creado. Puedes seguir completando los datos comerciales o cerrar esta ventana.');
 
       if (quoteData?.amount !== undefined) {
         try {
@@ -207,8 +209,13 @@ export const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ visibl
     onCancel();
   };
 
+  const handleCancel = () => {
+    if (createdProject) onSuccess?.(createdProject);
+    onCancel();
+  };
+
   return (
-    <Modal title="Nuevo proyecto" open={visible} onCancel={onCancel} footer={null} width={720} destroyOnHidden>
+    <Modal title="Nuevo proyecto" open={visible} onCancel={handleCancel} footer={null} width={720} destroyOnHidden>
       <Steps current={stepKeys.indexOf(currentKey)} items={stepKeys.map((key) => ({ title: stepTitles[key] }))} style={{ marginBottom: 24 }} />
 
       <Form form={basicForm} layout="vertical" style={{ display: currentKey === 'basics' ? 'block' : 'none' }} initialValues={{ opportunity_source: 'direct', priority: 'medium' }}>

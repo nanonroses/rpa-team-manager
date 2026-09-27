@@ -110,6 +110,12 @@ export class CommercialController {
     }
     const quoteFile = file_id ? null : await db.get(`SELECT file_id FROM file_associations WHERE entity_type = 'project' AND entity_id = ? AND association_type = ? ORDER BY created_at DESC LIMIT 1`, [projectId, `quote_v${next.version}`]);
     const result = await db.run(`INSERT INTO project_quotes (project_id, version, pricing_model, amount, currency, hours, hourly_rate, estimated_cost, margin_percent, scope_change_id, file_id, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [projectId, next.version, pricing_model, amountNumber, currency, hours ?? null, hourly_rate ?? null, estimated_cost ?? null, margin, scope_change_id ?? null, file_id ?? quoteFile?.file_id ?? null, notes ?? null, req.user?.id ?? null]);
+    if (file_id) {
+      await db.run(`INSERT INTO file_associations (file_id, entity_type, entity_id, association_type, created_by)
+        SELECT ?, 'project', ?, ?, ? WHERE NOT EXISTS (
+          SELECT 1 FROM file_associations WHERE file_id = ? AND entity_type = 'project' AND entity_id = ? AND association_type = ?
+        )`, [file_id, projectId, `quote_v${next.version}`, req.user?.id ?? null, file_id, projectId, `quote_v${next.version}`]);
+    }
     const created = await db.get('SELECT * FROM project_quotes WHERE id = ?', [result.id]);
     await activityLogService.logActivity(req.user?.id, 'quote', Number(result.id), 'version_created', null, created);
     await activityLogService.logActivity(req.user?.id, 'project', projectId, 'quote_version_created', null, { quote_id: result.id, version: next.version, amount: amountNumber, currency, status: created.status });

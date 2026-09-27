@@ -3,6 +3,7 @@ import { Alert, Button, Card, Checkbox, DatePicker, Descriptions, Empty, Form, I
 import { CalendarOutlined, CheckCircleOutlined, DollarOutlined, FileTextOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { apiService } from '@/services/api';
+import { fileService } from '@/services/fileService';
 import { User } from '@/types/auth';
 import { Project } from '@/types/project';
 import { FileManager } from '@/components/files';
@@ -42,9 +43,9 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
     try {
       const results = await Promise.allSettled([
         apiService.request({ url: `${base}/meetings` }),
-        isLead ? apiService.request({ url: `${base}/quotes` }) : Promise.resolve({ data: { data: [] } }),
+        canManage ? apiService.request({ url: `${base}/quotes` }) : Promise.resolve({ data: { data: [] } }),
         apiService.request({ url: `${base}/documents` }),
-        isLead ? apiService.request({ url: `${base}/capacity` }) : Promise.resolve({ data: { data: [] } }),
+        canManage ? apiService.request({ url: `${base}/capacity` }) : Promise.resolve({ data: { data: [] } }),
         isLead ? apiService.request({ url: `/billing/payment-milestones?project_id=${project.id}` }) : Promise.resolve({ data: [] }),
         isLead ? apiService.request({ url: `/billing/invoices?project_id=${project.id}` }) : Promise.resolve({ data: [] }),
         apiService.request({ url: `/lifecycle/projects/${project.id}/scope-changes` })
@@ -61,7 +62,7 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
     } catch {
       message.error('No se pudo cargar el seguimiento comercial');
     } finally { setLoading(false); }
-  }, [base, isLead, message, project.id]);
+  }, [base, isLead, canManage, message, project.id]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -125,6 +126,25 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
     }
   };
 
+  const downloadQuoteFile = async (fileId: number) => {
+    try {
+      const [blob, fileInfo] = await Promise.all([
+        fileService.downloadFile(fileId),
+        fileService.getFile(fileId).catch(() => null)
+      ]);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileInfo?.original_filename || `cotizacion-${fileId}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      message.error('No se pudo descargar el archivo');
+    }
+  };
+
   const recordDocument = async (values: Row) => {
     const done = await save(`${base}/documents`, { ...values, document_type: documentType, document_date: values.document_date?.format('YYYY-MM-DD') }, 'Documento registrado');
     if (done) setDocumentType(null);
@@ -134,7 +154,7 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
     { title: 'Versión', dataIndex: 'version', render: (v: number) => `v${v}` },
     { title: 'Tipo', dataIndex: 'pricing_model', render: (v: string) => ({ fixed: 'Precio fijo', hourly: 'Por horas', mixed: 'Mixta' }[v] || v) },
     ...(isLead ? [{ title: 'Monto', dataIndex: 'amount', render: (v: number, row: Row) => `${row.currency} ${Number(v).toLocaleString('es-CL')}` }, { title: 'Margen', dataIndex: 'margin_percent', render: (v: number | null) => v == null ? 'Por definir' : `${Number(v).toFixed(1)}%` }] : []),
-    { title: 'Archivo', dataIndex: 'file_id', render: (v: number | null) => v ? <a href={`/api/files/${v}/download`} target="_blank" rel="noreferrer">Descargar</a> : 'Sin archivo' },
+    { title: 'Archivo', dataIndex: 'file_id', render: (v: number | null) => v ? <Button type="link" size="small" onClick={() => void downloadQuoteFile(v)}>Descargar</Button> : 'Sin archivo' },
     { title: 'Estado', dataIndex: 'status', render: (v: string) => <Tag color={v === 'approved' ? 'green' : v === 'replaced' ? 'default' : 'blue'}>{({ sent: 'Enviada', approved: 'Validada por jefatura', replaced: 'Reemplazada', rejected: 'Rechazada', draft: 'Borrador' } as Row)[v] || v}</Tag> },
     { title: 'Registrada', dataIndex: 'created_at', render: (v: string) => v ? dayjs(v).format('DD MMM YYYY') : '—' },
     ...(isLead ? [{ title: 'Acción', key: 'action', render: (_: unknown, row: Row) => row.status === 'sent' ? <Space>
@@ -148,7 +168,7 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
       <div><Text className="section-kicker">ETAPA COMERCIAL</Text><Title level={4}>{project.commercial_stage === 'approved' ? 'Aprobado por cliente' : project.commercial_stage === 'lost' ? 'Oportunidad perdida' : 'En cotización'}</Title></div>
       <Space wrap>
         {canManage && project.commercial_stage === 'quoting' && <Button icon={<CalendarOutlined />} onClick={() => setMeetingOpen(true)}>Registrar reunión</Button>}
-        {isLead && project.commercial_stage !== 'lost' && <Button icon={<FileTextOutlined />} onClick={() => setQuoteOpen(true)}>Nueva cotización</Button>}
+        {canManage && project.commercial_stage !== 'lost' && <Button icon={<FileTextOutlined />} onClick={() => setQuoteOpen(true)}>Nueva cotización</Button>}
         {isLead && project.commercial_stage === 'quoting' && <Button type="primary" onClick={() => setApprovalOpen(true)}>Registrar aprobación cliente</Button>}
         {isLead && project.commercial_stage === 'quoting' && <Button danger type="text" onClick={requestLost}>Marcar perdida</Button>}
       </Space>
@@ -164,7 +184,7 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
           { title: 'Entregable', render: (_: unknown, r: Row) => r.has_pdd ? 'PDD' : r.has_technical_commercial_proposal ? 'Propuesta' : '—' }
         ]} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Registra la primera reunión para iniciar la trazabilidad" />}
       </Card>
-      <Card title="Versiones de cotización" extra={isLead && project.commercial_stage !== 'lost' ? <Button type="text" icon={<PlusOutlined />} onClick={() => setQuoteOpen(true)}>Nueva versión</Button> : null}>
+      <Card title="Versiones de cotización" extra={canManage && project.commercial_stage !== 'lost' ? <Button type="text" icon={<PlusOutlined />} onClick={() => setQuoteOpen(true)}>Nueva versión</Button> : null}>
         {quotes.length ? <Table size="small" rowKey="id" pagination={false} loading={loading} dataSource={quotes} columns={quoteColumns} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Aún no hay una cotización registrada" />}
         {isLead && quotes.find((q) => q.status === 'approved') && <div className="commercial-margin-note"><DollarOutlined /> La validación interna de la versión no sustituye la aprobación del cliente. Esta versión fija precio y horas del proyecto.</div>}
       </Card>
@@ -178,11 +198,11 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
         <Descriptions.Item label="HES antes de facturar"><Switch disabled={!canManage} checked={Boolean(project.require_service_acceptance)} onChange={(value) => void save(`${base}/requirements`, { require_service_acceptance: value }, 'Requisito actualizado', 'patch')} /></Descriptions.Item>
       </Descriptions>
       <Space wrap>
-        {isLead && <Button onClick={() => setDocumentType('pdd')}>Registrar PDD</Button>}
-        {isLead && <Button onClick={() => setDocumentType('technical_commercial_proposal')}>Registrar propuesta</Button>}
-        {isLead && <Button onClick={() => setDocumentType('purchase_order')}>Registrar OC</Button>}
-        {isLead && <Button onClick={() => setDocumentType('service_acceptance')}>Registrar HES</Button>}
-        {isLead && <Button onClick={() => setDocumentType('client_approval')}>Registrar evidencia cliente</Button>}
+        {canManage && <Button onClick={() => setDocumentType('pdd')}>Registrar PDD</Button>}
+        {canManage && <Button onClick={() => setDocumentType('technical_commercial_proposal')}>Registrar propuesta</Button>}
+        {canManage && <Button onClick={() => setDocumentType('purchase_order')}>Registrar OC</Button>}
+        {canManage && <Button onClick={() => setDocumentType('service_acceptance')}>Registrar HES</Button>}
+        {canManage && <Button onClick={() => setDocumentType('client_approval')}>Registrar evidencia cliente</Button>}
       </Space>
       <Table size="small" rowKey="id" pagination={false} loading={loading} dataSource={documents} columns={[
         { title: 'Documento', dataIndex: 'document_type', render: (v: string) => ({ purchase_order: 'Orden de compra', service_acceptance: 'HES / aceptación de servicio', client_approval: 'Aprobación cliente', pdd: 'PDD', technical_commercial_proposal: 'Propuesta técnico comercial' } as Row)[v] || v },
@@ -195,7 +215,7 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
     <div className="commercial-columns">
       <Card title="Cierre de entrega" extra={project.delivery_accepted_at ? <Tag color="green">Aceptada</Tag> : <Tag>Abierta</Tag>}>
         <Text type="secondary">Registra el OK del cliente y la evidencia antes de dar por terminada la entrega.</Text>
-        {!project.delivery_accepted_at && isLead && (hasClientAcceptanceEvidence
+        {!project.delivery_accepted_at && canManage && (hasClientAcceptanceEvidence
           ? <Button style={{ marginTop: 14 }} icon={<CheckCircleOutlined />} onClick={() => void save(`${base}/delivery-acceptance`, {}, 'Entrega aceptada')}>Cerrar entrega con evidencia registrada</Button>
           : <Button style={{ marginTop: 14 }} onClick={() => setDocumentType('client_approval')}>Registrar OK del cliente</Button>)}
         {project.delivery_accepted_at && <p>Entrega aceptada el {dayjs(project.delivery_accepted_at).format('DD MMM YYYY')}</p>}
