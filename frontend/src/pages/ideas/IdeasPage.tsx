@@ -230,7 +230,7 @@ const IdeasPage: React.FC = () => {
           </Paragraph>
           
           <div style={{ marginTop: 'auto' }}>
-            <Space split={<span style={{ color: '#d9d9d9' }}>•</span>}>
+            <Space split={<span style={{ color: 'var(--color-border)' }}>•</span>}>
               <Space>
                 <Avatar size="small" icon={<UserOutlined />} />
                 <Text type="secondary">{idea.created_by_name}</Text>
@@ -292,7 +292,7 @@ const IdeasPage: React.FC = () => {
               <Statistic
                 title="En curso"
                 value={stats.in_progress_count}
-                valueStyle={{ color: '#faad14' }}
+                valueStyle={{ color: 'var(--color-warning)' }}
               />
             </Card>
           </Col>
@@ -301,7 +301,7 @@ const IdeasPage: React.FC = () => {
               <Statistic
                 title="Completadas"
                 value={stats.done_count}
-                valueStyle={{ color: '#52c41a' }}
+                valueStyle={{ color: 'var(--color-success)' }}
               />
             </Card>
           </Col>
@@ -311,7 +311,7 @@ const IdeasPage: React.FC = () => {
                 title="Promedio de votos"
                 value={stats.avg_votes}
                 precision={1}
-                valueStyle={{ color: '#1890ff' }}
+                valueStyle={{ color: 'var(--color-info)' }}
               />
             </Card>
           </Col>

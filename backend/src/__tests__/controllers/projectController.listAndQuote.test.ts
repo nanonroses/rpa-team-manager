@@ -34,14 +34,15 @@ describe('ProjectController - listado y creación desde cotización (SQLite real
         await testDb.close();
     });
 
-    it('getProjects no multiplica tareas por horas y solo suma horas aprobadas', async () => {
+    it('getProjects no multiplica tareas por horas y suma horas registradas sin exigir aprobación', async () => {
         const project = await testDb.run(`INSERT INTO projects (name, created_by) VALUES ('Conteo', ?)`, [users.lead]);
         const board = await testDb.run(`INSERT INTO task_boards (project_id, name) VALUES (?, 'B')`, [project.id]);
         const column = await testDb.run(`INSERT INTO task_columns (board_id, name, position) VALUES (?, 'To Do', 1)`, [board.id]);
+        const doneColumn = await testDb.run(`INSERT INTO task_columns (board_id, name, position, is_done_column) VALUES (?, 'Done', 2, 1)`, [board.id]);
         for (const status of ['todo', 'in_progress', 'done']) {
             await testDb.run(
                 `INSERT INTO tasks (board_id, column_id, title, reporter_id, status) VALUES (?, ?, ?, ?, ?)`,
-                [board.id, column.id, `T-${status}`, users.lead, status]
+                [board.id, status === 'done' ? doneColumn.id : column.id, `T-${status}`, users.lead, status]
             );
         }
         await testDb.run(`INSERT INTO time_entries (user_id, project_id, hours, date, approval_status) VALUES (?, ?, 4, '2026-09-21', 'approved')`, [users.dev, project.id]);
@@ -53,7 +54,37 @@ describe('ProjectController - listado y creación desde cotización (SQLite real
 
         const rows = (res.json as jest.Mock).mock.calls[0][0];
         const row = rows.find((p: any) => p.id === project.id);
-        expect(row).toMatchObject({ total_tasks: 3, completed_tasks: 1, progress_percentage: 33, total_hours_logged: 10 });
+        expect(row).toMatchObject({ total_tasks: 3, completed_tasks: 1, progress_percentage: 33, total_hours_logged: 15 });
+        const detailRes = mockRes();
+        await controller.getProject({ ...makeReq({ id: users.lead, role: 'team_lead' }), params: { id: String(project.id) } } as any, detailRes);
+        expect((detailRes.json as jest.Mock).mock.calls[0][0]).toMatchObject({
+            total_tasks: 3, completed_tasks: 1, total_hours_logged: 15, hours_spent: 10
+        });
+    });
+
+    it('cuenta las columnas Done aunque status esté desactualizado y descuenta tareas reabiertas', async () => {
+        const project = await testDb.run(`INSERT INTO projects (name, created_by) VALUES ('Agrotop', ?)`, [users.lead]);
+        const board = await testDb.run(`INSERT INTO task_boards (project_id, name) VALUES (?, 'Kanban')`, [project.id]);
+        const backlog = await testDb.run(`INSERT INTO task_columns (board_id, name, position) VALUES (?, 'Backlog', 0)`, [board.id]);
+        const done = await testDb.run(`INSERT INTO task_columns (board_id, name, position, is_done_column) VALUES (?, 'Entrega final', 1, 1)`, [board.id]);
+        for (let index = 0; index < 6; index++) {
+            await testDb.run(`INSERT INTO tasks (board_id, column_id, title, reporter_id, status) VALUES (?, ?, ?, ?, ?)`,
+                [board.id, index < 3 ? done.id : backlog.id, `T${index}`, users.lead, index === 0 ? 'in_progress' : 'todo']);
+        }
+        const assertProgress = async (completed: number, percent: number) => {
+            const listRes = mockRes();
+            await controller.getProjects(makeReq({ id: users.lead, role: 'team_lead' }), listRes);
+            expect((listRes.json as jest.Mock).mock.calls[0][0].find((p: any) => p.id === project.id))
+                .toMatchObject({ total_tasks: 6, completed_tasks: completed, progress_percentage: percent });
+            const detailRes = mockRes();
+            await controller.getProject(makeReq({ id: users.lead, role: 'team_lead' }, {}, { id: String(project.id) }), detailRes);
+            expect((detailRes.json as jest.Mock).mock.calls[0][0]).toMatchObject({ total_tasks: 6, completed_tasks: completed });
+        };
+        await assertProgress(3, 50);
+        await testDb.run(`UPDATE tasks SET column_id = ?, status = 'done' WHERE board_id = ? AND title = 'T0'`, [backlog.id, board.id]);
+        await assertProgress(2, 33);
+        await testDb.run(`UPDATE task_columns SET name = ' DONE ', is_done_column = 0 WHERE id = ?`, [done.id]);
+        await assertProgress(2, 33);
     });
 
     it('getProjects devuelve 0 horas y 0% para un proyecto sin tareas ni horas', async () => {

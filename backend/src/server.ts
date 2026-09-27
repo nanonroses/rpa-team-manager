@@ -99,7 +99,6 @@ class RPATeamManagerServer {
         this.app.use((req, res, next) => {
             res.charset = 'utf-8';
             res.setHeader('Content-Type', 'application/json; charset=utf-8');
-            req.headers['content-type'] = 'application/json; charset=utf-8';
             next();
         });
 

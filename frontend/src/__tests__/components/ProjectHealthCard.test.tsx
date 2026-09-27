@@ -61,7 +61,7 @@ describe('ProjectHealthCard', () => {
 
     render(<ProjectHealthCard projectId={1} />);
 
-    const button = await screen.findByRole('button', { name: /congelar baseline/i });
+    const button = await screen.findByRole('button', { name: /fijar línea base/i });
     fireEvent.click(button);
 
     await waitFor(() => {
@@ -81,6 +81,6 @@ describe('ProjectHealthCard', () => {
     await waitFor(() => {
       expect(screen.getByText(/sin datos suficientes/i)).toBeInTheDocument();
     });
-    expect(screen.queryByRole('button', { name: /congelar baseline/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /fijar línea base/i })).not.toBeInTheDocument();
   });
 });

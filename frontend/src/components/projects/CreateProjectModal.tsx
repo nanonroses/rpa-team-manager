@@ -38,7 +38,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
   // Helper function to get team member role
   const getTeamMemberRole = (userId: number) => {
     const member = teamMembers.find(m => m.value === userId);
-    return member?.role || 'Unknown';
+    return member?.role || "Sin información";
   };
 
   // Load team members when modal opens
@@ -123,7 +123,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       setTeamMembers(memberOptions);
     } catch (error) {
       console.error('Failed to load team members:', error);
-      message.error('Failed to load team members');
+      message.error("No se pudo cargar el equipo");
     }
   };
 
@@ -180,10 +180,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
       if (isEdit && editProject) {
         result = await updateProject(editProject.id, projectData);
-        message.success('Project updated successfully');
+        message.success("Proyecto actualizado");
       } else {
         result = await createProject(projectData);
-        message.success('Project created successfully');
+        message.success("Proyecto creado");
       }
 
       // Handle multiple user assignments (el servidor auto-asigna a rpa_operations, no hace falta mandar nada)
@@ -203,7 +203,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
           console.log('User assignments updated successfully');
         } catch (assignmentError) {
           console.error('Failed to update assignments:', assignmentError);
-          message.warning('Project saved but failed to update assignments');
+          message.warning("Proyecto guardado, pero no se pudieron actualizar las asignaciones");
         }
       }
 
@@ -211,17 +211,17 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
       onSuccess?.(result);
       onCancel();
     } catch (error: any) {
-      message.error(error.message || `Failed to ${isEdit ? 'update' : 'create'} project`);
+      message.error(error.message || `No se pudo ${isEdit ? 'actualizar' : 'crear'} el proyecto`);
     } finally {
       setLoading(false);
     }
   };
 
   const statusOptions = [
-    { label: 'Active', value: 'active' },
-    { label: 'On Hold', value: 'on_hold' },
-    { label: 'Completed', value: 'completed' },
-    { label: 'Cancelled', value: 'cancelled' }
+    { label: "Activo", value: 'active' },
+    { label: "En pausa", value: 'on_hold' },
+    { label: "Completada", value: 'completed' },
+    { label: "Cancelado", value: 'cancelled' }
   ];
 
   const priorityOptions = [
@@ -307,10 +307,10 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
 
         {isEdit && <Form.Item
           name="status"
-          label="Status"
-          rules={[{ required: true, message: 'Please select project status' }]}
+          label="Estado"
+          rules={[{ required: true, message: "Selecciona el estado del proyecto" }]}
         >
-          <Select options={statusOptions} placeholder="Select status" />
+          <Select options={statusOptions} placeholder="Selecciona un estado" />
         </Form.Item>}
 
         <Form.Item
@@ -344,7 +344,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
             {
               validator: (_, value) => {
                 if (value && value[0] && value[1] && value[0].isAfter(value[1])) {
-                  return Promise.reject('Start date must be before end date');
+                  return Promise.reject("La fecha de inicio debe ser anterior a la de término");
                 }
                 return Promise.resolve();
               }
@@ -353,7 +353,7 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
         >
           <RangePicker
             style={{ width: '100%' }}
-            placeholder={['Start Date', 'End Date']}
+            placeholder={["Fecha de inicio", "Fecha de término"]}
             format="YYYY-MM-DD"
           />
         </Form.Item>
@@ -407,12 +407,12 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               name="sale_price"
               label="Sale Price ($)"
               rules={[
-                { type: 'number', min: 0, message: 'Sale price must be a positive number' }
+                { type: 'number', min: 0, message: "El precio de venta debe ser un número positivo" }
               ]}
             >
               <InputNumber
                 style={{ width: '100%' }}
-                placeholder="Enter sale price"
+                placeholder="Ingresa el precio de venta"
                 formatter={value => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                 parser={value => value!.replace(/\$\s?|(,*)/g, '')}
                 precision={2}
@@ -423,12 +423,12 @@ export const CreateProjectModal: React.FC<CreateProjectModalProps> = ({
               name="hours_budgeted"
               label="Horas presupuestadas"
               rules={[
-                { type: 'number', min: 0, message: 'Hours must be a positive number' }
+                { type: 'number', min: 0, message: "Las horas deben ser un número positivo" }
               ]}
             >
               <InputNumber
                 style={{ width: '100%' }}
-                placeholder="Enter estimated hours"
+                placeholder="Ingresa las horas estimadas"
                 min={0}
                 precision={1}
               />

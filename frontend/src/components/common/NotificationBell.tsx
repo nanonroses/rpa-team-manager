@@ -85,9 +85,9 @@ export const NotificationBell: React.FC = () => {
       placement="bottomRight"
       open={open}
       onOpenChange={handleOpenChange}
-      dropdownRender={() => (
-        <div style={{ width: 340, background: '#fff', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
-          <div style={{ padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f0f0f0' }}>
+      popupRender={() => (
+        <div style={{ width: 340, background: 'var(--color-surface)', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}>
+          <div style={{ padding: '8px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border)' }}>
             <Text strong>Notificaciones</Text>
             <Button type="link" size="small" onClick={handleMarkAllRead} disabled={unreadCount === 0}>
               Marcar todas leídas
@@ -107,7 +107,7 @@ export const NotificationBell: React.FC = () => {
               renderItem={(item) => (
                 <List.Item
                   onClick={() => handleItemClick(item)}
-                  style={{ padding: '8px 16px', cursor: 'pointer', background: item.is_read ? 'transparent' : '#e6f4ff' }}
+                  style={{ padding: '8px 16px', cursor: 'pointer', background: item.is_read ? 'transparent' : 'var(--color-info-bg)' }}
                 >
                   <div>
                     <Text strong={!item.is_read}>{item.title}</Text>

@@ -1,3 +1,4 @@
+import { displayLabel } from '@/utils/displayLabels';
 import React from 'react';
 import { Card, Typography, Tag, Space } from 'antd';
 import { Idea } from '@/types/idea';
@@ -17,63 +18,63 @@ const IdeaPriorityMatrix: React.FC<IdeaPriorityMatrixProps> = ({ ideas }) => {
     getQuadrantInfo: (effort: number, impact: number) => {
       if (impact >= 4 && effort <= 2) {
         return { 
-          label: 'Quick Wins', 
-          color: '#52c41a', 
-          backgroundColor: '#f6ffed',
-          description: 'High impact, low effort - prioritize these!'
+          label: "Resultados rápidos", 
+          color: 'var(--color-success)', 
+          backgroundColor: 'var(--color-primary-bg)',
+          description: "Alto impacto y bajo esfuerzo: priorizar"
         };
       } else if (impact >= 4 && effort >= 4) {
         return { 
-          label: 'Major Projects', 
-          color: '#faad14', 
-          backgroundColor: '#fffbe6',
-          description: 'High impact, high effort - plan carefully'
+          label: "Proyectos estratégicos", 
+          color: 'var(--color-warning)', 
+          backgroundColor: 'var(--color-warning-bg)',
+          description: "Alto impacto y alto esfuerzo: planificar con cuidado"
         };
       } else if (impact <= 2 && effort <= 2) {
         return { 
-          label: 'Fill-ins', 
-          color: '#1890ff', 
-          backgroundColor: '#f0f9ff',
-          description: 'Low impact, low effort - do when time permits'
+          label: "Tareas menores", 
+          color: 'var(--color-info)', 
+          backgroundColor: 'var(--color-info-bg)',
+          description: "Bajo impacto y bajo esfuerzo: realizar si hay tiempo"
         };
       } else if (impact <= 2 && effort >= 4) {
         return { 
-          label: 'Time Wasters', 
-          color: '#f5222d', 
-          backgroundColor: '#fff2f0',
-          description: 'Low impact, high effort - avoid these'
+          label: "Bajo valor", 
+          color: 'var(--color-error)', 
+          backgroundColor: 'var(--color-error-bg)',
+          description: "Bajo impacto y alto esfuerzo: reconsiderar"
         };
       }
       
       return { 
-        label: 'Evaluate', 
-        color: '#722ed1', 
-        backgroundColor: '#f9f0ff',
-        description: 'Medium priority - evaluate based on resources'
+        label: "Evaluar", 
+        color: 'var(--color-info)', 
+        backgroundColor: 'var(--color-info-bg)',
+        description: "Prioridad media: evaluar según los recursos"
       };
     }
   };
 
   // X-axis configuration (Effort)
   const xAxis: MatrixAxisConfig = {
-    label: 'Effort',
+    label: "Esfuerzo",
     min: 1,
     max: 5,
     getAxisLabel: (value) => `Effort ${value}`,
     getAxisDescription: (value) => {
-      const descriptions = { 1: 'Very Easy', 2: 'Easy', 3: 'Medium', 4: 'Hard', 5: 'Very Hard' };
+      const descriptions = { 1: "Muy fácil", 2: "Fácil", 3: "Medio", 4: "Difícil", 5: "Muy difícil" };
       return descriptions[value as keyof typeof descriptions] || '';
     }
   };
 
   // Y-axis configuration (Impact)
   const yAxis: MatrixAxisConfig = {
-    label: 'Impact',
+    label: "Impacto",
     min: 1,
     max: 5,
-    getAxisLabel: (value) => `Impact ${value}`,
+    getAxisLabel: (value) => `Impacto ${value}`,
     getAxisDescription: (value) => {
-      const descriptions = { 1: 'Very Low', 2: 'Low', 3: 'Medium', 4: 'High', 5: 'Very High' };
+      const descriptions = { 1: "Muy bajo", 2: "Bajo", 3: "Medio", 4: "Alto", 5: "Muy alto" };
       return descriptions[value as keyof typeof descriptions] || '';
     }
   };
@@ -87,10 +88,11 @@ const IdeaPriorityMatrix: React.FC<IdeaPriorityMatrixProps> = ({ ideas }) => {
           {idea.title}
         </div>
         <div style={{ marginBottom: '4px' }}>
-          Priority Score: {idea.priority_score.toFixed(2)}
+          
+          Puntaje de prioridad: {idea.priority_score.toFixed(2)}
         </div>
         <div style={{ marginBottom: '4px' }}>
-          Impact: {idea.impact_score} | Effort: {idea.effort_score}
+          Impacto: {idea.impact_score} | Effort: {idea.effort_score}
         </div>
         <div style={{ marginBottom: '4px' }}>
           Votes: {idea.votes_count}
@@ -124,7 +126,7 @@ const IdeaPriorityMatrix: React.FC<IdeaPriorityMatrixProps> = ({ ideas }) => {
             color={getIdeaStatusColor(idea.status)}
             style={{ fontSize: '9px', padding: '1px 4px' }}
           >
-            {idea.status.replace('_', ' ').toUpperCase()}
+            {displayLabel(idea.status)}
           </Tag>
           <Text style={{ fontSize: '10px' }}>
             ↑{idea.votes_count}
@@ -137,27 +139,27 @@ const IdeaPriorityMatrix: React.FC<IdeaPriorityMatrixProps> = ({ ideas }) => {
   // Summary configuration
   const summary: MatrixSummary<Idea> = {
     getStats: (ideas) => [
-      { label: 'Total Ideas', value: ideas.length },
-      { label: 'Quick Wins', value: ideas.filter(i => i.impact_score >= 4 && i.effort_score <= 2).length },
-      { label: 'Major Projects', value: ideas.filter(i => i.impact_score >= 4 && i.effort_score >= 4).length },
-      { label: 'Time Wasters', value: ideas.filter(i => i.impact_score <= 2 && i.effort_score >= 4).length }
+      { label: "Total de ideas", value: ideas.length },
+      { label: "Resultados rápidos", value: ideas.filter(i => i.impact_score >= 4 && i.effort_score <= 2).length },
+      { label: "Proyectos estratégicos", value: ideas.filter(i => i.impact_score >= 4 && i.effort_score >= 4).length },
+      { label: "Bajo valor", value: ideas.filter(i => i.impact_score <= 2 && i.effort_score >= 4).length }
     ]
   };
 
   // Legend configuration
   const legend: QuadrantConfig[] = [
-    { label: 'Quick Wins', color: 'green', backgroundColor: '', description: 'High Impact, Low Effort' },
-    { label: 'Major Projects', color: 'orange', backgroundColor: '', description: 'High Impact, High Effort' },
-    { label: 'Fill-ins', color: 'blue', backgroundColor: '', description: 'Low Impact, Low Effort' },
-    { label: 'Time Wasters', color: 'red', backgroundColor: '', description: 'Low Impact, High Effort' },
-    { label: 'Evaluate', color: 'purple', backgroundColor: '', description: 'Medium Priority' }
+    { label: "Resultados rápidos", color: 'green', backgroundColor: '', description: "Alto impacto, bajo esfuerzo" },
+    { label: "Proyectos estratégicos", color: 'orange', backgroundColor: '', description: "Alto impacto, alto esfuerzo" },
+    { label: "Tareas menores", color: 'blue', backgroundColor: '', description: "Bajo impacto, bajo esfuerzo" },
+    { label: "Bajo valor", color: 'red', backgroundColor: '', description: "Bajo impacto, alto esfuerzo" },
+    { label: "Evaluar", color: 'purple', backgroundColor: '', description: "Prioridad media" }
   ];
 
   return (
     <PriorityMatrix
       items={ideas}
-      title="Impact vs Effort Priority Matrix"
-      description="Ideas are positioned based on their impact and effort scores. Higher positions indicate greater impact, while positions to the left indicate lower effort."
+      title="Matriz de prioridad: impacto y esfuerzo"
+      description="Las ideas se ubican según su impacto y esfuerzo. Arriba se muestra mayor impacto y a la izquierda, menor esfuerzo."
       xAxis={xAxis}
       yAxis={yAxis}
       quadrantRules={quadrantRules}

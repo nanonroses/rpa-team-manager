@@ -50,10 +50,10 @@ export const ProjectHealthCard: React.FC<ProjectHealthCardProps> = ({ projectId 
     try {
       setFreezing(true);
       await apiService.freezeProjectBaseline(projectId);
-      message.success('Baseline congelado');
+      message.success("Línea base fijada");
       await loadHealth();
     } catch (error: any) {
-      message.error(error?.response?.data?.error || 'No se pudo congelar el baseline');
+      message.error(error?.response?.data?.error || "No se pudo fijar la línea base");
     } finally {
       setFreezing(false);
     }
@@ -77,7 +77,7 @@ export const ProjectHealthCard: React.FC<ProjectHealthCardProps> = ({ projectId 
           {user?.role === 'team_lead' && !health.has_baseline && (
             <div style={{ marginTop: 12 }}>
               <Button type="primary" loading={freezing} onClick={handleFreezeBaseline}>
-                Congelar baseline
+                Fijar línea base
               </Button>
             </div>
           )}

@@ -272,7 +272,7 @@ export const QuoteUploadModal: React.FC<QuoteUploadModalProps> = ({
       case 2:
         return (
           <div style={{ textAlign: 'center', padding: '40px' }}>
-            <CheckCircleOutlined style={{ fontSize: 64, color: '#52c41a' }} />
+            <CheckCircleOutlined style={{ fontSize: 64, color: 'var(--color-success)' }} />
             <Title level={3} style={{ marginTop: '24px' }}>
               Proyecto Creado Exitosamente
             </Title>

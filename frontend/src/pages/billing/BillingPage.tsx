@@ -380,8 +380,8 @@ const BillingPage: React.FC = () => {
                   <Row gutter={[12, 12]} style={{ marginBottom: 18 }}>
                     <Col xs={24} sm={12} lg={6}><Card size="small"><Statistic title="Pendientes o próximos" value={visibleMilestones.filter((row) => row.status === 'pending' || row.status === 'billable').length + visibleInvoices.filter((row) => row.status === 'issued' || row.status === 'partially_paid').length} /></Card></Col>
                     <Col xs={24} sm={12} lg={6}><Card size="small"><Statistic title="Listo para facturar" value={filteredReadyToInvoice.length} /></Card></Col>
-                    <Col xs={24} sm={12} lg={6}><Card size="small"><Statistic title="Facturas vencidas" value={visibleInvoices.filter((row) => row.status === 'overdue').length} valueStyle={{ color: '#cf1322' }} /></Card></Col>
-                    <Col xs={24} sm={12} lg={6}><Card size="small"><Statistic title="Facturas pagadas" value={visibleInvoices.filter((row) => row.status === 'paid').length} valueStyle={{ color: '#3f8600' }} /></Card></Col>
+                    <Col xs={24} sm={12} lg={6}><Card size="small"><Statistic title="Facturas vencidas" value={visibleInvoices.filter((row) => row.status === 'overdue').length} valueStyle={{ color: 'var(--color-error)' }} /></Card></Col>
+                    <Col xs={24} sm={12} lg={6}><Card size="small"><Statistic title="Facturas pagadas" value={visibleInvoices.filter((row) => row.status === 'paid').length} valueStyle={{ color: 'var(--color-success)' }} /></Card></Col>
                   </Row>
                   {filteredOverdueInvoices.length > 0 && <Alert showIcon type="error" message={`${filteredOverdueInvoices.length} factura(s) vencidas requieren seguimiento`} description="Revisa saldo y último pago en la pestaña Facturas y pagos." style={{ marginBottom: 14 }} />}
                   {dashboardError ? <Empty description="No hay datos disponibles debido a un error de carga" /> : <>

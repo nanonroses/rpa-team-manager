@@ -44,4 +44,15 @@ describe('ProjectROICard', () => {
 
     await waitFor(() => expect(screen.getByText('Costo Planificado')).toBeInTheDocument());
   });
+  it('distingue datos faltantes de una rentabilidad de cero', async () => {
+    (apiService.getProjectROI as any).mockResolvedValue({ ...base, real_hours_source: 'projected',
+      approved_hours: 0, planned_hours: 0, planned_cost: 0, financial_data_complete: false,
+      missing_financial_data: ['Horas planificadas', 'Costo presupuestado o equipo con tarifas'] });
+    render(<ProjectROICard projectId={2} projectName="Agrotop" />);
+    await waitFor(() => expect(screen.getByText('Rentabilidad pendiente de configuración')).toBeInTheDocument());
+    expect(screen.getByText('N/D')).toBeInTheDocument();
+    expect(screen.getAllByText('Por definir')).toHaveLength(3);
+    expect(screen.queryByText('Riesgo')).not.toBeInTheDocument();
+  });
+
 });

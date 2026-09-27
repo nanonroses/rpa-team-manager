@@ -1,3 +1,4 @@
+import { displayLabel } from '@/utils/displayLabels';
 import React from 'react';
 import { Card, Typography, Tag, Space } from 'antd';
 import { useNavigate } from 'react-router-dom';
@@ -149,63 +150,63 @@ const TaskPriorityMatrix: React.FC<TaskPriorityMatrixProps> = ({ tasks }) => {
     getQuadrantInfo: (impact: number, urgency: number) => {
       if (urgency >= 4 && impact >= 4) {
         return { 
-          label: 'DO FIRST', 
-          color: '#f5222d', 
-          backgroundColor: '#fff2f0',
+          label: "HACER PRIMERO", 
+          color: 'var(--color-error)', 
+          backgroundColor: 'var(--color-error-bg)',
           description: 'Critical - handle immediately!'
         };
       } else if (urgency <= 2 && impact >= 4) {
         return { 
-          label: 'SCHEDULE', 
-          color: '#faad14', 
-          backgroundColor: '#fffbe6',
-          description: 'Important - plan and schedule properly'
+          label: "PROGRAMAR", 
+          color: 'var(--color-warning)', 
+          backgroundColor: 'var(--color-warning-bg)',
+          description: "Importante: planificar y programar"
         };
       } else if (urgency >= 4 && impact <= 2) {
         return { 
-          label: 'DELEGATE', 
-          color: '#1890ff', 
-          backgroundColor: '#f0f9ff',
-          description: 'Urgent but low impact - delegate if possible'
+          label: "DELEGAR", 
+          color: 'var(--color-info)', 
+          backgroundColor: 'var(--color-info-bg)',
+          description: "Urgente, de bajo impacto: delegar si es posible"
         };
       } else if (urgency <= 2 && impact <= 2) {
         return { 
-          label: 'ELIMINATE', 
-          color: '#8c8c8c', 
-          backgroundColor: '#f5f5f5',
-          description: 'Low priority - eliminate or do later'
+          label: "DESCARTAR", 
+          color: 'var(--color-text-muted)', 
+          backgroundColor: 'var(--color-surface-raised)',
+          description: "Baja prioridad: descartar o posponer"
         };
       }
       
       return { 
-        label: 'EVALUATE', 
-        color: '#722ed1', 
-        backgroundColor: '#f9f0ff',
-        description: 'Medium priority - evaluate based on capacity'
+        label: "EVALUAR", 
+        color: 'var(--color-info)', 
+        backgroundColor: 'var(--color-info-bg)',
+        description: "Prioridad media: evaluar según la capacidad"
       };
     }
   };
 
   // X-axis configuration (Impact)
   const xAxis: MatrixAxisConfig = {
-    label: 'Impact',
+    label: "Impacto",
     min: 1,
     max: 5,
-    getAxisLabel: (value) => `Impact ${value}`,
+    getAxisLabel: (value) => `Impacto ${value}`,
     getAxisDescription: (value) => {
-      const descriptions = { 1: 'Very Low', 2: 'Low', 3: 'Medium', 4: 'High', 5: 'Very High' };
+      const descriptions = { 1: "Muy bajo", 2: "Bajo", 3: "Medio", 4: "Alto", 5: "Muy alto" };
       return descriptions[value as keyof typeof descriptions] || '';
     }
   };
 
   // Y-axis configuration (Urgency)
   const yAxis: MatrixAxisConfig = {
-    label: 'Urgency',
+    label: "Urgencia",
     min: 1,
     max: 5,
-    getAxisLabel: (value) => `Urgency ${value}`,
+    getAxisLabel: (value) => `Urgencia ${value}`,
     getAxisDescription: (value) => {
-      const descriptions = { 1: 'Very Low', 2: 'Low', 3: 'Medium', 4: 'High', 5: 'Critical' };
+      const descriptions = { 1: "Muy bajo", 2: "Bajo", 3: "Medio", 4: "Alto", 5: "Crítico" };
       return descriptions[value as keyof typeof descriptions] || '';
     }
   };
@@ -221,10 +222,10 @@ const TaskPriorityMatrix: React.FC<TaskPriorityMatrixProps> = ({ tasks }) => {
             {getTaskTypeIcon(task.task_type)} {task.title}
           </div>
           <div style={{ marginBottom: '4px' }}>
-            Priority: {task.priority.toUpperCase()}
+            Prioridad: {displayLabel(task.priority)}
           </div>
           <div style={{ marginBottom: '4px' }}>
-            Status: {task.status.replace('_', ' ').toUpperCase()}
+            Estado: {displayLabel(task.status)}
           </div>
           {task.assignee_name && (
             <div style={{ marginBottom: '4px' }}>
@@ -233,8 +234,9 @@ const TaskPriorityMatrix: React.FC<TaskPriorityMatrixProps> = ({ tasks }) => {
           )}
           {task.due_date && (
             <div style={{ marginBottom: '4px' }}>
-              Due: {dayjs(task.due_date).format('MMM DD, YYYY')}
-              {overdue && <span style={{ color: '#f5222d' }}> (OVERDUE)</span>}
+              
+              Vence: {dayjs(task.due_date).format('MMM DD, YYYY')}
+              {overdue && <span style={{ color: 'var(--color-error)' }}> (OVERDUE)</span>}
             </div>
           )}
           {task.estimated_hours && (
@@ -264,7 +266,7 @@ const TaskPriorityMatrix: React.FC<TaskPriorityMatrixProps> = ({ tasks }) => {
           style={{
             cursor: 'pointer',
             fontSize: '11px',
-            border: overdue ? '1px solid #f5222d' : undefined
+            border: overdue ? '1px solid var(--color-error)' : undefined
           }}
           styles={{ body: { padding: '6px' } }}
           onClick={() => handleTaskClick(task)}
@@ -286,13 +288,13 @@ const TaskPriorityMatrix: React.FC<TaskPriorityMatrixProps> = ({ tasks }) => {
                   color={getPriorityColor(task.priority)}
                   style={{ fontSize: '9px', padding: '1px 4px' }}
                 >
-                  {task.priority.charAt(0).toUpperCase()}
+                  {displayLabel(task.priority)}
                 </Tag>
                 <Tag 
                   color={getTaskStatusColor(task.status)}
                   style={{ fontSize: '9px', padding: '1px 4px' }}
                 >
-                  {task.status === 'in_progress' ? 'PROG' : task.status.toUpperCase()}
+                  {displayLabel(task.status)}
                 </Tag>
               </Space>
             </div>
@@ -304,15 +306,15 @@ const TaskPriorityMatrix: React.FC<TaskPriorityMatrixProps> = ({ tasks }) => {
             {task.due_date && (
               <div style={{ 
                 fontSize: '10px',
-                color: overdue ? '#f5222d' : daysUntilDue !== null && daysUntilDue <= 3 ? '#faad14' : undefined
+                color: overdue ? 'var(--color-error)' : daysUntilDue !== null && daysUntilDue <= 3 ? 'var(--color-warning)' : undefined
               }}>
                 <CalendarOutlined /> 
                 {overdue 
                   ? 'OVERDUE' 
                   : daysUntilDue === 0 
-                    ? 'TODAY' 
+                    ? "HOY" 
                     : daysUntilDue === 1 
-                      ? 'TOMORROW'
+                      ? "MAÑANA"
                       : dayjs(task.due_date).format('MM/DD')
                 }
               </div>
@@ -331,7 +333,7 @@ const TaskPriorityMatrix: React.FC<TaskPriorityMatrixProps> = ({ tasks }) => {
   // Summary configuration
   const summary: MatrixSummary<Task> = {
     getStats: (tasks) => [
-      { label: 'Total Tasks', value: tasks.length },
+      { label: "Total de tareas", value: tasks.length },
       { 
         label: 'Critical (Do First)', 
         value: tasks.filter(t => {
@@ -349,7 +351,7 @@ const TaskPriorityMatrix: React.FC<TaskPriorityMatrixProps> = ({ tasks }) => {
         }).length 
       },
       { 
-        label: 'Overdue', 
+        label: "Vencido", 
         value: tasks.filter(t => isOverdue(t.due_date)).length 
       }
     ]
@@ -357,19 +359,19 @@ const TaskPriorityMatrix: React.FC<TaskPriorityMatrixProps> = ({ tasks }) => {
 
   // Legend configuration
   const legend: QuadrantConfig[] = [
-    { label: 'DO FIRST', color: 'red', backgroundColor: '', description: 'High Urgency, High Impact' },
-    { label: 'SCHEDULE', color: 'orange', backgroundColor: '', description: 'Low Urgency, High Impact' },
-    { label: 'DELEGATE', color: 'blue', backgroundColor: '', description: 'High Urgency, Low Impact' },
-    { label: 'ELIMINATE', color: 'gray', backgroundColor: '', description: 'Low Urgency, Low Impact' },
-    { label: 'EVALUATE', color: 'purple', backgroundColor: '', description: 'Medium Priority' }
+    { label: "HACER PRIMERO", color: 'red', backgroundColor: '', description: "Alta urgencia, alto impacto" },
+    { label: "PROGRAMAR", color: 'orange', backgroundColor: '', description: "Baja urgencia, alto impacto" },
+    { label: "DELEGAR", color: 'blue', backgroundColor: '', description: "Alta urgencia, bajo impacto" },
+    { label: "DESCARTAR", color: 'gray', backgroundColor: '', description: "Baja urgencia, bajo impacto" },
+    { label: "EVALUAR", color: 'purple', backgroundColor: '', description: "Prioridad media" }
   ];
 
   return (
     <div>
       <PriorityMatrix
         items={tasks}
-        title="Task Priority Matrix - Eisenhower Method"
-        description="Tasks are positioned based on urgency (due dates + priority) vs impact (business value + complexity). Higher positions indicate greater urgency, while positions to the right indicate greater impact."
+        title="Matriz de prioridad de tareas: método Eisenhower"
+        description="Las tareas se ubican según urgencia (plazo y prioridad) e impacto (valor para el negocio y complejidad). Arriba se muestra mayor urgencia y a la derecha, mayor impacto."
         xAxis={xAxis}
         yAxis={yAxis}
         quadrantRules={quadrantRules}
@@ -382,7 +384,8 @@ const TaskPriorityMatrix: React.FC<TaskPriorityMatrixProps> = ({ tasks }) => {
       
       <div style={{ marginTop: '16px', textAlign: 'center' }}>
         <Text type="secondary" style={{ fontSize: '12px' }}>
-          Click on any task card to navigate to the full task management view
+          
+          Selecciona una tarea para abrir su gestión completa
         </Text>
       </div>
     </div>

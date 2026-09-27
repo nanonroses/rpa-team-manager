@@ -16,6 +16,9 @@ export interface ProjectFinancials {
     project_id: number;
     project_name: string;
     planned_hours: number;
+    planned_hours_source?: 'budget' | 'tasks' | 'missing';
+    financial_data_complete?: boolean;
+    missing_financial_data?: string[];
     real_hours: number;
     real_hours_source: 'approved' | 'projected';
     approved_hours: number;
@@ -180,7 +183,11 @@ export class FinanceService {
             [projectId]
         );
 
-        const plannedHours = financials?.budgeted_hours || 0;
+        const taskEstimate = financials?.budgeted_hours > 0 ? null : await db.get(
+            `SELECT COALESCE(SUM(t.estimated_hours), 0) AS hours FROM tasks t
+             JOIN task_boards tb ON tb.id = t.board_id WHERE tb.project_id = ?`, [projectId]
+        );
+        const plannedHours = financials?.budgeted_hours || taskEstimate?.hours || 0;
         const hourlyRateUF = financials?.hourly_rate || 0;
         const ufValueCLP = await this.getExchangeRate('UF');
 
@@ -206,13 +213,19 @@ export class FinanceService {
         const approvedTime = await this.getApprovedTimeSummary(projectId);
         const hasApprovedTime = approvedTime.hours > 0;
 
-        const plannedCost = plannedHours * engineerHourlyCost;
+        const explicitBudget = financials?.budgeted_cost > 0
+            ? await this.toCLP(financials.budgeted_cost, financials.budgeted_cost_currency || 'CLP') : 0;
+        const plannedCost = explicitBudget || plannedHours * engineerHourlyCost;
+        const missingFinancialData: string[] = [];
+        if (plannedHours <= 0) missingFinancialData.push('Horas planificadas');
+        if (plannedCost <= 0) missingFinancialData.push('Costo presupuestado o equipo con tarifas');
+        if (salePrice <= 0) missingFinancialData.push('Precio de venta');
         const realHours = hasApprovedTime
             ? approvedTime.hours + clientDelayHours
             : plannedHours + clientDelayHours;
         const realCost = hasApprovedTime
             ? approvedTime.costCLP + (clientDelayHours * engineerHourlyCost)
-            : realHours * engineerHourlyCost;
+            : plannedCost + clientDelayHours * engineerHourlyCost;
 
         const plannedProfit = salePrice - plannedCost;
         const realProfit = salePrice - realCost;
@@ -227,6 +240,9 @@ export class FinanceService {
             project_id: projectId,
             project_name: project.name,
             planned_hours: plannedHours,
+            planned_hours_source: financials?.budgeted_hours > 0 ? 'budget' : plannedHours > 0 ? 'tasks' : 'missing',
+            financial_data_complete: missingFinancialData.length === 0,
+            missing_financial_data: missingFinancialData,
             real_hours: realHours,
             real_hours_source: hasApprovedTime ? 'approved' : 'projected',
             approved_hours: approvedTime.hours,
@@ -274,7 +290,7 @@ export class FinanceService {
         );
 
         await this.upsertAlert(projectId, 'low_margin',
-            financials.real_roi < 20,
+            financials.financial_data_complete !== false && financials.real_roi < 20,
             20,
             financials.real_roi,
             `ROI real de ${financials.real_roi.toFixed(1)}% por debajo del objetivo de 20%`,

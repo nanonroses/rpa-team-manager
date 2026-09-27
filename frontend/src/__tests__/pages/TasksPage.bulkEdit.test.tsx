@@ -126,7 +126,7 @@ describe('TasksPage - edicion masiva', () => {
 
     expect(await screen.findByText(/1 tarea\(s\) seleccionada/i)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('combobox', { name: /board/i }));
+    await userEvent.click(screen.getByRole('combobox', { name: /tablero/i }));
     await userEvent.click(await screen.findByText('Board 2'));
 
     await waitFor(() => {

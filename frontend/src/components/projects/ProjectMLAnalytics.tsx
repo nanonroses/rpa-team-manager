@@ -83,13 +83,13 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
       const health = await apiService.request({ url: '/ai/health' });
       setMLServiceHealth(health.success);
       if (health.success) {
-        message.success('ML Service is online and ready!');
+        message.success("El servicio de analítica está disponible");
       } else {
-        message.error('ML Service is not responding');
+        message.error("El servicio de analítica no responde");
       }
     } catch (error) {
       setMLServiceHealth(false);
-      message.error('Failed to connect to ML Service');
+      message.error("No se pudo conectar con el servicio de analítica");
     }
   };
 
@@ -106,39 +106,39 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
       
       if (response.success) {
         setAnalytics(response.data);
-        message.success('AI predictions generated successfully!');
+        message.success("Predicciones generadas");
       } else {
-        setError(response.error || 'Failed to load analytics');
-        message.error('Failed to load predictions: ' + (response.error || 'Unknown error'));
+        setError(response.error || "No se pudo cargar la analítica");
+        message.error('No se pudieron cargar las predicciones: ' + (response.error || "Error desconocido"));
       }
     } catch (error: any) {
       console.error('Analytics error:', error);
-      setError(error.message || 'Failed to load ML analytics');
-      message.error('Failed to load ML predictions: ' + error.message);
+      setError(error.message || "No se pudo cargar la analítica predictiva");
+      message.error('No se pudieron cargar las predicciones: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
   const getRiskColor = (score: number) => {
-    if (score <= 30) return '#52c41a'; // green
-    if (score <= 70) return '#faad14'; // yellow
-    return '#f5222d'; // red
+    if (score <= 30) return 'var(--color-success)'; // green
+    if (score <= 70) return 'var(--color-warning)'; // yellow
+    return 'var(--color-error)'; // red
   };
 
   const getRiskLabel = (score: number) => {
-    if (score <= 30) return 'Low Risk';
-    if (score <= 70) return 'Medium Risk';
-    return 'High Risk';
+    if (score <= 30) return "Riesgo bajo";
+    if (score <= 70) return "Riesgo medio";
+    return "Riesgo alto";
   };
 
   const formatDays = (days: number) => {
-    if (days < 1) return `${Math.round(days * 24)} hours`;
-    return `${Math.round(days)} days`;
+    if (days < 1) return `${Math.round(days * 24)} horas`;
+    return `${Math.round(days)} días`;
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('es-CL', {
       style: 'currency',
       currency: 'USD',
       minimumFractionDigits: 0,
@@ -150,36 +150,37 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
     return (
       <div style={{ padding: '24px' }}>
         <Alert
-          message="ML Service Unavailable"
-          description="The AI/ML service is currently offline. Please ensure the ML service is running on port 8002 or contact your administrator."
+          message="Servicio de analítica no disponible"
+          description="El servicio de analítica IA no está disponible. Contacta al administrador."
           type="warning"
           showIcon
           action={
             <Button size="small" onClick={checkMLService}>
-              Retry Connection
+              Reintentar conexión
             </Button>
           }
         />
         <Card style={{ marginTop: '16px' }}>
           <div style={{ textAlign: 'center', padding: '40px' }}>
-            <RobotOutlined style={{ fontSize: '48px', color: '#d9d9d9' }} />
+            <RobotOutlined style={{ fontSize: '48px', color: 'var(--color-border)' }} />
             <Title level={4} type="secondary" style={{ marginTop: '16px' }}>
-              AI Predictions Unavailable
+              Predicciones IA no disponibles
             </Title>
             <Text type="secondary">
-              Start the ML service to get AI-powered project insights including:
+              
+              Activa el servicio de analítica para obtener:
             </Text>
             <List
               style={{ marginTop: '16px', textAlign: 'left', maxWidth: '400px', margin: '16px auto' }}
               dataSource={[
-                'Project completion time predictions',
-                'Budget variance analysis',
-                'Risk assessment and scoring',
-                'Feature importance explanations'
+                "Predicciones de fecha de término",
+                "Análisis de desviación de presupuesto",
+                "Evaluación y puntaje de riesgo",
+                "Explicación de los factores relevantes"
               ]}
               renderItem={(item) => (
                 <List.Item>
-                  <CheckCircleOutlined style={{ color: '#1890ff', marginRight: '8px' }} />
+                  <CheckCircleOutlined style={{ color: 'var(--color-info)', marginRight: '8px' }} />
                   {item}
                 </List.Item>
               )}
@@ -195,14 +196,16 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
         <Space align="center">
-          <RobotOutlined style={{ fontSize: '24px', color: '#1890ff' }} />
+          <RobotOutlined style={{ fontSize: '24px', color: 'var(--color-info)' }} />
           <Title level={3} style={{ margin: 0 }}>
-            AI-Powered Project Analytics
+            
+            Analítica predictiva del proyecto
           </Title>
-          <Tag color="blue">ML Predictions</Tag>
+          <Tag color="blue">Predicciones IA</Tag>
         </Space>
         <Text type="secondary" style={{ display: 'block', marginTop: '8px' }}>
-          Advanced machine learning insights for {projectName}
+          
+          Predicciones y análisis para {projectName}
         </Text>
       </div>
 
@@ -214,20 +217,20 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
           onClick={loadAnalytics}
           loading={loading}
         >
-          Generate AI Predictions
+          Generar predicciones
         </Button>
         <Button
           icon={<SyncOutlined />}
           onClick={checkMLService}
         >
-          Check ML Service
+          Comprobar servicio de analítica
         </Button>
       </Space>
 
       {error && (
         <Alert
-          message="Prediction Error"
-          description={error || 'Unknown error occurred'}
+          message="Error de predicción"
+          description={error || "Ocurrió un error desconocido"}
           type="error"
           style={{ marginBottom: '24px' }}
           closable
@@ -239,27 +242,10 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
           <div style={{ textAlign: 'center', padding: '40px' }}>
             <Spin size="large" />
             <div style={{ marginTop: '16px' }}>
-              <Text>Analyzing project data with AI models...</Text>
+              <Text>Analizando los datos del proyecto...</Text>
             </div>
           </div>
         </Card>
-      )}
-
-      {/* Debug info */}
-      {analytics && (
-        <Alert
-          message="Debug Info"
-          description={
-            <div>
-              <div>Project ID: {analytics.project_id}</div>
-              <div>Has predictions: {JSON.stringify(!!analytics.predictions)}</div>
-              <div>Completion time: {JSON.stringify(analytics.predictions?.completion_time)}</div>
-            </div>
-          }
-          type="info"
-          style={{ marginBottom: '16px' }}
-          closable
-        />
       )}
 
       {analytics && !loading && (
@@ -270,9 +256,9 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
               title={
                 <Space>
                   <CalendarOutlined />
-                  <span>Completion Prediction</span>
-                  <Tooltip title="AI prediction of when this project will be completed">
-                    <QuestionCircleOutlined style={{ color: '#8c8c8c' }} />
+                  <span>Predicción de término</span>
+                  <Tooltip title="Predicción de cuándo se completará el proyecto">
+                    <QuestionCircleOutlined style={{ color: 'var(--color-text-muted)' }} />
                   </Tooltip>
                 </Space>
               }
@@ -282,27 +268,27 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
               {analytics.predictions.completion_time ? (
                 <>
                   <Statistic
-                    title="Estimated Days to Complete"
+                    title="Días estimados para completar"
                     value={analytics.predictions.completion_time.prediction}
                     precision={1}
-                    valueStyle={{ color: '#1890ff', fontSize: '32px' }}
-                    suffix="days"
+                    valueStyle={{ color: 'var(--color-info)', fontSize: '32px' }}
+                    suffix="días"
                   />
                   <Progress
                     percent={Math.round(analytics.predictions.completion_time.confidence * 100)}
-                    strokeColor="#1890ff"
+                    strokeColor="var(--color-info)"
                     style={{ marginTop: '16px' }}
-                    format={(percent) => `${percent}% confidence`}
+                    format={(percent) => `${percent}% de confianza`}
                   />
                   <div style={{ marginTop: '16px' }}>
                     <Text type="secondary">
-                      Predicted completion: {formatDays(analytics.predictions.completion_time.prediction)}
+                      Término previsto: {formatDays(analytics.predictions.completion_time.prediction)}
                     </Text>
                   </div>
                 </>
               ) : (
                 <div style={{ textAlign: 'center', padding: '40px' }}>
-                  <Text type="secondary">No completion prediction available</Text>
+                  <Text type="secondary">No hay predicción de término disponible</Text>
                 </div>
               )}
             </Card>
@@ -314,9 +300,9 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
               title={
                 <Space>
                   <DollarOutlined />
-                  <span>Budget Variance</span>
-                  <Tooltip title="AI prediction of budget overrun or savings">
-                    <QuestionCircleOutlined style={{ color: '#8c8c8c' }} />
+                  <span>Desviación de presupuesto</span>
+                  <Tooltip title="Predicción de sobrecostos o ahorros">
+                    <QuestionCircleOutlined style={{ color: 'var(--color-text-muted)' }} />
                   </Tooltip>
                 </Space>
               }
@@ -326,11 +312,11 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
               {analytics.predictions.budget_variance ? (
                 <>
                   <Statistic
-                    title="Predicted Budget Variance"
+                    title="Desviación de presupuesto prevista"
                     value={analytics.predictions.budget_variance.prediction}
                     precision={0}
                     valueStyle={{ 
-                      color: analytics.predictions.budget_variance.prediction > 0 ? '#f5222d' : '#52c41a',
+                      color: analytics.predictions.budget_variance.prediction > 0 ? 'var(--color-error)' : 'var(--color-success)',
                       fontSize: '28px'
                     }}
                     prefix={analytics.predictions.budget_variance.prediction > 0 ? '+' : ''}
@@ -338,19 +324,19 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
                   />
                   <Progress
                     percent={Math.round(analytics.predictions.budget_variance.confidence * 100)}
-                    strokeColor={analytics.predictions.budget_variance.prediction > 0 ? '#f5222d' : '#52c41a'}
+                    strokeColor={analytics.predictions.budget_variance.prediction > 0 ? 'var(--color-error)' : 'var(--color-success)'}
                     style={{ marginTop: '16px' }}
-                    format={(percent) => `${percent}% confidence`}
+                    format={(percent) => `${percent}% de confianza`}
                   />
                   <div style={{ marginTop: '16px' }}>
                     <Text type="secondary">
-                      {analytics.predictions.budget_variance.prediction > 0 ? 'Over budget' : 'Under budget'}
+                      {analytics.predictions.budget_variance.prediction > 0 ? "Sobre el presupuesto" : "Bajo el presupuesto"}
                     </Text>
                   </div>
                 </>
               ) : (
                 <div style={{ textAlign: 'center', padding: '40px' }}>
-                  <Text type="secondary">No budget prediction available</Text>
+                  <Text type="secondary">No hay predicción de presupuesto disponible</Text>
                 </div>
               )}
             </Card>
@@ -362,9 +348,9 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
               title={
                 <Space>
                   <ExclamationCircleOutlined />
-                  <span>Risk Assessment</span>
-                  <Tooltip title="AI-powered risk score from 0-100">
-                    <QuestionCircleOutlined style={{ color: '#8c8c8c' }} />
+                  <span>Evaluación de riesgo</span>
+                  <Tooltip title="Puntaje predictivo de riesgo de 0 a 100">
+                    <QuestionCircleOutlined style={{ color: 'var(--color-text-muted)' }} />
                   </Tooltip>
                 </Space>
               }
@@ -374,7 +360,7 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
               {analytics.predictions.risk_score ? (
                 <>
                   <Statistic
-                    title="Risk Score"
+                    title="Puntaje de riesgo"
                     value={analytics.predictions.risk_score.prediction}
                     precision={0}
                     valueStyle={{ 
@@ -397,7 +383,7 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
                 </>
               ) : (
                 <div style={{ textAlign: 'center', padding: '40px' }}>
-                  <Text type="secondary">No risk assessment available</Text>
+                  <Text type="secondary">No hay evaluación de riesgo disponible</Text>
                 </div>
               )}
             </Card>
@@ -408,9 +394,9 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
             <Card title={
               <Space>
                 <BarChartOutlined />
-                <span>AI Model Explanations</span>
-                <Tooltip title="Feature importance and model explanations using SHAP">
-                  <QuestionCircleOutlined style={{ color: '#8c8c8c' }} />
+                <span>Explicación de los modelos</span>
+                <Tooltip title="Importancia de los factores y explicación del modelo con SHAP">
+                  <QuestionCircleOutlined style={{ color: 'var(--color-text-muted)' }} />
                 </Tooltip>
               </Space>
             }>
@@ -418,10 +404,10 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
                 items={[
                   ...(analytics.explanations.completion_time ? [{
                     key: 'completion',
-                    label: 'Completion Time Factors',
+                    label: "Factores de la fecha de término",
                     children: (
                       <div>
-                        <Text type="secondary">Key factors influencing the completion time prediction:</Text>
+                        <Text type="secondary">Factores principales de la predicción de término:</Text>
                         {analytics.explanations.completion_time.explanation?.feature_importance && (
                           <List
                             style={{ marginTop: '16px' }}
@@ -449,10 +435,10 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
                   
                   ...(analytics.explanations.budget_variance ? [{
                     key: 'budget',
-                    label: 'Budget Variance Factors',
+                    label: "Factores de desviación de presupuesto",
                     children: (
                       <div>
-                        <Text type="secondary">Key factors influencing budget variance:</Text>
+                        <Text type="secondary">Factores principales de desviación del presupuesto:</Text>
                         {analytics.explanations.budget_variance.explanation?.feature_importance && (
                           <List
                             style={{ marginTop: '16px' }}
@@ -468,7 +454,7 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
                                     percent={Math.round(item.importance * 100)} 
                                     size="small" 
                                     showInfo={false}
-                                    strokeColor="#fa8c16"
+                                    strokeColor="var(--color-warning)"
                                   />
                                 </div>
                               </List.Item>
@@ -481,10 +467,10 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
                   
                   ...(analytics.explanations.risk_score ? [{
                     key: 'risk',
-                    label: 'Risk Assessment Factors',
+                    label: "Factores de riesgo",
                     children: (
                       <div>
-                        <Text type="secondary">Key factors contributing to project risk:</Text>
+                        <Text type="secondary">Factores principales del riesgo del proyecto:</Text>
                         {analytics.explanations.risk_score.explanation?.feature_importance && (
                           <List
                             style={{ marginTop: '16px' }}
@@ -500,7 +486,7 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
                                     percent={Math.round(item.importance * 100)} 
                                     size="small" 
                                     showInfo={false}
-                                    strokeColor="#f5222d"
+                                    strokeColor="var(--color-error)"
                                   />
                                 </div>
                               </List.Item>
@@ -518,14 +504,14 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
           {/* Analytics Metadata */}
           <Col xs={24}>
             <Alert
-              message="AI Analytics Generated"
+              message="Analítica IA generada"
               description={
                 <Space>
-                  <span>Analysis completed at: {new Date(analytics.generated_at).toLocaleString()}</span>
+                  <span>Análisis completado el: {new Date(analytics.generated_at).toLocaleString()}</span>
                   <span>•</span>
-                  <span>Project ID: {analytics.project_id}</span>
+                  <span>ID del proyecto: {analytics.project_id}</span>
                   <span>•</span>
-                  <span>Models: Completion Time, Budget Variance, Risk Assessment</span>
+                  <span>Modelos: fecha de término, desviación de presupuesto y riesgo</span>
                 </Space>
               }
               type="info"

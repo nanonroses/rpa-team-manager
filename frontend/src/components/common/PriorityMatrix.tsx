@@ -145,13 +145,13 @@ const PriorityMatrix = <T,>({
         gridTemplateColumns: `auto repeat(${xRange.length}, 1fr)`,
         gridTemplateRows: `auto repeat(${yRange.length}, 1fr)`,
         gap: '2px',
-        backgroundColor: '#f0f0f0',
+        backgroundColor: 'var(--color-border)',
         padding: '2px',
         borderRadius: '8px'
       }}>
         {/* Empty top-left corner */}
         <div style={{ 
-          backgroundColor: '#fafafa', 
+          backgroundColor: 'var(--color-surface-raised)', 
           padding: '8px',
           display: 'flex',
           alignItems: 'center',
@@ -165,7 +165,7 @@ const PriorityMatrix = <T,>({
         {/* X-axis headers */}
         {xRange.map(xValue => (
           <div key={`x-header-${xValue}`} style={{
-            backgroundColor: '#fafafa',
+            backgroundColor: 'var(--color-surface-raised)',
             padding: '8px',
             textAlign: 'center',
             fontWeight: 'bold',
@@ -185,7 +185,7 @@ const PriorityMatrix = <T,>({
           return [
             // Y-axis header for this row
             <div key={`y-header-${yValue}`} style={{
-              backgroundColor: '#fafafa',
+              backgroundColor: 'var(--color-surface-raised)',
               padding: '8px',
               display: 'flex',
               alignItems: 'center',
@@ -248,7 +248,8 @@ const PriorityMatrix = <T,>({
                     
                     {cellItems.length === 0 && (
                       <Text type="secondary" style={{ fontSize: '10px' }}>
-                        No items
+                        
+                        Sin elementos
                       </Text>
                     )}
                   </div>
@@ -262,7 +263,7 @@ const PriorityMatrix = <T,>({
       {/* Summary Stats */}
       {summary && (
         <div style={{ marginTop: '20px', textAlign: 'center' }}>
-          <Space split={<span style={{ color: '#d9d9d9' }}>•</span>}>
+          <Space split={<span style={{ color: 'var(--color-border)' }}>•</span>}>
             {summary.getStats(items).map((stat, index) => (
               <Text key={index}>{stat.label}: {stat.value}</Text>
             ))}

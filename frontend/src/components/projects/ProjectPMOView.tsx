@@ -1,3 +1,4 @@
+import { displayLabel } from '@/utils/displayLabels';
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -139,7 +140,7 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
         // Handle case where response is not successful
         setError({
           hasError: true,
-          errorMessage: 'Invalid response from server',
+          errorMessage: "La respuesta del servidor no es válida",
           errorType: 'data'
         });
       }
@@ -149,7 +150,7 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
       
       let errorState: ErrorState = {
         hasError: true,
-        errorMessage: 'Unknown error occurred',
+        errorMessage: "Ocurrió un error desconocido",
         errorType: 'unknown'
       };
 
@@ -159,38 +160,38 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
         if (status === 401 || status === 403) {
           errorState = {
             hasError: true,
-            errorMessage: 'Access denied. You may not have permission to view this project\'s PMO data.',
+            errorMessage: "No tienes permiso para consultar los datos PMO de este proyecto.",
             errorType: 'permission'
           };
         } else if (status === 404) {
           errorState = {
             hasError: true,
-            errorMessage: 'PMO data not found for this project.',
+            errorMessage: "No se encontraron datos PMO para este proyecto.",
             errorType: 'data'
           };
         } else if (status >= 500) {
           errorState = {
             hasError: true,
-            errorMessage: 'Server error. Please try again later.',
+            errorMessage: "Error del servidor. Inténtalo nuevamente más tarde.",
             errorType: 'network'
           };
         } else {
           errorState = {
             hasError: true,
-            errorMessage: error.response.data?.message || `Request failed with status ${status}`,
+            errorMessage: error.response.data?.message || `La solicitud falló con estado ${status}`,
             errorType: 'data'
           };
         }
       } else if (error.request) {
         errorState = {
           hasError: true,
-          errorMessage: 'Network error. Please check your connection and try again.',
+          errorMessage: "Error de conexión. Revisa tu red e inténtalo nuevamente.",
           errorType: 'network'
         };
       } else {
         errorState = {
           hasError: true,
-          errorMessage: error.message || 'An unexpected error occurred',
+          errorMessage: error.message || "Ocurrió un error inesperado",
           errorType: 'unknown'
         };
       }
@@ -199,11 +200,11 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
       
       // Show appropriate message based on error type
       if (errorState.errorType === 'network') {
-        message.error('Network error - unable to load PMO data');
+        message.error("Error de conexión: no se pudieron cargar los datos PMO");
       } else if (errorState.errorType === 'permission') {
-        message.warning('Access denied for PMO data');
+        message.warning("Acceso denegado a los datos PMO");
       } else {
-        message.error('Failed to load PMO data');
+        message.error("No se pudieron cargar los datos PMO");
       }
       
       // Fallback: try to load basic gantt data for milestones only for non-permission errors
@@ -218,7 +219,7 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
             if (ganttResponse && ganttResponse.tasks) {
               console.log('Loaded fallback gantt tasks:', ganttResponse.tasks.length);
             }
-            message.info('Loaded basic milestone data as fallback');
+            message.info("Se cargaron los datos básicos de hitos");
           }
         } catch (ganttError) {
           console.error('Error loading fallback Gantt data:', ganttError);
@@ -239,12 +240,12 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
 
   const getRiskColor = (riskLevel: string) => {
     const colors = {
-      low: '#52c41a',
-      medium: '#faad14', 
-      high: '#fa8c16',
-      critical: '#ff4d4f'
+      low: 'var(--color-success)',
+      medium: 'var(--color-warning)', 
+      high: 'var(--color-warning)',
+      critical: 'var(--color-error)'
     };
-    return colors[riskLevel as keyof typeof colors] || '#d9d9d9';
+    return colors[riskLevel as keyof typeof colors] || 'var(--color-border)';
   };
 
   const getMilestoneStatusColor = (status: string) => {
@@ -273,7 +274,7 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
       <div style={{ padding: '24px', textAlign: 'center' }}>
         <Spin size="large" />
         <div style={{ marginTop: 16 }}>
-          <Text>Loading PMO analytics...</Text>
+          <Text>Cargando indicadores PMO...</Text>
         </div>
       </div>
     );
@@ -302,7 +303,7 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
           }}
           disabled={retryCount >= 3}
         >
-          {retryCount >= 3 ? 'Max Retries Reached' : 'Retry'}
+          {retryCount >= 3 ? "Límite de intentos alcanzado" : "Reintentar"}
         </Button>
       ];
 
@@ -313,7 +314,8 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
             icon={<FundOutlined />}
             onClick={handleViewFullPMO}
           >
-            Go to PMO Dashboard
+            
+            Abrir centro PMO
           </Button>
         );
       }
@@ -324,7 +326,7 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
     return (
       <div style={{ padding: '24px' }}>
         <Alert
-          message={`Error Loading PMO Data (${error.errorType})`}
+          message={'No se pudieron cargar los datos PMO'}
           description={error.errorMessage}
           type={error.errorType === 'permission' ? 'warning' : 'error'}
           showIcon
@@ -336,8 +338,8 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
         {/* Show partial data if available */}
         {(pmoMetrics || milestones.length > 0) && (
           <Alert
-            message="Partial Data Available"
-            description="Some PMO data was loaded successfully despite errors."
+            message="Información parcial disponible"
+            description="Se cargó parte de la información PMO, pero algunos datos no están disponibles."
             type="info"
             showIcon
             style={{ marginBottom: '16px' }}
@@ -352,7 +354,7 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
     return (
       <div style={{ padding: '24px' }}>
         <Empty
-          description="No PMO data available for this project"
+          description="Este proyecto todavía no tiene información PMO"
           image={Empty.PRESENTED_IMAGE_SIMPLE}
         >
           <Space>
@@ -361,13 +363,15 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
               icon={<FundOutlined />}
               onClick={handleViewFullPMO}
             >
-              Go to PMO Dashboard
+              
+              Abrir centro PMO
             </Button>
             <Button 
               icon={<SyncOutlined />}
               onClick={loadPMOData}
             >
-              Refresh Data
+              
+              Actualizar datos
             </Button>
           </Space>
         </Empty>
@@ -387,7 +391,7 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
         <Col xs={24} lg={14}>
           {/* Performance Metrics */}
           {pmoMetrics && (
-            <Card title="Project Performance Metrics" style={{ marginBottom: '24px' }}>
+            <Card title="Indicadores del proyecto" style={{ marginBottom: '24px' }}>
               <Row gutter={[16, 16]}>
                 <Col xs={12} sm={6}>
                   <Statistic
@@ -395,46 +399,46 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
                     value={pmoMetrics.completion_percentage}
                     suffix="%"
                     valueStyle={{ 
-                      color: pmoMetrics.completion_percentage > 75 ? '#52c41a' : 
-                             pmoMetrics.completion_percentage > 50 ? '#faad14' : '#ff4d4f' 
+                      color: pmoMetrics.completion_percentage > 75 ? 'var(--color-success)' : 
+                             pmoMetrics.completion_percentage > 50 ? 'var(--color-warning)' : 'var(--color-error)' 
                     }}
                     prefix={<TrophyOutlined />}
                   />
                 </Col>
                 <Col xs={12} sm={6}>
-                  <Tooltip title={scheduleStatus >= 0 ? "Days ahead of schedule" : "Days behind schedule"}>
+                  <Tooltip title={scheduleStatus >= 0 ? "Días de adelanto" : "Días de retraso"}>
                     <Statistic
-                      title="Schedule"
+                      title="Programar"
                       value={Math.abs(scheduleStatus)}
-                      suffix={scheduleStatus >= 0 ? " ahead" : " behind"}
+                      suffix={scheduleStatus >= 0 ? " de adelanto" : " de retraso"}
                       valueStyle={{ 
-                        color: scheduleStatus >= 0 ? '#52c41a' : '#ff4d4f' 
+                        color: scheduleStatus >= 0 ? 'var(--color-success)' : 'var(--color-error)' 
                       }}
                       prefix={scheduleStatus >= 0 ? <RiseOutlined /> : <FallOutlined />}
                     />
                   </Tooltip>
                 </Col>
                 <Col xs={12} sm={6}>
-                  <Tooltip title={costStatus <= 0 ? "Under budget" : "Over budget"}>
+                  <Tooltip title={costStatus <= 0 ? "Bajo el presupuesto" : "Sobre el presupuesto"}>
                     <Statistic
-                      title="Budget"
+                      title="Presupuesto"
                       value={Math.abs(costStatus)}
                       suffix="%"
                       prefix={costStatus <= 0 ? "+" : "-"}
                       valueStyle={{ 
-                        color: costStatus <= 0 ? '#52c41a' : '#ff4d4f' 
+                        color: costStatus <= 0 ? 'var(--color-success)' : 'var(--color-error)' 
                       }}
                     />
                   </Tooltip>
                 </Col>
                 <Col xs={12} sm={6}>
                   <Statistic
-                    title="Quality Score"
+                    title="Puntaje de calidad"
                     value={qualityScore}
                     suffix="/100"
                     valueStyle={{ 
-                      color: qualityScore > 80 ? '#52c41a' : 
-                             qualityScore > 60 ? '#faad14' : '#ff4d4f' 
+                      color: qualityScore > 80 ? 'var(--color-success)' : 
+                             qualityScore > 60 ? 'var(--color-warning)' : 'var(--color-error)' 
                     }}
                     prefix={<CheckCircleOutlined />}
                   />
@@ -447,21 +451,21 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
               <Row gutter={16}>
                 <Col xs={24} sm={12}>
                   <Space direction="vertical" style={{ width: '100%' }}>
-                    <Text strong>Risk Level</Text>
+                    <Text strong>Nivel de riesgo</Text>
                     <Tag 
                       color={getRiskColor(pmoMetrics.risk_level)} 
                       style={{ fontSize: '14px', padding: '4px 12px' }}
                     >
-                      <WarningOutlined /> {pmoMetrics.risk_level.toUpperCase()}
+                      <WarningOutlined /> {displayLabel(pmoMetrics.risk_level)}
                     </Tag>
                   </Space>
                 </Col>
                 <Col xs={24} sm={12}>
                   <Space direction="vertical" style={{ width: '100%' }}>
-                    <Text strong>Team Velocity</Text>
+                    <Text strong>Ritmo del equipo</Text>
                     <Statistic
                       value={pmoMetrics.team_velocity}
-                      suffix="tasks/week"
+                      suffix="tareas/semana"
                       valueStyle={{ fontSize: '18px' }}
                       prefix={<ThunderboltOutlined />}
                     />
@@ -476,7 +480,7 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
                   <Row gutter={16}>
                     <Col xs={24} sm={12}>
                       <Statistic
-                        title="Planned Hours"
+                        title="Horas planificadas"
                         value={pmoMetrics.planned_hours}
                         suffix="h"
                         prefix={<CalendarOutlined />}
@@ -484,18 +488,18 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
                     </Col>
                     <Col xs={24} sm={12}>
                       <Statistic
-                        title="Actual Hours"
+                        title="Horas registradas"
                         value={pmoMetrics.actual_hours}
                         suffix="h"
                         prefix={<ClockCircleOutlined />}
                         valueStyle={{ 
-                          color: pmoMetrics.actual_hours > pmoMetrics.planned_hours ? '#ff4d4f' : '#52c41a' 
+                          color: pmoMetrics.actual_hours > pmoMetrics.planned_hours ? 'var(--color-error)' : 'var(--color-success)' 
                         }}
                       />
                     </Col>
                   </Row>
                   <div style={{ marginTop: '16px' }}>
-                    <Text strong>Hours Progress: </Text>
+                    <Text strong>Consumo de horas: </Text>
                     <Progress 
                       percent={pmoMetrics.planned_hours > 0 ? 
                         Math.round((pmoMetrics.actual_hours / pmoMetrics.planned_hours) * 100) : 0}
@@ -509,31 +513,31 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
 
           {/* Quality Metrics */}
           {pmoMetrics && (pmoMetrics.bugs_found > 0 || pmoMetrics.bugs_resolved > 0) && (
-            <Card title="Quality Metrics" style={{ marginBottom: '24px' }}>
+            <Card title="Indicadores de calidad" style={{ marginBottom: '24px' }}>
               <Row gutter={16}>
                 <Col span={8}>
                   <Statistic
-                    title="Bugs Found"
+                    title="Errores detectados"
                     value={pmoMetrics.bugs_found}
-                    valueStyle={{ color: '#ff4d4f' }}
+                    valueStyle={{ color: 'var(--color-error)' }}
                     prefix={<ExclamationCircleOutlined />}
                   />
                 </Col>
                 <Col span={8}>
                   <Statistic
-                    title="Bugs Resolved"
+                    title="Errores resueltos"
                     value={pmoMetrics.bugs_resolved}
-                    valueStyle={{ color: '#52c41a' }}
+                    valueStyle={{ color: 'var(--color-success)' }}
                     prefix={<CheckCircleOutlined />}
                   />
                 </Col>
                 <Col span={8}>
                   <Statistic
-                    title="Resolution Rate"
+                    title="Tasa de resolución"
                     value={pmoMetrics.bugs_found > 0 ? 
                       Math.round((pmoMetrics.bugs_resolved / pmoMetrics.bugs_found) * 100) : 100}
                     suffix="%"
-                    valueStyle={{ color: '#1890ff' }}
+                    valueStyle={{ color: 'var(--color-info)' }}
                   />
                 </Col>
               </Row>
@@ -545,7 +549,7 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
         <Col xs={24} lg={10}>
           {/* Project Milestones */}
           <Card 
-            title="Project Milestones"
+            title="Hitos del proyecto"
             extra={
               <Button 
                 type="link" 
@@ -553,7 +557,8 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
                 onClick={handleViewGantt}
                 icon={<EyeOutlined />}
               >
-                View Full Timeline
+                
+                Ver cronograma completo
               </Button>
             }
             style={{ marginBottom: '24px' }}
@@ -562,31 +567,32 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
               <Timeline
                 items={milestones.slice(0, 5).map(milestone => ({
                   dot: milestone.status === 'completed' ? 
-                    <CheckCircleOutlined style={{ color: '#52c41a' }} /> :
+                    <CheckCircleOutlined style={{ color: 'var(--color-success)' }} /> :
                     milestone.status === 'delayed' ?
-                    <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} /> :
-                    <ClockCircleOutlined style={{ color: '#1890ff' }} />,
+                    <ExclamationCircleOutlined style={{ color: 'var(--color-error)' }} /> :
+                    <ClockCircleOutlined style={{ color: 'var(--color-info)' }} />,
                   children: (
                     <div>
                       <div style={{ marginBottom: '4px' }}>
                         <Text strong>{milestone.name}</Text>
                         <div style={{ float: 'right' }}>
                           <Tag color={getMilestoneStatusColor(milestone.status)}>
-                            {milestone.status.replace('_', ' ')}
+                            {displayLabel(milestone.status)}
                           </Tag>
                         </div>
                       </div>
                       <div style={{ marginBottom: '4px' }}>
                         <Text type="secondary" style={{ fontSize: '12px' }}>
-                          Due: {dayjs(milestone.planned_date).format('MMM DD, YYYY')}
+                          
+                          Vence: {dayjs(milestone.planned_date).format('MMM DD, YYYY')}
                           {milestone.actual_date && (
-                            <span> | Completed: {dayjs(milestone.actual_date).format('MMM DD, YYYY')}</span>
+                            <span> | Completado: {dayjs(milestone.actual_date).format('MMM DD, YYYY')}</span>
                           )}
                         </Text>
                       </div>
                       <div style={{ marginBottom: '8px' }}>
                         <Tag color={getResponsibilityColor(milestone.responsibility)}>
-                          {milestone.responsibility}
+                          {displayLabel(milestone.responsibility)}
                         </Tag>
                         {milestone.completion_percentage > 0 && (
                           <Progress 
@@ -611,7 +617,7 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
               />
             ) : (
               <Empty 
-                description="No milestones defined"
+                description="No hay hitos definidos"
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
                 style={{ padding: '20px 0' }}
               >
@@ -621,19 +627,20 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
                   onClick={handleViewFullPMO}
                   icon={<PlusOutlined />}
                 >
-                  Define Milestones
+                  
+                  Definir hitos
                 </Button>
               </Empty>
             )}
           </Card>
 
           {/* Quick Insights */}
-          <Card title="PMO Insights">
+          <Card title="Observaciones PMO">
             <Space direction="vertical" style={{ width: '100%' }}>
               {pmoMetrics?.risk_level === 'critical' && (
                 <Alert
-                  message="Critical Risk Detected"
-                  description="This project requires immediate attention from PMO."
+                  message="Riesgo crítico detectado"
+                  description="Este proyecto requiere atención inmediata de PMO."
                   type="error"
                   showIcon
                   icon={<FireOutlined />}
@@ -642,8 +649,8 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
               
               {scheduleStatus < -7 && (
                 <Alert
-                  message="Schedule Delay"
-                  description={`Project is ${Math.abs(scheduleStatus)} days behind schedule.`}
+                  message="Retraso del cronograma"
+                  description={`El proyecto tiene ${Math.abs(scheduleStatus)} días de retraso.`}
                   type="warning"
                   showIcon
                 />
@@ -651,8 +658,8 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
 
               {costStatus > 20 && (
                 <Alert
-                  message="Budget Overrun"
-                  description={`Project is ${costStatus}% over budget.`}
+                  message="Sobrecosto"
+                  description={`El proyecto supera el presupuesto en un ${costStatus}%.`}
                   type="error"
                   showIcon
                 />
@@ -660,13 +667,14 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
 
               {(!pmoMetrics || (pmoMetrics.completion_percentage < 10 && milestones.length === 0)) && (
                 <Alert
-                  message="PMO Setup Required"
-                  description="Set up project milestones and metrics for better tracking."
+                  message="Configuración PMO pendiente"
+                  description="Define los hitos e indicadores para mejorar el seguimiento del proyecto."
                   type="info"
                   showIcon
                   action={
                     <Button size="small" onClick={handleViewFullPMO}>
-                      Setup PMO
+                      
+                      Configurar PMO
                     </Button>
                   }
                 />
@@ -674,8 +682,8 @@ export const ProjectPMOView: React.FC<ProjectPMOViewProps> = ({
 
               {pmoMetrics && pmoMetrics.completion_percentage > 90 && (
                 <Alert
-                  message="Project Near Completion"
-                  description="Consider project closure activities and lessons learned."
+                  message="Proyecto próximo a completarse"
+                  description="Revisa las actividades de cierre y las lecciones aprendidas."
                   type="success"
                   showIcon
                 />
