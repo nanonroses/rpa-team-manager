@@ -267,19 +267,29 @@ export const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ visibl
 
       <div style={{ display: currentKey === 'team' ? 'block' : 'none' }}>
         {isOperations ? (
-          <Alert type="info" showIcon message="Quedarás asignado a este proyecto" style={{ marginBottom: 24 }} />
+          <Alert type="info" showIcon message="Quedarás asignado a este proyecto como responsable de operaciones." style={{ marginBottom: 24 }} />
         ) : (
-          <Form form={teamForm} layout="vertical">
-            <Form.Item name="assigned_users" label="Equipo asignado">
-              <Select mode="multiple" allowClear maxTagCount="responsive" optionFilterProp="label" placeholder="Selecciona personas del equipo" options={teamMembers.map((member) => ({ ...member, label: `${member.label} (${member.role})` }))} />
-            </Form.Item>
-            <Form.Item name="default_allocation" label="Dedicación por persona (%)"><InputNumber min={1} max={100} style={{ width: '100%' }} /></Form.Item>
-            <Form.Item name="budgeted_hours_per_person" label="Horas presupuestadas por persona"><InputNumber min={0} precision={1} style={{ width: '100%' }} /></Form.Item>
-          </Form>
+          <>
+            <Alert
+              type="info"
+              showIcon
+              message="Al continuar se creará el proyecto con su tablero Kanban y sus fases del ciclo de vida."
+              style={{ marginBottom: 16 }}
+            />
+            <Form form={teamForm} layout="vertical">
+              <Form.Item name="assigned_users" label="Equipo asignado">
+                <Select mode="multiple" allowClear maxTagCount="responsive" optionFilterProp="label" placeholder="Selecciona personas del equipo" options={teamMembers.map((member) => ({ ...member, label: `${member.label} (${member.role})` }))} />
+              </Form.Item>
+              <Form.Item name="default_allocation" label="Dedicación por persona (%)"><InputNumber min={1} max={100} style={{ width: '100%' }} /></Form.Item>
+              <Form.Item name="budgeted_hours_per_person" label="Horas presupuestadas por persona"><InputNumber min={0} precision={1} style={{ width: '100%' }} /></Form.Item>
+            </Form>
+          </>
         )}
-        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 16 }}>
           <Button onClick={() => setCurrentKey('quote')}>Atrás</Button>
-          <Button type="primary" loading={creating} onClick={finalizeCreation}>Siguiente</Button>
+          <Button type="primary" loading={creating} onClick={finalizeCreation}>
+            {createdProject ? 'Siguiente' : 'Crear proyecto y continuar'}
+          </Button>
         </div>
       </div>
 

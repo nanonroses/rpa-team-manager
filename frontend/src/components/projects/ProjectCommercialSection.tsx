@@ -185,9 +185,45 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
         {canManage && project.commercial_stage === 'quoting' && <Button icon={<CalendarOutlined />} onClick={() => setMeetingOpen(true)}>Registrar reunión</Button>}
         {canManage && project.commercial_stage !== 'lost' && <Button icon={<FileTextOutlined />} onClick={() => setQuoteOpen(true)}>Nueva cotización</Button>}
         {isLead && project.commercial_stage === 'quoting' && <Button type="primary" onClick={() => setApprovalOpen(true)}>Registrar aprobación cliente</Button>}
+        {canManage && project.commercial_stage === 'approved' && project.status !== 'active' && project.status !== 'completed' && (
+          <Button
+            type="primary"
+            style={{ backgroundColor: '#52c41a', borderColor: '#52c41a' }}
+            icon={<CheckCircleOutlined />}
+            onClick={() => modal.confirm({
+              title: 'Iniciar ejecución del proyecto',
+              content: project.require_purchase_order && !documents.some((d) => d.document_type === 'purchase_order')
+                ? 'El proyecto requiere orden de compra obligatoria antes de iniciar. Por favor regístrala primero.'
+                : '¿Confirmas el inicio de ejecución? El estado del proyecto cambiará a Activo.',
+              okText: 'Iniciar ejecución',
+              cancelText: 'Cancelar',
+              okButtonProps: {
+                disabled: Boolean(project.require_purchase_order && !documents.some((d) => d.document_type === 'purchase_order'))
+              },
+              onOk: async () => {
+                await save(`${base}/start-execution`, {}, 'Ejecución iniciada exitosamente');
+              }
+            })}
+          >
+            Iniciar ejecución
+          </Button>
+        )}
         {isLead && project.commercial_stage === 'quoting' && <Button danger type="text" onClick={requestLost}>Marcar perdida</Button>}
       </Space>
     </div>
+    {project.commercial_stage === 'approved' && project.status !== 'active' && project.status !== 'completed' && (
+      <Alert
+        showIcon
+        type="success"
+        message="Aprobación del cliente registrada"
+        description={
+          project.require_purchase_order && !documents.some((d) => d.document_type === 'purchase_order')
+            ? 'El proyecto requiere orden de compra antes de pasar a ejecución activa. Regístrala en la pestaña Contratos y cierre.'
+            : 'Todo listo para iniciar la ejecución del proyecto. Presiona "Iniciar ejecución" para activar el proyecto.'
+        }
+        style={{ marginBottom: 16 }}
+      />
+    )}
     {project.commercial_stage === 'quoting' && meetings.length >= 2 && !meetings.some((m) => m.has_pdd || m.has_technical_commercial_proposal) && <Alert showIcon type={meetings.length >= 3 ? 'error' : 'warning'} message={meetings.length >= 3 ? 'Escalación: aún falta el PDD o la propuesta técnico comercial' : 'Después de dos reuniones falta registrar el PDD o la propuesta'} description="Registra el motivo y el próximo compromiso en la reunión siguiente." />}
     <div className="commercial-columns">
       <Card title="Reuniones y compromisos" extra={canManage && project.commercial_stage === 'quoting' ? <Button type="text" icon={<PlusOutlined />} onClick={() => setMeetingOpen(true)}>Agregar</Button> : null}>

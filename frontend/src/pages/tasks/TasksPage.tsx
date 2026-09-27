@@ -28,7 +28,8 @@ import {
   DollarOutlined,
   CheckSquareOutlined,
   TeamOutlined,
-  LinkOutlined
+  LinkOutlined,
+  RocketOutlined
 } from '@ant-design/icons';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -920,7 +921,10 @@ export const TasksPage: React.FC = () => {
           <Space wrap>
             <Text strong>Proyecto de este tablero:</Text>
             <Link to={`/projects/${selectedProject}`}>{projects.find(project => project.id === selectedProject)?.name || 'Ver proyecto'}</Link>
-            <Button type="link" size="small"><Link to={`/projects/${selectedProject}`}>Abrir ficha del proyecto</Link></Button>
+            <Button type="link" size="small"><Link to={`/projects/${selectedProject}`}>Ficha del proyecto</Link></Button>
+            <Button type="link" size="small" icon={<RocketOutlined />}>
+              <Link to={`/projects/${selectedProject}?tab=lifecycle`}>Fases y Ciclo de vida</Link>
+            </Button>
           </Space>
         </Card>
       )}

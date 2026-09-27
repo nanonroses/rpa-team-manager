@@ -231,6 +231,15 @@ export const ProjectDetailPage: React.FC = () => {
             <div className="project-hero-title-block">
               <div className="project-status-line">
                 <Tag color={getProjectStatusColor(project.status)}>{statusLabel}</Tag>
+                {project.status === 'completed' && (
+                  project.financial_closed_at ? (
+                    <Tag color="cyan">Cierre financiero completado</Tag>
+                  ) : (
+                    <Tag color="gold" style={{ cursor: 'pointer' }} onClick={() => setActiveTab('commercial')}>
+                      Entrega aceptada · Cobranza pendiente
+                    </Tag>
+                  )
+                )}
                 <span className={`project-priority-pill priority-${project.priority}`}><span />Prioridad {priorityLabel.toLowerCase()}</span>
                 {health && <span className={`project-health-pill health-${health.semaphore}`}><span />{healthLabels[health.semaphore]}</span>}
               </div>

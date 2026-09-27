@@ -191,13 +191,65 @@ button, input, textarea, select { font: inherit; }
 .ant-typography-secondary { color: var(--ink-soft) !important; font-weight: 400; }
 .ant-btn { border-radius: var(--radius-md); font-weight: 500; font-family: var(--font-body); box-shadow: none; transition: all .15s cubic-bezier(0.16, 1, 0.3, 1); }
 .ant-btn:active { transform: translateY(1px); }
-.ant-btn-primary { background: var(--color-primary); border-color: var(--color-primary); box-shadow: var(--elevation-1); }
-.ant-btn-primary:hover { background: var(--color-primary-hover) !important; border-color: var(--color-primary-hover) !important; }
-.ant-btn-primary:not(:disabled), .ant-tag-has-color { color: var(--color-on-accent); }
-.ant-btn-primary.ant-btn-dangerous { background: var(--color-error); border-color: var(--color-error); }
-.ant-btn-primary.ant-btn-dangerous:hover { background: var(--color-error-hover) !important; border-color: var(--color-error-hover) !important; }
-.ant-btn-default { border-color: var(--line); color: var(--ink); background: var(--surface); }
-.ant-btn-default:hover { border-color: var(--color-primary) !important; color: var(--color-primary) !important; }
+.ant-btn-primary:not(:disabled):not(.ant-btn-disabled) { background: var(--color-primary); border-color: var(--color-primary); color: var(--color-on-accent) !important; box-shadow: var(--elevation-1); }
+.ant-btn-primary:not(:disabled):not(.ant-btn-disabled):hover { background: var(--color-primary-hover) !important; border-color: var(--color-primary-hover) !important; color: var(--color-on-accent) !important; }
+.ant-tag-has-color { color: var(--color-on-accent); }
+.ant-btn-primary.ant-btn-dangerous:not(:disabled):not(.ant-btn-disabled) { background: var(--color-error); border-color: var(--color-error); }
+.ant-btn-primary.ant-btn-dangerous:not(:disabled):not(.ant-btn-disabled):hover { background: var(--color-error-hover) !important; border-color: var(--color-error-hover) !important; }
+.ant-btn-default:not(:disabled):not(.ant-btn-disabled) { border-color: var(--line); color: var(--ink); background: var(--surface); }
+.ant-btn-default:not(:disabled):not(.ant-btn-disabled):hover { border-color: var(--color-primary) !important; color: var(--color-primary) !important; }
+
+/* Botones deshabilitados - Contraste accesible y máxima legibilidad */
+.ant-btn:disabled,
+.ant-btn[disabled],
+.ant-btn.ant-btn-disabled {
+  cursor: not-allowed !important;
+  box-shadow: none !important;
+}
+
+:root[data-theme="dark"] .ant-btn:disabled,
+:root[data-theme="dark"] .ant-btn[disabled],
+:root[data-theme="dark"] .ant-btn.ant-btn-disabled {
+  background: #232328 !important;
+  border-color: #383840 !important;
+  color: #FFFFFF !important;
+  opacity: 0.9 !important;
+}
+
+:root[data-theme="dark"] .ant-btn:disabled span,
+:root[data-theme="dark"] .ant-btn[disabled] span,
+:root[data-theme="dark"] .ant-btn.ant-btn-disabled span,
+:root[data-theme="dark"] .ant-btn:disabled .anticon,
+:root[data-theme="dark"] .ant-btn[disabled] .anticon,
+:root[data-theme="dark"] .ant-btn.ant-btn-disabled .anticon,
+:root[data-theme="dark"] .ant-btn:disabled svg,
+:root[data-theme="dark"] .ant-btn[disabled] svg,
+:root[data-theme="dark"] .ant-btn.ant-btn-disabled svg {
+  color: #FFFFFF !important;
+  fill: currentColor !important;
+}
+
+:root:not([data-theme="dark"]) .ant-btn:disabled,
+:root:not([data-theme="dark"]) .ant-btn[disabled],
+:root:not([data-theme="dark"]) .ant-btn.ant-btn-disabled {
+  background: #F5F5F5 !important;
+  border-color: #D4D4D4 !important;
+  color: #525252 !important;
+  opacity: 0.9 !important;
+}
+
+:root:not([data-theme="dark"]) .ant-btn:disabled span,
+:root:not([data-theme="dark"]) .ant-btn[disabled] span,
+:root:not([data-theme="dark"]) .ant-btn.ant-btn-disabled span,
+:root:not([data-theme="dark"]) .ant-btn:disabled .anticon,
+:root:not([data-theme="dark"]) .ant-btn[disabled] .anticon,
+:root:not([data-theme="dark"]) .ant-btn.ant-btn-disabled .anticon,
+:root:not([data-theme="dark"]) .ant-btn:disabled svg,
+:root:not([data-theme="dark"]) .ant-btn[disabled] svg,
+:root:not([data-theme="dark"]) .ant-btn.ant-btn-disabled svg {
+  color: #525252 !important;
+  fill: currentColor !important;
+}
 .ant-input, .ant-input-affix-wrapper, .ant-select-selector, .ant-picker { border-radius: var(--radius-md) !important; border-color: var(--line) !important; font-family: var(--font-body) !important; }
 .ant-input-affix-wrapper-focused, .ant-input:focus, .ant-select-focused .ant-select-selector { border-color: var(--color-primary) !important; box-shadow: 0 0 0 3px var(--color-focus-ring) !important; }
 .ant-card { border-color: var(--line); border-radius: var(--radius-lg); box-shadow: var(--elevation-1); transition: border-color .15s ease, box-shadow .15s ease; }

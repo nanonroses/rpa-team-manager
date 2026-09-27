@@ -350,6 +350,34 @@ export class ProjectController {
                 `, [boardId, column.name, column.position, column.color, column.is_done, column.wip_limit || null]);
             }
 
+            // Auto-initialize mandatory lifecycle phases for the project
+            try {
+                const mandatoryTemplates = await db.query(`
+                    SELECT * FROM project_phase_templates
+                    WHERE is_mandatory = 1
+                    ORDER BY phase_order ASC
+                `);
+                for (const template of mandatoryTemplates) {
+                    await db.run(`
+                        INSERT INTO project_phases
+                        (project_id, template_id, name, description, phase_order, estimated_hours,
+                         is_billable, responsibility)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    `, [
+                        projectId,
+                        template.id,
+                        template.name,
+                        template.description,
+                        template.phase_order,
+                        template.estimated_duration_days ? template.estimated_duration_days * 8 : 0,
+                        template.is_billable,
+                        'internal'
+                    ]);
+                }
+            } catch (phaseInitError) {
+                logger.warn('Could not auto-initialize project phases:', phaseInitError);
+            }
+
             // Log activity
             await activityLogService.logActivity(
                 req.user?.id,
