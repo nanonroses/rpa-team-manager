@@ -70,6 +70,25 @@ export const ProjectMilestonesAndLog: React.FC<ProjectMilestonesAndLogProps> = (
     load();
   }, [load]);
 
+  const handleDownload = async (fileId: number) => {
+    try {
+      const [blob, fileInfo] = await Promise.all([
+        fileService.downloadFile(fileId),
+        fileService.getFile(fileId).catch(() => null)
+      ]);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileInfo?.original_filename || `adjunto-${fileId}`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      message.error('No se pudo descargar el adjunto');
+    }
+  };
+
   const handleCreateEntry = async () => {
     const trimmed = description.trim();
     if (!trimmed) return;
@@ -180,9 +199,9 @@ export const ProjectMilestonesAndLog: React.FC<ProjectMilestonesAndLogProps> = (
                     <Text>{entry.description}</Text>
                     {entry.file_id && (
                       <div>
-                        <a href={fileService.getDownloadUrl(entry.file_id)} target="_blank" rel="noreferrer">
+                        <Button type="link" size="small" style={{ padding: 0 }} onClick={() => handleDownload(entry.file_id!)}>
                           Descargar adjunto
-                        </a>
+                        </Button>
                       </div>
                     )}
                   </div>

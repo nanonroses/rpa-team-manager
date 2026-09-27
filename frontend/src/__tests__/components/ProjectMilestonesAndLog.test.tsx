@@ -11,7 +11,17 @@ vi.mock('@/services/api', () => ({
   }
 }));
 
+vi.mock('@/services/fileService', () => ({
+  fileService: {
+    uploadFiles: vi.fn(),
+    downloadFile: vi.fn(),
+    getFile: vi.fn(),
+    getDownloadUrl: vi.fn()
+  }
+}));
+
 import { apiService } from '@/services/api';
+import { fileService } from '@/services/fileService';
 import { ProjectMilestonesAndLog } from '@/components/projects/ProjectMilestonesAndLog';
 
 describe('ProjectMilestonesAndLog', () => {
@@ -68,5 +78,31 @@ describe('ProjectMilestonesAndLog', () => {
 
     await waitFor(() => expect(apiService.createProjectLogEntry).toHaveBeenCalledWith(7, { entry_type: 'technical_milestone', description: 'Caída del servicio', file_id: null }));
     expect(await screen.findByText('Caída del servicio')).toBeInTheDocument();
+  });
+
+  it('descarga el adjunto de una entrada usando fileService.downloadFile en vez de un href directo', async () => {
+    (apiService.getProjectLogEntries as any).mockResolvedValue([
+      { id: 3, entry_type: 'incident', description: 'Falla en producción', author_name: 'Ana', created_at: '2026-09-27T12:00:00Z', file_id: 5 }
+    ]);
+    const blob = new Blob(['contenido']);
+    (fileService.downloadFile as any).mockResolvedValue(blob);
+    (fileService.getFile as any).mockResolvedValue({ id: 5, original_filename: 'informe.pdf' });
+
+    const createObjectURLMock = vi.fn().mockReturnValue('blob:mock-url');
+    const revokeObjectURLMock = vi.fn();
+    (global.URL as any).createObjectURL = createObjectURLMock;
+    (global.URL as any).revokeObjectURL = revokeObjectURLMock;
+
+    render(
+      <MemoryRouter>
+        <ProjectMilestonesAndLog projectId={7} canWriteLog={false} />
+      </MemoryRouter>
+    );
+
+    const downloadButton = await screen.findByRole('button', { name: /descargar adjunto/i });
+    await userEvent.click(downloadButton);
+
+    await waitFor(() => expect(fileService.downloadFile).toHaveBeenCalledWith(5));
+    expect(fileService.getFile).toHaveBeenCalledWith(5);
   });
 });
