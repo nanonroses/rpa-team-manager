@@ -391,6 +391,17 @@ class ApiService {
     return response.data;
   }
 
+
+  async getProjectLogEntries(projectId: number): Promise<any[]> {
+    const response = await this.api.get(`/projects/${projectId}/log-entries`);
+    return response.data;
+  }
+
+  async createProjectLogEntry(projectId: number, payload: { entry_type: string; description: string; file_id?: number | null }): Promise<any> {
+    const response = await this.api.post(`/projects/${projectId}/log-entries`, payload);
+    return response.data;
+  }
+
   async getTaskActivity(taskId: number, params?: { limit?: number; offset?: number }): Promise<ActivityLogEntry[]> {
     const response = await this.api.get(`/tasks/${taskId}/activity`, { params });
     return response.data;
