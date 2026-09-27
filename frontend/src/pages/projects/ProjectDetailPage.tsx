@@ -43,6 +43,7 @@ import { ProjectHealthCard } from '@/components/projects/ProjectHealthCard';
 import { ActivityTimeline } from '@/components/activity/ActivityTimeline';
 import { CommentsThread } from '@/components/comments/CommentsThread';
 import { ProjectPMOView } from '@/components/projects/ProjectPMOView';
+import { ProjectMilestonesAndLog } from '@/components/projects/ProjectMilestonesAndLog';
 import { ProjectMLAnalytics } from '@/components/projects/ProjectMLAnalytics';
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal';
 import { FileManager, EvidenceGallery } from '@/components/files';
@@ -58,7 +59,7 @@ import { ErrorState, LoadingState } from '@/components/common';
 import dayjs from 'dayjs';
 
 const { Title, Text, Paragraph } = Typography;
-const projectTabOrder = ['overview', 'commercial', 'billing', 'pmo', 'lifecycle', 'files', 'evidence', 'comments', 'ai-analytics'];
+const projectTabOrder = ['overview', 'commercial', 'billing', 'pmo', 'milestones-log', 'lifecycle', 'files', 'evidence', 'comments', 'ai-analytics'];
 
 export const ProjectDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -604,6 +605,25 @@ export const ProjectDetailPage: React.FC = () => {
                   projectStatus={project.status}
                   startDate={project.start_date}
                   endDate={project.end_date}
+                />
+              )
+            },
+            {
+              key: 'milestones-log',
+              label: (
+                <span>
+                  <FundOutlined />
+                  Hitos y bitácora
+                </span>
+              ),
+              children: (
+                <ProjectMilestonesAndLog
+                  projectId={project.id}
+                  canWriteLog={
+                    user?.role === 'team_lead' ||
+                    project.assigned_to === user?.id ||
+                    project.created_by === user?.id
+                  }
                 />
               )
             },
