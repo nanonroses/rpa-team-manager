@@ -1937,5 +1937,24 @@ export const migrations: Migration[] = [
         existingColumns.add(column);
       }
     }
+  },
+  {
+    version: 42,
+    description: 'Bitácora inmutable del proyecto (hitos técnicos, aprobaciones, decisiones, cambios de alcance, incidentes) - Fase 6E',
+    up: [
+      `CREATE TABLE IF NOT EXISTS project_log_entries (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL,
+        entry_type TEXT NOT NULL CHECK (entry_type IN ('technical_milestone', 'client_approval', 'decision', 'scope_change', 'incident')),
+        description TEXT NOT NULL,
+        file_id INTEGER,
+        created_by INTEGER NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+        FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE SET NULL,
+        FOREIGN KEY (created_by) REFERENCES users(id)
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_project_log_entries_project ON project_log_entries(project_id)`
+    ]
   }
 ];
