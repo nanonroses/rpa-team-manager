@@ -134,6 +134,7 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
     { title: 'Versión', dataIndex: 'version', render: (v: number) => `v${v}` },
     { title: 'Tipo', dataIndex: 'pricing_model', render: (v: string) => ({ fixed: 'Precio fijo', hourly: 'Por horas', mixed: 'Mixta' }[v] || v) },
     ...(isLead ? [{ title: 'Monto', dataIndex: 'amount', render: (v: number, row: Row) => `${row.currency} ${Number(v).toLocaleString('es-CL')}` }, { title: 'Margen', dataIndex: 'margin_percent', render: (v: number | null) => v == null ? 'Por definir' : `${Number(v).toFixed(1)}%` }] : []),
+    { title: 'Archivo', dataIndex: 'file_id', render: (v: number | null) => v ? <a href={`/api/files/${v}/download`} target="_blank" rel="noreferrer">Descargar</a> : 'Sin archivo' },
     { title: 'Estado', dataIndex: 'status', render: (v: string) => <Tag color={v === 'approved' ? 'green' : v === 'replaced' ? 'default' : 'blue'}>{({ sent: 'Enviada', approved: 'Validada por jefatura', replaced: 'Reemplazada', rejected: 'Rechazada', draft: 'Borrador' } as Row)[v] || v}</Tag> },
     { title: 'Registrada', dataIndex: 'created_at', render: (v: string) => v ? dayjs(v).format('DD MMM YYYY') : '—' },
     ...(isLead ? [{ title: 'Acción', key: 'action', render: (_: unknown, row: Row) => row.status === 'sent' ? <Space>
