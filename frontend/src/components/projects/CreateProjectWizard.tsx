@@ -22,6 +22,7 @@ export interface QuoteStepData {
 }
 
 interface MilestoneRow {
+  key: number;
   name: string;
   amount: number;
   currency: 'CLP' | 'UF' | 'USD';
@@ -172,6 +173,7 @@ export const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ visibl
             setCostEstimate(estimate);
           } catch (error) {
             setCostEstimate(null);
+            message.warning('Proyecto creado, pero no se pudo estimar el costo del equipo. Puedes revisarlo después desde la ficha del proyecto.');
           }
         }
         setCurrentKey('summary');
@@ -187,7 +189,7 @@ export const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ visibl
 
   const addMilestoneRow = async () => {
     const values = await milestoneForm.validateFields();
-    setMilestoneRows((rows) => [...rows, { ...values, planned_date: values.planned_date.format('YYYY-MM-DD') }]);
+    setMilestoneRows((rows) => [...rows, { ...values, key: Date.now(), planned_date: values.planned_date.format('YYYY-MM-DD') }]);
     milestoneForm.resetFields();
   };
 
@@ -278,7 +280,7 @@ export const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ visibl
         <div style={{ display: currentKey === 'summary' ? 'block' : 'none' }}>
           {costEstimate ? (
             <Space size="large" style={{ marginBottom: 24 }}>
-              <Statistic title="Costo estimado del equipo (CLP)" value={costEstimate.blended_hourly_cost_clp * (quoteData?.hours || 0)} precision={0} />
+              <Statistic title="Costo estimado del equipo" value={costEstimate.estimated_cost} precision={0} suffix={costEstimate.currency} />
               <Statistic title="Venta cotizada" value={quoteData?.amount || 0} precision={0} suffix={quoteData?.currency} />
             </Space>
           ) : (
@@ -300,7 +302,7 @@ export const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ visibl
               <Form.Item name="planned_date" rules={[{ required: true, message: 'Fecha' }]}><DatePicker placeholder="Fecha prevista" /></Form.Item>
               <Form.Item><Button icon={<PlusOutlined />} onClick={addMilestoneRow}>Agregar hito</Button></Form.Item>
             </Form>
-            <Table size="small" pagination={false} dataSource={milestoneRows} rowKey="name" columns={[{ title: 'Hito', dataIndex: 'name' }, { title: 'Monto', dataIndex: 'amount' }, { title: 'Moneda', dataIndex: 'currency' }, { title: 'Fecha', dataIndex: 'planned_date' }]} />
+            <Table size="small" pagination={false} dataSource={milestoneRows} rowKey="key" columns={[{ title: 'Hito', dataIndex: 'name' }, { title: 'Monto', dataIndex: 'amount' }, { title: 'Moneda', dataIndex: 'currency' }, { title: 'Fecha', dataIndex: 'planned_date' }]} />
           </>
         )}
         <div style={{ textAlign: 'right', marginTop: 16 }}><Button type="primary" onClick={finish}>Finalizar</Button></div>
