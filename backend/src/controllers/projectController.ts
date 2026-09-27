@@ -9,6 +9,7 @@ import { activityLogService } from '../services/activityLogService';
 import { commentService } from '../services/commentService';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as crypto from 'crypto';
 
 export class ProjectController {
     private llmService: LLMService;
@@ -1123,17 +1124,39 @@ export class ProjectController {
                 provider
             );
 
-            // Clean up uploaded file
-            await this.documentParserService.cleanupFile(uploadedFilePath);
+            // Persistir el archivo en vez de borrarlo, para poder asociarlo a la version de cotizacion que el usuario confirme despues.
+            const fileBuffer = await fs.promises.readFile(uploadedFilePath);
+            const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+            const fileExtension = path.extname(file.originalname).toLowerCase().substring(1);
+
+            const existingFile = await db.get('SELECT id FROM files WHERE file_hash = ? AND is_deleted = 0', [fileHash]);
+            let fileId: number;
+            if (existingFile) {
+                fileId = existingFile.id;
+                await this.documentParserService.cleanupFile(uploadedFilePath);
+            } else {
+                const inserted = await db.run(`
+                    INSERT INTO files (
+                        filename, original_filename, file_path, file_size, mime_type,
+                        file_extension, file_hash, uploaded_by, description, is_public
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+                `, [
+                    file.filename, file.originalname, uploadedFilePath, file.size, file.mimetype,
+                    fileExtension, fileHash, userId, 'Cotizacion leida con IA'
+                ]);
+                fileId = inserted.id!;
+            }
 
             logger.info('Quote processed successfully', {
                 project_name: quoteData.project_name,
-                user_id: userId
+                user_id: userId,
+                file_id: fileId
             });
 
             res.status(200).json({
                 message: 'Quote processed successfully',
-                quote_data: quoteData
+                quote_data: quoteData,
+                file_id: fileId
             });
 
         } catch (error) {

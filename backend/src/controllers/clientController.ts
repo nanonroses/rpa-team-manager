@@ -84,6 +84,11 @@ export class ClientController {
     await db.run(`UPDATE sales_reps SET ${updates.map((key) => `${key} = ?`).join(', ')}, updated_at = datetime('now') WHERE id = ?`, [...updates.map((key) => key === 'is_active' ? Number(Boolean(req.body[key])) : req.body[key]), Number(req.params.salesRepId)]);
     res.json({ data: await db.get('SELECT * FROM sales_reps WHERE id = ?', [Number(req.params.salesRepId)]) });
   };
+
+  listBusinessAreas = async (_req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const areas = await db.query(`SELECT id, name, code FROM business_areas WHERE is_active = 1 ORDER BY name`);
+    res.json({ data: areas });
+  };
 }
 
 export const clientController = new ClientController();

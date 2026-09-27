@@ -110,6 +110,12 @@ export class CommercialController {
     }
     const quoteFile = file_id ? null : await db.get(`SELECT file_id FROM file_associations WHERE entity_type = 'project' AND entity_id = ? AND association_type = ? ORDER BY created_at DESC LIMIT 1`, [projectId, `quote_v${next.version}`]);
     const result = await db.run(`INSERT INTO project_quotes (project_id, version, pricing_model, amount, currency, hours, hourly_rate, estimated_cost, margin_percent, scope_change_id, file_id, notes, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [projectId, next.version, pricing_model, amountNumber, currency, hours ?? null, hourly_rate ?? null, estimated_cost ?? null, margin, scope_change_id ?? null, file_id ?? quoteFile?.file_id ?? null, notes ?? null, req.user?.id ?? null]);
+    if (file_id) {
+      await db.run(`INSERT INTO file_associations (file_id, entity_type, entity_id, association_type, created_by)
+        SELECT ?, 'project', ?, ?, ? WHERE NOT EXISTS (
+          SELECT 1 FROM file_associations WHERE file_id = ? AND entity_type = 'project' AND entity_id = ? AND association_type = ?
+        )`, [file_id, projectId, `quote_v${next.version}`, req.user?.id ?? null, file_id, projectId, `quote_v${next.version}`]);
+    }
     const created = await db.get('SELECT * FROM project_quotes WHERE id = ?', [result.id]);
     await activityLogService.logActivity(req.user?.id, 'quote', Number(result.id), 'version_created', null, created);
     await activityLogService.logActivity(req.user?.id, 'project', projectId, 'quote_version_created', null, { quote_id: result.id, version: next.version, amount: amountNumber, currency, status: created.status });
@@ -150,6 +156,20 @@ export class CommercialController {
     } catch (error) { await db.rollback(); throw error; }
     await activityLogService.logActivity(userId, 'quote', quoteId, 'internally_approved', { status: quote.status }, { status: 'approved', approved_by: userId, approved_at: new Date().toISOString() });
     await activityLogService.logActivity(req.user?.id, 'project', Number(quote.project_id), 'quote_internally_approved', null, { quote_id: quoteId });
+    res.json({ data: await db.get('SELECT * FROM project_quotes WHERE id = ?', [quoteId]) });
+  };
+
+  rejectQuote = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    if (req.user?.role !== 'team_lead') { res.status(403).json({ error: 'Solo la jefatura puede rechazar una cotización' }); return; }
+    const reason = String(req.body.reason ?? '').trim();
+    if (!reason) { res.status(400).json({ error: 'Registra el motivo del rechazo' }); return; }
+    const quoteId = Number(req.params.quoteId);
+    const quote = await db.get('SELECT * FROM project_quotes WHERE id = ?', [quoteId]);
+    if (!quote) { res.status(404).json({ error: 'Cotización no encontrada' }); return; }
+    if (quote.status !== 'sent') { res.status(409).json({ error: 'Solo se pueden rechazar versiones enviadas al cliente' }); return; }
+    const combinedNotes = quote.notes ? `${quote.notes} | Rechazada: ${reason}` : `Rechazada: ${reason}`;
+    await db.run(`UPDATE project_quotes SET status = 'rejected', notes = ? WHERE id = ?`, [combinedNotes, quoteId]);
+    await activityLogService.logActivity(req.user.id, 'quote', quoteId, 'rejected', { status: 'sent' }, { status: 'rejected', reason });
     res.json({ data: await db.get('SELECT * FROM project_quotes WHERE id = ?', [quoteId]) });
   };
 

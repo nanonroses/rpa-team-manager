@@ -113,9 +113,9 @@ router.delete('/:id/assignments/:assignmentId', authorize(['team_lead']), projec
 
 // === QUOTE UPLOAD ROUTES ===
 
-// POST /api/projects/upload-quote - Upload and process quote document (team_lead only)
+// POST /api/projects/upload-quote - Upload and process quote document (team_lead y rpa_operations)
 router.post('/upload-quote',
-    authorize(['team_lead']),
+    authorize(['team_lead', 'rpa_operations']),
     upload.single('file'),
     projectController.uploadQuote
 );

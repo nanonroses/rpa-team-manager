@@ -547,14 +547,13 @@ export const ProjectDetailPage: React.FC = () => {
               label: <span><FolderOutlined /> Documentos</span>,
               children: (
                 <div style={{ padding: '8px 0' }}>
-                  <FileManager
-                    entity_type="project"
-                    entity_id={project.id}
-                    title={`Documentos del proyecto · ${project.name}`}
-                    showUploadTab={false}
-                    association_type="evidence"
-                    multiple={true}
-                    maxFiles={20}
+                  <Tabs
+                    items={[
+                      { key: 'doc_pdd', label: 'PDD', children: <FileManager entity_type="project" entity_id={project.id} title="PDD" association_type="doc_pdd" multiple maxFiles={20} /> },
+                      { key: 'doc_technical', label: 'Documentación técnica', children: <FileManager entity_type="project" entity_id={project.id} title="Documentación técnica" association_type="doc_technical" multiple maxFiles={20} /> },
+                      { key: 'doc_contract', label: 'Contrato/OC', children: <FileManager entity_type="project" entity_id={project.id} title="Contrato/OC" association_type="doc_contract" multiple maxFiles={20} /> },
+                      { key: 'doc_other', label: 'Otro', children: <FileManager entity_type="project" entity_id={project.id} title="Otro" association_type="doc_other" multiple maxFiles={20} /> }
+                    ]}
                   />
                 </div>
               )
