@@ -91,7 +91,7 @@ export const DashboardPage: React.FC = () => {
     },
     {
       title: 'Avance', dataIndex: 'progress_percentage', key: 'progress', width: 176,
-      render: (progress: number) => <div className="dashboard-progress"><Progress percent={progress || 0} showInfo={false} strokeColor="#39745d" trailColor="#e9eee9" /><Text>{progress || 0}%</Text></div>
+      render: (progress: number) => <div className="dashboard-progress"><Progress percent={progress || 0} showInfo={false} strokeColor="var(--color-primary)" trailColor="var(--color-border)" /><Text>{progress || 0}%</Text></div>
     },
     { title: 'Horas', dataIndex: 'total_hours_logged', key: 'hours', align: 'right', render: (hours: number) => `${(hours || 0).toFixed(1)} h` }
   ];

@@ -129,11 +129,11 @@ export const getGenericStatusColor = (status: string): string => {
 // PROGRESS/PERFORMANCE COLORS
 // =====================================
 export const PROGRESS_COLORS = {
-  excellent: '#52c41a',    // Green
-  good: '#73d13d',         // Light Green  
-  fair: '#faad14',         // Orange
-  poor: '#ff7875',         // Light Red
-  critical: '#f5222d'      // Red
+  excellent: 'var(--color-success)',    // Green
+  good: 'var(--color-success)',         // Light Green  
+  fair: 'var(--color-warning)',         // Orange
+  poor: 'var(--color-error)',         // Light Red
+  critical: 'var(--color-error)'      // Red
 } as const;
 
 export const getProgressColor = (percentage: number): string => {
@@ -148,9 +148,9 @@ export const getProgressColor = (percentage: number): string => {
 // ROI/FINANCIAL COLORS  
 // =====================================
 export const FINANCIAL_COLORS = {
-  positive: '#52c41a',     // Green
-  neutral: '#faad14',      // Orange
-  negative: '#f5222d'      // Red
+  positive: 'var(--color-success)',     // Green
+  neutral: 'var(--color-warning)',      // Orange
+  negative: 'var(--color-error)'      // Red
 } as const;
 
 export const getROIColor = (roiPercentage: number): string => {
@@ -204,21 +204,21 @@ export const getStatusColor = (status: string, entityType?: 'project' | 'task' |
  * Converts Ant Design color names to hex codes for use in custom styles
  */
 export const COLOR_HEX_MAP = {
-  red: '#f5222d',
+  red: 'var(--color-error)',
   volcano: '#fa541c', 
-  orange: '#fa8c16',
-  gold: '#faad14',
+  orange: 'var(--color-warning)',
+  gold: 'var(--color-warning)',
   yellow: '#fadb14',
   lime: '#a0d911',
-  green: '#52c41a',
+  green: 'var(--color-success)',
   cyan: '#13c2c2',
-  blue: '#1890ff',
+  blue: 'var(--color-info)',
   geekblue: '#2f54eb',
   purple: '#722ed1',
   magenta: '#eb2f96',
-  grey: '#8c8c8c',
-  gray: '#8c8c8c',
-  default: '#d9d9d9'
+  grey: 'var(--muted)',
+  gray: 'var(--muted)',
+  default: 'var(--line)'
 } as const;
 
 export const getColorHex = (antdColor: string): string => {

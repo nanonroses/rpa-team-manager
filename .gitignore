@@ -20,4 +20,12 @@ tmp/
 nul
 backend/backups/
 .worktrees/
-
+backend/data/
+backend/uploads/
+*.png
+test-output.txt
+.claude/
+.playwright-cli/
+.playwright-mcp/
+.serena/
+output/

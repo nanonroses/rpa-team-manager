@@ -9,7 +9,9 @@ interface LoadingStateProps {
 
 export const LoadingState: React.FC<LoadingStateProps> = ({ tip = 'Cargando información…', minHeight = 180 }) => (
   <div className="ui-state ui-state-loading" style={{ minHeight }} role="status" aria-live="polite">
-    <Spin tip={tip} />
+    <Spin tip={tip}>
+      <div style={{ minHeight }} />
+    </Spin>
   </div>
 );
 

@@ -71,6 +71,7 @@ export const ProjectDetailPage: React.FC = () => {
   const [editModalVisible, setEditModalVisible] = useState(false);
   const initialTab = ['commercial', 'billing', 'lifecycle', 'pmo', 'files'].includes(searchParams.get('tab') || '') ? searchParams.get('tab')! : 'overview';
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [commercialTab, setCommercialTab] = useState('commercial');
   
   const { getProject } = useProjectStore();
   const { user } = useAuthStore();
@@ -199,15 +200,8 @@ export const ProjectDetailPage: React.FC = () => {
     );
   }
 
-  const completedTasks = tasks.filter(t => 
-    t.status === 'done' || 
-    t.status === 'completed' || 
-    t.status === 'finished' ||
-    t.column_name?.toLowerCase() === 'done' ||
-    t.column_name?.toLowerCase() === 'completed' ||
-    t.column_name?.toLowerCase() === 'finished'
-  ).length;
-  const totalTasks = tasks.length;
+  const completedTasks = project.completed_tasks ?? 0;
+  const totalTasks = project.total_tasks ?? 0;
   const progressPercentage = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
   const remainingDays = project.end_date ? dayjs(project.end_date).startOf('day').diff(dayjs().startOf('day'), 'day') : null;
   const dateFormatter = new Intl.DateTimeFormat('es-CL', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -259,7 +253,7 @@ export const ProjectDetailPage: React.FC = () => {
 
         <div className="project-hero-progress">
           <div className="project-hero-progress-top"><span>AVANCE DEL PROYECTO</span><strong>{progressPercentage}%</strong></div>
-          <Progress percent={progressPercentage} showInfo={false} strokeColor="#78a78a" trailColor="rgba(255,255,255,.17)" />
+          <Progress percent={progressPercentage} showInfo={false} strokeColor="var(--color-success)" trailColor="rgba(255,255,255,.17)" />
           <div className="project-hero-progress-bottom"><span>{completedTasks} de {totalTasks} tareas completadas</span><span>{remainingDays === null ? 'Plazo por definir' : remainingDays < 0 ? `Vencido hace ${Math.abs(remainingDays)} días` : remainingDays === 0 ? 'Vence hoy' : `${remainingDays} días restantes`}</span></div>
         </div>
       </section>
@@ -272,7 +266,7 @@ export const ProjectDetailPage: React.FC = () => {
       </section>
 
       <section className="project-detail-workspace">
-        <div className="project-section-intro"><div><Text className="section-kicker">ESPACIO DE TRABAJO DEL PROYECTO</Text><Title level={4}>Información y seguimiento</Title></div><Text type="secondary">{tasks.length} tareas · actualizado al {dateFormatter.format(new Date())}</Text></div>
+        <div className="project-section-intro"><div><Text className="section-kicker">ESPACIO DE TRABAJO DEL PROYECTO</Text><Title level={4}>Información y seguimiento</Title></div><Text type="secondary">{totalTasks} tareas · actualizado al {dateFormatter.format(new Date())}</Text></div>
         <Tabs
           activeKey={activeTab}
           onChange={setActiveTab}
@@ -301,7 +295,7 @@ export const ProjectDetailPage: React.FC = () => {
                             >
                               <Space>
                                 <Avatar size="small" icon={<UserOutlined />} />
-                                {project.assigned_to_name || 'Sin asignar'}
+                                <Button type="link" style={{ padding: 0 }} onClick={() => { setCommercialTab('capacity'); setActiveTab('commercial'); }}>{project.assigned_to_name || 'Sin asignar'}</Button>
                               </Space>
                             </Descriptions.Item>
                             
@@ -328,7 +322,7 @@ export const ProjectDetailPage: React.FC = () => {
                         </Col>
                         
                         <Col span={12}>
-                          <div className="project-progress-summary"><Text type="secondary">Progreso de tareas</Text><Progress type="circle" percent={progressPercentage} format={(percent) => `${percent}%`} size={104} strokeColor="#39745d" trailColor="#e9eee9" /><Text type="secondary">{completedTasks} de {totalTasks} completadas</Text></div>
+                          <div className="project-progress-summary"><Text type="secondary">Progreso de tareas</Text><Progress type="circle" percent={progressPercentage} format={(percent) => `${percent}%`} size={104} strokeColor="var(--color-primary)" trailColor="var(--color-border)" /><Text type="secondary">{completedTasks} de {totalTasks} completadas</Text></div>
                         </Col>
                       </Row>
                     </Card>
@@ -361,7 +355,7 @@ export const ProjectDetailPage: React.FC = () => {
                                     size="small" 
                                     icon={task.status === 'done' ? <CheckCircleOutlined /> : <ClockCircleOutlined />}
                                     style={{ 
-                                      backgroundColor: task.status === 'done' ? '#52c41a' : '#1890ff' 
+                                      backgroundColor: task.status === 'done' ? 'var(--color-success)' : 'var(--color-info)' 
                                     }}
                                   />
                                 }
@@ -376,7 +370,7 @@ export const ProjectDetailPage: React.FC = () => {
                                   </Space>
                                 }
                                 description={
-                                  <Space split={<span style={{ color: '#d9d9d9' }}>•</span>}>
+                                  <Space split={<span style={{ color: 'var(--color-border)' }}>•</span>}>
                                     <Text type="secondary">{task.assignee_name || 'Sin asignar'}</Text>
                                     {task.due_date && (
                                       <Text type="secondary">Vence: {dateFormatter.format(dayjs(task.due_date).toDate())}</Text>
@@ -427,7 +421,7 @@ export const ProjectDetailPage: React.FC = () => {
                             title="Tareas totales"
                             value={totalTasks}
                             prefix={<ProjectOutlined />}
-                            valueStyle={{ color: '#1890ff' }}
+                            valueStyle={{ color: 'var(--color-info)' }}
                           />
                         </Col>
                         <Col span={12}>
@@ -435,7 +429,7 @@ export const ProjectDetailPage: React.FC = () => {
                             title="Completadas"
                             value={completedTasks}
                             prefix={<CheckCircleOutlined />}
-                            valueStyle={{ color: '#52c41a' }}
+                            valueStyle={{ color: 'var(--color-success)' }}
                           />
                         </Col>
                         <Col span={12}>
@@ -444,7 +438,7 @@ export const ProjectDetailPage: React.FC = () => {
                             value={project.total_hours_logged || 0}
                             suffix="h"
                             prefix={<ClockCircleOutlined />}
-                            valueStyle={{ color: '#fa8c16' }}
+                            valueStyle={{ color: 'var(--color-warning)' }}
                           />
                         </Col>
                         <Col span={12}>
@@ -452,7 +446,7 @@ export const ProjectDetailPage: React.FC = () => {
                             title="Avance"
                             value={progressPercentage}
                             suffix="%"
-                            valueStyle={{ color: progressPercentage > 80 ? '#52c41a' : '#1890ff' }}
+                            valueStyle={{ color: progressPercentage > 80 ? 'var(--color-success)' : 'var(--color-info)' }}
                           />
                         </Col>
                       </Row>
@@ -535,7 +529,7 @@ export const ProjectDetailPage: React.FC = () => {
             {
               key: 'commercial',
               label: <span><DollarOutlined /> Comercial · Cobranza · Equipo</span>,
-              children: <ProjectCommercialSection project={project} user={user || undefined} onRefresh={loadProjectData} />
+              children: <ProjectCommercialSection project={project} user={user || undefined} onRefresh={loadProjectData} initialTab={commercialTab} onTabChange={setCommercialTab} />
             },
             {
               key: 'billing',

@@ -75,7 +75,7 @@ export const useLLMConfigStore = create<LLMConfigStore>((set, get) => ({
       const keys = await apiService.get('/llm-config');
       set({ apiKeys: keys, isLoading: false });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to fetch API keys';
+      const errorMessage = error.response?.data?.error || "No se pudieron cargar las claves API";
       set({ error: errorMessage, isLoading: false, apiKeys: [] });
       throw error;
     }
@@ -86,7 +86,7 @@ export const useLLMConfigStore = create<LLMConfigStore>((set, get) => ({
       const models = await apiService.get('/llm-config/models');
       set({ availableModels: models });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to fetch available models';
+      const errorMessage = error.response?.data?.error || "No se pudieron cargar los modelos disponibles";
       set({ error: errorMessage });
       throw error;
     }
@@ -112,7 +112,7 @@ export const useLLMConfigStore = create<LLMConfigStore>((set, get) => ({
     } catch (error: any) {
       set(state => ({
         validating: { ...state.validating, [provider]: false },
-        error: error.response?.data?.error || 'Validation failed'
+        error: error.response?.data?.error || "No se pudo validar"
       }));
       throw error;
     }
@@ -133,7 +133,7 @@ export const useLLMConfigStore = create<LLMConfigStore>((set, get) => ({
 
       set({ isLoading: false });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to save API key';
+      const errorMessage = error.response?.data?.error || "No se pudo guardar la clave API";
       set({ error: errorMessage, isLoading: false });
       throw error;
     }
@@ -153,7 +153,7 @@ export const useLLMConfigStore = create<LLMConfigStore>((set, get) => ({
 
       set({ isLoading: false });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to update API key';
+      const errorMessage = error.response?.data?.error || "No se pudo actualizar la clave API";
       set({ error: errorMessage, isLoading: false });
       throw error;
     }
@@ -170,7 +170,7 @@ export const useLLMConfigStore = create<LLMConfigStore>((set, get) => ({
 
       set({ isLoading: false });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to delete API key';
+      const errorMessage = error.response?.data?.error || "No se pudo eliminar la clave API";
       set({ error: errorMessage, isLoading: false });
       throw error;
     }

@@ -1,3 +1,4 @@
+import { displayLabel } from '@/utils/displayLabels';
 import React, { useState, useEffect } from 'react';
 import { Card, Typography, Tag, Space, Spin } from 'antd';
 import { useNavigate } from 'react-router-dom';
@@ -108,7 +109,7 @@ const ProjectPriorityMatrix: React.FC<ProjectPriorityMatrixProps> = ({ projects 
     return (
       <div style={{ textAlign: 'center', padding: '50px' }}>
         <Spin size="large" />
-        <div style={{ marginTop: 16 }}>Loading project ROI data...</div>
+        <div style={{ marginTop: 16 }}>Cargando datos de rentabilidad...</div>
       </div>
     );
   }
@@ -118,51 +119,51 @@ const ProjectPriorityMatrix: React.FC<ProjectPriorityMatrixProps> = ({ projects 
     getQuadrantInfo: (complexity: number, roi: number) => {
       if (roi >= 4 && complexity <= 2) {
         return { 
-          label: 'Strategic Winners', 
-          color: '#52c41a', 
-          backgroundColor: '#f6ffed',
-          description: 'High ROI, low complexity - prioritize immediately!'
+          label: "Prioridad estratégica", 
+          color: 'var(--color-success)', 
+          backgroundColor: 'var(--color-primary-bg)',
+          description: "Alta rentabilidad y baja complejidad: priorizar"
         };
       } else if (roi >= 4 && complexity >= 4) {
         return { 
-          label: 'High Stakes', 
-          color: '#faad14', 
-          backgroundColor: '#fffbe6',
-          description: 'High ROI but high complexity - manage carefully'
+          label: "Alta inversión", 
+          color: 'var(--color-warning)', 
+          backgroundColor: 'var(--color-warning-bg)',
+          description: "Alta rentabilidad y alta complejidad: gestionar con cuidado"
         };
       } else if (roi <= 2 && complexity <= 2) {
         return { 
-          label: 'Quick Fixes', 
-          color: '#1890ff', 
-          backgroundColor: '#f0f9ff',
-          description: 'Low ROI, low complexity - fill spare time'
+          label: "Mejoras rápidas", 
+          color: 'var(--color-info)', 
+          backgroundColor: 'var(--color-info-bg)',
+          description: "Baja rentabilidad y baja complejidad: realizar si hay capacidad"
         };
       } else if (roi <= 2 && complexity >= 4) {
         return { 
-          label: 'Money Pits', 
-          color: '#f5222d', 
-          backgroundColor: '#fff2f0',
-          description: 'Low ROI, high complexity - avoid or redesign'
+          label: "Baja rentabilidad", 
+          color: 'var(--color-error)', 
+          backgroundColor: 'var(--color-error-bg)',
+          description: "Baja rentabilidad y alta complejidad: reconsiderar o rediseñar"
         };
       }
       
       return { 
-        label: 'Evaluate', 
-        color: '#722ed1', 
-        backgroundColor: '#f9f0ff',
-        description: 'Medium priority - evaluate resource availability'
+        label: "Evaluar", 
+        color: 'var(--color-info)', 
+        backgroundColor: 'var(--color-info-bg)',
+        description: "Prioridad media: evaluar los recursos disponibles"
       };
     }
   };
 
   // X-axis configuration (Complexity/Risk)
   const xAxis: MatrixAxisConfig = {
-    label: 'Complexity',
+    label: "Complejidad",
     min: 1,
     max: 5,
-    getAxisLabel: (value) => `Risk/Complexity ${value}`,
+    getAxisLabel: (value) => `Riesgo/complejidad ${value}`,
     getAxisDescription: (value) => {
-      const descriptions = { 1: 'Very Low', 2: 'Low', 3: 'Medium', 4: 'High', 5: 'Very High' };
+      const descriptions = { 1: "Muy bajo", 2: "Bajo", 3: "Medio", 4: "Alto", 5: "Muy alto" };
       return descriptions[value as keyof typeof descriptions] || '';
     }
   };
@@ -176,10 +177,10 @@ const ProjectPriorityMatrix: React.FC<ProjectPriorityMatrixProps> = ({ projects 
     getAxisDescription: (value) => {
       const descriptions = { 
         1: 'Negative', 
-        2: 'Low (0-50%)', 
-        3: 'Medium (50-100%)', 
-        4: 'High (100-200%)', 
-        5: 'Very High (200%+)' 
+        2: "Bajo (0–50 %)", 
+        3: "Medio (50–100 %)", 
+        4: "Alto (100–200 %)", 
+        5: "Muy alto (más de 200 %)" 
       };
       return descriptions[value as keyof typeof descriptions] || '';
     }
@@ -243,13 +244,13 @@ const ProjectPriorityMatrix: React.FC<ProjectPriorityMatrixProps> = ({ projects 
                 color={getProjectStatusColor(project.status)}
                 style={{ fontSize: '9px', padding: '1px 4px' }}
               >
-                {project.status.replace('_', ' ').toUpperCase()}
+                {displayLabel(project.status)}
               </Tag>
             </div>
             {projectROI && (
               <div style={{ fontSize: '10px' }}>
                 <Space size="small">
-                  <span style={{ color: projectROI.real_roi >= 50 ? '#52c41a' : '#f5222d' }}>
+                  <span style={{ color: projectROI.real_roi >= 50 ? 'var(--color-success)' : 'var(--color-error)' }}>
                     <DollarOutlined /> {formatPercentage(projectROI.real_roi)}
                   </span>
                   <span>
@@ -267,23 +268,23 @@ const ProjectPriorityMatrix: React.FC<ProjectPriorityMatrixProps> = ({ projects 
   // Summary configuration
   const summary: MatrixSummary<Project> = {
     getStats: (projects) => [
-      { label: 'Total Projects', value: projects.length },
+      { label: "Total de proyectos", value: projects.length },
       {
-        label: 'Strategic Winners',
+        label: "Prioridad estratégica",
         value: projects.filter(p => {
           const roi = roiData[p.id];
           return roi && roi.real_roi >= 100 && Math.abs(getBudgetVariance(roi)) < 25;
         }).length
       },
       {
-        label: 'High Stakes',
+        label: "Alta inversión",
         value: projects.filter(p => {
           const roi = roiData[p.id];
           return roi && roi.real_roi >= 100 && Math.abs(getBudgetVariance(roi)) >= 25;
         }).length
       },
       {
-        label: 'Money Pits',
+        label: "Baja rentabilidad",
         value: projects.filter(p => {
           const roi = roiData[p.id];
           return roi && roi.real_roi < 0 && Math.abs(getBudgetVariance(roi)) >= 25;
@@ -294,19 +295,19 @@ const ProjectPriorityMatrix: React.FC<ProjectPriorityMatrixProps> = ({ projects 
 
   // Legend configuration
   const legend: QuadrantConfig[] = [
-    { label: 'Strategic Winners', color: 'green', backgroundColor: '', description: 'High ROI, Low Complexity' },
-    { label: 'High Stakes', color: 'orange', backgroundColor: '', description: 'High ROI, High Complexity' },
-    { label: 'Quick Fixes', color: 'blue', backgroundColor: '', description: 'Low ROI, Low Complexity' },
-    { label: 'Money Pits', color: 'red', backgroundColor: '', description: 'Low ROI, High Complexity' },
-    { label: 'Evaluate', color: 'purple', backgroundColor: '', description: 'Medium Priority' }
+    { label: "Prioridad estratégica", color: 'green', backgroundColor: '', description: "Alta rentabilidad, baja complejidad" },
+    { label: "Alta inversión", color: 'orange', backgroundColor: '', description: "Alta rentabilidad, alta complejidad" },
+    { label: "Mejoras rápidas", color: 'blue', backgroundColor: '', description: "Baja rentabilidad, baja complejidad" },
+    { label: "Baja rentabilidad", color: 'red', backgroundColor: '', description: "Baja rentabilidad, alta complejidad" },
+    { label: "Evaluar", color: 'purple', backgroundColor: '', description: "Prioridad media" }
   ];
 
   return (
     <div>
       <PriorityMatrix
         items={projects}
-        title="Project ROI vs Complexity Priority Matrix"
-        description="Projects are positioned based on their ROI potential and implementation complexity. Higher positions indicate greater ROI, while positions to the left indicate lower complexity/risk."
+        title="Matriz de prioridad: rentabilidad y complejidad"
+        description="Los proyectos se ubican según su rentabilidad potencial y complejidad. Arriba se muestra mayor rentabilidad y a la izquierda, menor complejidad y riesgo."
         xAxis={xAxis}
         yAxis={yAxis}
         quadrantRules={quadrantRules}
@@ -319,7 +320,8 @@ const ProjectPriorityMatrix: React.FC<ProjectPriorityMatrixProps> = ({ projects 
       
       <div style={{ marginTop: '16px', textAlign: 'center' }}>
         <Text type="secondary" style={{ fontSize: '12px' }}>
-          Click on any project card to view detailed information and metrics
+          
+          Selecciona un proyecto para ver sus detalles e indicadores
         </Text>
       </div>
     </div>

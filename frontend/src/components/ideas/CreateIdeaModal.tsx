@@ -66,63 +66,65 @@ export const CreateIdeaModal: React.FC<CreateIdeaModalProps> = ({
 
       if (isEdit && editIdea) {
         result = await updateIdea(editIdea.id, ideaData);
-        message.success('Idea updated successfully');
+        message.success("Idea actualizada");
       } else {
         result = await createIdea(ideaData);
-        message.success('Idea created successfully');
+        message.success("Idea creada");
       }
 
       form.resetFields();
       onSuccess?.(result);
       onCancel();
     } catch (error: any) {
-      message.error(error.message || `Failed to ${isEdit ? 'update' : 'create'} idea`);
+      message.error(error.message || `No se pudo ${isEdit ? 'actualizar' : 'crear'} la idea`);
     } finally {
       setLoading(false);
     }
   };
 
   const categoryOptions = [
-    { label: 'Automation', value: 'automation' },
-    { label: 'Process Improvement', value: 'process_improvement' },
-    { label: 'Tool Enhancement', value: 'tool_enhancement' },
-    { label: 'Cost Reduction', value: 'cost_reduction' },
-    { label: 'Productivity', value: 'productivity' },
+    { label: "Automatización", value: 'automation' },
+    { label: "Mejora de procesos", value: 'process_improvement' },
+    { label: "Mejora de herramientas", value: 'tool_enhancement' },
+    { label: "Reducción de costos", value: 'cost_reduction' },
+    { label: "Productividad", value: 'productivity' },
     { label: 'General', value: 'general' }
   ];
 
   const statusOptions = [
-    { label: 'Draft', value: 'draft' },
-    { label: 'Under Review', value: 'under_review' },
-    { label: 'Approved', value: 'approved' },
-    { label: 'In Progress', value: 'in_progress' },
-    { label: 'Done', value: 'done' },
-    { label: 'Rejected', value: 'rejected' }
+    { label: "Borrador", value: 'draft' },
+    { label: "En revisión", value: 'under_review' },
+    { label: "Aprobado", value: 'approved' },
+    { label: "En curso", value: 'in_progress' },
+    { label: "Completado", value: 'done' },
+    { label: "Rechazado", value: 'rejected' }
   ];
 
   const impactLabels = {
-    1: 'Very Low',
-    2: 'Low', 
-    3: 'Medium',
-    4: 'High',
-    5: 'Very High'
+    1: "Muy bajo",
+    2: "Bajo", 
+    3: "Medio",
+    4: "Alto",
+    5: "Muy alto"
   };
 
   const effortLabels = {
-    1: 'Very Easy',
-    2: 'Easy',
-    3: 'Medium',
-    4: 'Hard',
-    5: 'Very Hard'
+    1: "Muy fácil",
+    2: "Fácil",
+    3: "Medio",
+    4: "Difícil",
+    5: "Muy difícil"
   };
 
   return (
     <Modal
-      title={isEdit ? 'Edit Idea' : 'Create New Idea'}
+      title={isEdit ? "Editar idea" : "Crear idea"}
       open={visible}
       onCancel={onCancel}
       onOk={() => form.submit()}
       confirmLoading={loading}
+      okText={isEdit ? 'Guardar cambios' : 'Crear idea'}
+      cancelText="Cancelar"
       width={700}
       destroyOnHidden
     >
@@ -140,28 +142,28 @@ export const CreateIdeaModal: React.FC<CreateIdeaModalProps> = ({
       >
         <Form.Item
           name="title"
-          label="Idea Title"
+          label="Título de la idea"
           rules={[
-            { required: true, message: 'Please enter idea title' },
-            { min: 3, message: 'Title must be at least 3 characters' },
-            { max: 200, message: 'Title must be less than 200 characters' }
+            { required: true, message: "Ingresa el título de la idea" },
+            { min: 3, message: "El título debe tener al menos 3 caracteres" },
+            { max: 200, message: "El título debe tener como máximo 200 caracteres" }
           ]}
         >
-          <Input placeholder="Enter a descriptive title for your idea" />
+          <Input placeholder="Ingresa un título descriptivo para tu idea" />
         </Form.Item>
 
         <Form.Item
           name="description"
-          label="Description"
+          label="Descripción"
           rules={[
-            { required: true, message: 'Please enter idea description' },
-            { min: 10, message: 'Description must be at least 10 characters' },
-            { max: 2000, message: 'Description must be less than 2000 characters' }
+            { required: true, message: "Ingresa la descripción de la idea" },
+            { min: 10, message: "La descripción debe tener al menos 10 caracteres" },
+            { max: 2000, message: "La descripción debe tener como máximo 2000 caracteres" }
           ]}
         >
           <TextArea 
             rows={4} 
-            placeholder="Describe your idea in detail. What problem does it solve? How would it work?"
+            placeholder="Describe tu idea. ¿Qué problema resuelve? ¿Cómo funcionaría?"
             showCount
             maxLength={2000}
           />
@@ -171,10 +173,10 @@ export const CreateIdeaModal: React.FC<CreateIdeaModalProps> = ({
           <Col span={12}>
             <Form.Item
               name="category"
-              label="Category"
-              rules={[{ required: true, message: 'Please select a category' }]}
+              label="Categoría"
+              rules={[{ required: true, message: "Selecciona una categoría" }]}
             >
-              <Select placeholder="Select category">
+              <Select placeholder="Selecciona una categoría">
                 {categoryOptions.map(option => (
                   <Option key={option.value} value={option.value}>
                     {option.label}
@@ -186,10 +188,10 @@ export const CreateIdeaModal: React.FC<CreateIdeaModalProps> = ({
           <Col span={12}>
             <Form.Item
               name="status"
-              label="Status"
-              rules={[{ required: true, message: 'Please select status' }]}
+              label="Estado"
+              rules={[{ required: true, message: "Selecciona un estado" }]}
             >
-              <Select placeholder="Select status">
+              <Select placeholder="Selecciona un estado">
                 {statusOptions.map(option => (
                   <Option key={option.value} value={option.value}>
                     {option.label}
@@ -202,22 +204,23 @@ export const CreateIdeaModal: React.FC<CreateIdeaModalProps> = ({
 
         {/* Priority Matrix Section */}
         <Card 
-          title="Priority Matrix Assessment" 
+          title="Evaluación de prioridad" 
           style={{ marginBottom: 16 }}
           size="small"
         >
           <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
-            Help prioritize this idea by rating its impact and implementation effort.
+            
+            Evalúa el impacto y el esfuerzo de implementación para priorizar esta idea.
           </Text>
           
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item
                 name="impact_score"
-                label="Impact Score"
-                rules={[{ required: true, message: 'Please rate the impact' }]}
+                label="Puntaje de impacto"
+                rules={[{ required: true, message: "Evalúa el impacto" }]}
               >
-                <Select placeholder="Rate potential impact">
+                <Select placeholder="Evalúa el impacto potencial">
                   {Object.entries(impactLabels).map(([value, label]) => (
                     <Option key={value} value={parseInt(value)}>
                       {value} - {label}
@@ -226,16 +229,17 @@ export const CreateIdeaModal: React.FC<CreateIdeaModalProps> = ({
                 </Select>
               </Form.Item>
               <Text type="secondary" style={{ fontSize: '12px' }}>
-                How much positive impact would this idea have on the business/team?
+                
+                ¿Qué impacto positivo tendría esta idea en el negocio o equipo?
               </Text>
             </Col>
             <Col span={12}>
               <Form.Item
                 name="effort_score"
-                label="Effort Score"
-                rules={[{ required: true, message: 'Please rate the effort' }]}
+                label="Puntaje de esfuerzo"
+                rules={[{ required: true, message: "Evalúa el esfuerzo" }]}
               >
-                <Select placeholder="Rate implementation effort">
+                <Select placeholder="Evalúa el esfuerzo de implementación">
                   {Object.entries(effortLabels).map(([value, label]) => (
                     <Option key={value} value={parseInt(value)}>
                       {value} - {label}
@@ -244,7 +248,8 @@ export const CreateIdeaModal: React.FC<CreateIdeaModalProps> = ({
                 </Select>
               </Form.Item>
               <Text type="secondary" style={{ fontSize: '12px' }}>
-                How difficult/time-consuming would this be to implement?
+                
+                ¿Cuánta dificultad y tiempo requiere implementarla?
               </Text>
             </Col>
           </Row>
@@ -255,34 +260,35 @@ export const CreateIdeaModal: React.FC<CreateIdeaModalProps> = ({
               const effort = getFieldValue('effort_score') || 3;
               const priority = (impact / effort).toFixed(2);
               
-              let priorityLevel = 'Medium';
-              let priorityColor = '#faad14';
+              let priorityLevel = "Medio";
+              let priorityColor = 'var(--color-warning)';
               
               if (parseFloat(priority) >= 2) {
-                priorityLevel = 'High';
-                priorityColor = '#f5222d';
+                priorityLevel = "Alto";
+                priorityColor = 'var(--color-error)';
               } else if (parseFloat(priority) >= 1.5) {
-                priorityLevel = 'Medium';
-                priorityColor = '#faad14';
+                priorityLevel = "Medio";
+                priorityColor = 'var(--color-warning)';
               } else {
-                priorityLevel = 'Low';
-                priorityColor = '#52c41a';
+                priorityLevel = "Bajo";
+                priorityColor = 'var(--color-success)';
               }
 
               return (
                 <div style={{ 
                   padding: '12px', 
-                  backgroundColor: '#fafafa', 
+                  backgroundColor: 'var(--color-surface-raised)', 
                   borderRadius: '6px',
                   textAlign: 'center' 
                 }}>
-                  <Text strong>Calculated Priority Score: </Text>
+                  <Text strong>Prioridad calculada: </Text>
                   <Text style={{ color: priorityColor, fontSize: '16px', fontWeight: 'bold' }}>
                     {priority} ({priorityLevel})
                   </Text>
                   <br />
                   <Text type="secondary" style={{ fontSize: '12px' }}>
-                    Impact ({impact}) ÷ Effort ({effort}) = {priority}
+                    
+                    Impacto ({impact}) ÷ Esfuerzo ({effort}) = {priority}
                   </Text>
                 </div>
               );

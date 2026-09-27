@@ -182,7 +182,7 @@ export class FinancialController {
 
             const result = {
                 ...financials,
-                alerts: this.generateROIAlerts(financials.planned_roi, financials.real_roi, financials.client_delay_hours)
+                alerts: financials.financial_data_complete === false ? [] : this.generateROIAlerts(financials.planned_roi, financials.real_roi, financials.client_delay_hours)
             };
 
             logger.info(`ROI calculated for project ${projectId}: Planned=${financials.planned_roi.toFixed(1)}%, Real=${financials.real_roi.toFixed(1)}%`);
@@ -267,7 +267,7 @@ export class FinancialController {
                     }
                 })
             );
-            const valid = perProject.filter((f): f is NonNullable<typeof f> => f !== null && f.sale_price > 0);
+            const valid = perProject.filter((f): f is NonNullable<typeof f> => f !== null && f.sale_price > 0 && f.financial_data_complete !== false);
 
             const overallMetrics = {
                 total_projects: valid.length,

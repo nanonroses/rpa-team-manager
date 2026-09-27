@@ -64,11 +64,11 @@ export const ProfilePage: React.FC = () => {
     try {
       setLoading(true);
       await apiService.changePassword(values.oldPassword, values.newPassword);
-      message.success('Password changed successfully');
+      message.success("Contraseña actualizada");
       setPasswordModalVisible(false);
       passwordForm.resetFields();
     } catch (error: any) {
-      message.error(error.response?.data?.error || 'Failed to change password');
+      message.error(error.response?.data?.error || "No se pudo cambiar la contraseña");
     } finally {
       setLoading(false);
     }
@@ -79,10 +79,10 @@ export const ProfilePage: React.FC = () => {
       setLoading(true);
       await apiService.updateProfile(values);
       await getCurrentUser();
-      message.success('Profile updated successfully');
+      message.success("Perfil actualizado");
       setEditProfileModalVisible(false);
     } catch (error: any) {
-      message.error(error.response?.data?.error || 'Failed to update profile');
+      message.error(error.response?.data?.error || "No se pudo actualizar el perfil");
     } finally {
       setLoading(false);
     }
@@ -91,10 +91,10 @@ export const ProfilePage: React.FC = () => {
 
   const getRoleLabel = (role: string) => {
     switch (role) {
-      case 'team_lead': return 'Team Lead';
-      case 'rpa_developer': return 'RPA Developer';
-      case 'rpa_operations': return 'RPA Operations';
-      case 'it_support': return 'IT Support';
+      case 'team_lead': return "Líder de equipo";
+      case 'rpa_developer': return "Desarrollador RPA";
+      case 'rpa_operations': return "Operaciones RPA";
+      case 'it_support': return "Soporte TI";
       default: return role;
     }
   };
@@ -102,7 +102,7 @@ export const ProfilePage: React.FC = () => {
   if (!user) {
     return (
       <div style={{ padding: '24px' }}>
-        <Alert message="User not found" type="error" />
+        <Alert message="Usuario no encontrado" type="error" />
       </div>
     );
   }
@@ -111,14 +111,15 @@ export const ProfilePage: React.FC = () => {
     <div style={{ padding: '24px', maxWidth: '800px', margin: '0 auto' }}>
       <Title level={2}>
         <UserOutlined style={{ marginRight: '8px' }} />
-        My Profile
+        
+        Mi perfil
       </Title>
 
       {/* Profile Info Card */}
       <Card style={{ marginBottom: '24px' }}>
         <Row gutter={[24, 24]} align="middle">
           <Col>
-            <Avatar size={80} icon={<UserOutlined />} style={{ backgroundColor: '#1890ff' }} />
+            <Avatar size={80} icon={<UserOutlined />} style={{ backgroundColor: 'var(--color-info)' }} />
           </Col>
           <Col flex={1}>
             <Space direction="vertical" size="small">
@@ -138,52 +139,55 @@ export const ProfilePage: React.FC = () => {
               icon={<EditOutlined />}
               onClick={() => setEditProfileModalVisible(true)}
             >
-              Edit Profile
+              
+              Editar perfil
             </Button>
           </Col>
         </Row>
       </Card>
 
       {/* Profile Details */}
-      <Card title="Profile Details" style={{ marginBottom: '24px' }}>
+      <Card title="Datos del perfil" style={{ marginBottom: '24px' }}>
         <Descriptions column={1} bordered>
-          <Descriptions.Item label="Full Name">
+          <Descriptions.Item label="Nombre completo">
             <Text strong>{user.full_name}</Text>
           </Descriptions.Item>
-          <Descriptions.Item label="Email">
+          <Descriptions.Item label="Correo electrónico">
             <Text>{user.email}</Text>
           </Descriptions.Item>
-          <Descriptions.Item label="Role">
+          <Descriptions.Item label="Rol">
             <Tag color={getRoleColor(user.role)}>
               {getRoleLabel(user.role)}
             </Tag>
           </Descriptions.Item>
-          <Descriptions.Item label="User ID">
+          <Descriptions.Item label="ID del usuario">
             <Text type="secondary">#{user.id}</Text>
           </Descriptions.Item>
         </Descriptions>
       </Card>
 
       {/* Security Section */}
-      <Card title="Security" extra={
+      <Card title="Seguridad" extra={
         <Button 
           icon={<LockOutlined />}
           onClick={() => setPasswordModalVisible(true)}
         >
-          Change Password
+          
+          Cambiar contraseña
         </Button>
       }>
         <Space direction="vertical" style={{ width: '100%' }}>
-          <Text>Keep your account secure by using a strong password.</Text>
+          <Text>Protege tu cuenta con una contraseña segura.</Text>
           <Text type="secondary">
-            Last password change: Not available
+            
+            Último cambio de contraseña: sin información
           </Text>
         </Space>
       </Card>
 
       {/* Change Password Modal */}
       <Modal
-        title="Change Password"
+        title="Cambiar contraseña"
         open={passwordModalVisible}
         onCancel={() => {
           setPasswordModalVisible(false);
@@ -199,52 +203,52 @@ export const ProfilePage: React.FC = () => {
         >
           <Form.Item
             name="oldPassword"
-            label="Current Password"
+            label="Contraseña actual"
             rules={[
-              { required: true, message: 'Please enter your current password' }
+              { required: true, message: "Ingresa tu contraseña actual" }
             ]}
           >
             <Input.Password
               prefix={<LockOutlined />}
-              placeholder="Enter current password"
+              placeholder="Ingresa la contraseña actual"
               iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
             />
           </Form.Item>
 
           <Form.Item
             name="newPassword"
-            label="New Password"
+            label="Nueva contraseña"
             rules={[
-              { required: true, message: 'Please enter a new password' },
-              { min: 6, message: 'Password must be at least 6 characters' }
+              { required: true, message: "Ingresa una nueva contraseña" },
+              { min: 6, message: "La contraseña debe tener al menos 6 caracteres" }
             ]}
           >
             <Input.Password
               prefix={<LockOutlined />}
-              placeholder="Enter new password"
+              placeholder="Ingresa la nueva contraseña"
               iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
             />
           </Form.Item>
 
           <Form.Item
             name="confirmPassword"
-            label="Confirm New Password"
+            label="Confirmar nueva contraseña"
             dependencies={['newPassword']}
             rules={[
-              { required: true, message: 'Please confirm your new password' },
+              { required: true, message: "Confirma tu nueva contraseña" },
               ({ getFieldValue }) => ({
                 validator(_, value) {
                   if (!value || getFieldValue('newPassword') === value) {
                     return Promise.resolve();
                   }
-                  return Promise.reject(new Error('Passwords do not match'));
+                  return Promise.reject(new Error("Las contraseñas no coinciden"));
                 },
               }),
             ]}
           >
             <Input.Password
               prefix={<LockOutlined />}
-              placeholder="Confirm new password"
+              placeholder="Confirma la nueva contraseña"
               iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
             />
           </Form.Item>
@@ -255,10 +259,12 @@ export const ProfilePage: React.FC = () => {
                 setPasswordModalVisible(false);
                 passwordForm.resetFields();
               }}>
-                Cancel
+                
+                Cancelar
               </Button>
               <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
-                Change Password
+                
+                Cambiar contraseña
               </Button>
             </Space>
           </Form.Item>
@@ -267,7 +273,7 @@ export const ProfilePage: React.FC = () => {
 
       {/* Edit Profile Modal */}
       <Modal
-        title="Edit Profile"
+        title="Editar perfil"
         open={editProfileModalVisible}
         onCancel={() => {
           setEditProfileModalVisible(false);
@@ -283,28 +289,28 @@ export const ProfilePage: React.FC = () => {
         >
           <Form.Item
             name="full_name"
-            label="Full Name"
+            label="Nombre completo"
             rules={[
-              { required: true, message: 'Please enter your full name' }
+              { required: true, message: "Ingresa tu nombre completo" }
             ]}
           >
             <Input
               prefix={<IdcardOutlined />}
-              placeholder="Enter your full name"
+              placeholder="Ingresa tu nombre completo"
             />
           </Form.Item>
 
           <Form.Item
             name="email"
-            label="Email"
+            label="Correo electrónico"
             rules={[
-              { required: true, message: 'Please enter your email' },
-              { type: 'email', message: 'Please enter a valid email' }
+              { required: true, message: "Ingresa tu correo electrónico" },
+              { type: 'email', message: "Ingresa un correo electrónico válido" }
             ]}
           >
             <Input
               prefix={<MailOutlined />}
-              placeholder="Enter your email"
+              placeholder="Ingresa tu correo electrónico"
             />
           </Form.Item>
 
@@ -314,10 +320,12 @@ export const ProfilePage: React.FC = () => {
                 setEditProfileModalVisible(false);
                 profileForm.resetFields();
               }}>
-                Cancel
+                
+                Cancelar
               </Button>
               <Button type="primary" htmlType="submit" loading={loading} icon={<SaveOutlined />}>
-                Update Profile
+                
+                Actualizar perfil
               </Button>
             </Space>
           </Form.Item>

@@ -30,7 +30,6 @@ export const FilesPage: React.FC = () => {
         defaultTab="files"
         multiple={true}
         maxFiles={20}
-        association_type="attachment"
       />
     </div>
   );

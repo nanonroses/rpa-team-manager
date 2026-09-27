@@ -25,6 +25,7 @@ import {
 } from '@ant-design/icons';
 import { fileService, FileCategory, UploadResult } from '@/services/fileService';
 import { getFileStatusColor } from '@/utils';
+import { displayLabel } from '@/utils/displayLabels';
 
 const { Text, Title } = Typography;
 const { TextArea } = Input;
@@ -277,11 +278,11 @@ export const FileUpload: React.FC<FileUploadProps> = ({
   const getStatusIcon = (status: FileItem['status']) => {
     switch (status) {
       case 'success':
-        return <CheckCircleOutlined style={{ color: '#52c41a' }} />;
+        return <CheckCircleOutlined style={{ color: 'var(--color-success)' }} />;
       case 'error':
-        return <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />;
+        return <ExclamationCircleOutlined style={{ color: 'var(--color-error)' }} />;
       case 'uploading':
-        return <InfoCircleOutlined style={{ color: '#1890ff' }} />;
+        return <InfoCircleOutlined style={{ color: 'var(--color-info)' }} />;
       default:
         return <FileOutlined />;
     }
@@ -307,19 +308,19 @@ export const FileUpload: React.FC<FileUploadProps> = ({
           aria-label="Seleccionar archivos para cargar"
           onKeyDown={handleDropZoneKeyDown}
           style={{
-            border: dragOver ? '2px dashed #1890ff' : '2px dashed #d9d9d9',
+            border: dragOver ? '2px dashed var(--color-info)' : '2px dashed var(--color-border)',
             borderRadius: '8px',
             padding: '40px 24px',
             textAlign: 'center',
-            backgroundColor: dragOver ? '#f0f8ff' : '#fafafa',
+            backgroundColor: dragOver ? 'var(--color-info-bg)' : 'var(--color-surface-raised)',
             cursor: 'pointer',
             transition: 'all 0.3s',
             outlineOffset: 3
           }}
           onClick={() => fileInputRef.current?.click()}
         >
-          <InboxOutlined style={{ fontSize: 48, color: dragOver ? '#1890ff' : '#d9d9d9' }} />
-          <Title level={4} style={{ marginTop: 16, color: dragOver ? '#1890ff' : undefined }}>
+          <InboxOutlined style={{ fontSize: 48, color: dragOver ? 'var(--color-info)' : 'var(--color-border)' }} />
+          <Title level={4} style={{ marginTop: 16, color: dragOver ? 'var(--color-info)' : undefined }}>
             Suelta los archivos aquí o selecciónalos
           </Title>
           <Text type="secondary">
@@ -343,7 +344,7 @@ export const FileUpload: React.FC<FileUploadProps> = ({
               <div style={{ marginTop: 8 }}>
                 {categories.map(category => (
                   <Tag key={category.id} color={category.color} style={{ margin: '2px' }}>
-                    {category.name}: {category.allowed_extensions.join(', ')}
+                    {displayLabel(category.name)}: {category.allowed_extensions.join(', ')}
                   </Tag>
                 ))}
               </div>

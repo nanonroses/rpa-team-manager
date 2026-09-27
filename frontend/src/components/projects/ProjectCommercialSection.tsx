@@ -1,3 +1,5 @@
+import { ProjectBillingWorkspace } from './ProjectBillingWorkspace';
+import { ProjectTeamEditor } from './ProjectTeamEditor';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Card, Checkbox, DatePicker, Descriptions, Empty, Form, Input, InputNumber, Modal, Select, Space, Statistic, Switch, Table, Tabs, Tag, Typography, App } from 'antd';
 import { CalendarOutlined, CheckCircleOutlined, DollarOutlined, FileTextOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons';
@@ -6,10 +8,12 @@ import { apiService } from '@/services/api';
 import { fileService } from '@/services/fileService';
 import { User } from '@/types/auth';
 import { Project } from '@/types/project';
+import { Invoice, PaymentMilestone } from '@/types/billing';
 import { FileManager } from '@/components/files';
+import { FilePreviewModal } from '@/components/files/FilePreviewModal';
 
 const { Text, Title } = Typography;
-interface Props { project: Project; user?: User; onRefresh?: () => void; initialTab?: string; }
+interface Props { project: Project; user?: User; onRefresh?: () => void; initialTab?: string; onTabChange?: (tab: string) => void; }
 type Row = Record<string, any>;
 const rowsFrom = (response: any): Row[] => {
   const payload = response?.data ?? response;
@@ -17,8 +21,11 @@ const rowsFrom = (response: any): Row[] => {
   return Array.isArray(payload?.data) ? payload.data : [];
 };
 
-export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRefresh, initialTab = 'commercial' }) => {
+export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRefresh, initialTab = 'commercial', onTabChange }) => {
   const { message, modal } = App.useApp();
+  const [teamEditorOpen, setTeamEditorOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState(initialTab);
+  useEffect(() => setActiveTab(initialTab), [initialTab]);
   const [quoteForm] = Form.useForm();
   const [meetings, setMeetings] = useState<Row[]>([]);
   const [quotes, setQuotes] = useState<Row[]>([]);
@@ -33,6 +40,7 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
   const [documentType, setDocumentType] = useState<string | null>(null);
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [scopeQuoteId, setScopeQuoteId] = useState<number | null>(null);
+  const [previewFileId, setPreviewFileId] = useState<number | null>(null);
   const isLead = user?.role === 'team_lead';
   const canManage = isLead || user?.role === 'rpa_operations';
   const hasClientAcceptanceEvidence = documents.some((row) => row.document_type === 'client_approval');
@@ -154,7 +162,7 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
     { title: 'Versión', dataIndex: 'version', render: (v: number) => `v${v}` },
     { title: 'Tipo', dataIndex: 'pricing_model', render: (v: string) => ({ fixed: 'Precio fijo', hourly: 'Por horas', mixed: 'Mixta' }[v] || v) },
     ...(isLead ? [{ title: 'Monto', dataIndex: 'amount', render: (v: number, row: Row) => `${row.currency} ${Number(v).toLocaleString('es-CL')}` }, { title: 'Margen', dataIndex: 'margin_percent', render: (v: number | null) => v == null ? 'Por definir' : `${Number(v).toFixed(1)}%` }] : []),
-    { title: 'Archivo', dataIndex: 'file_id', render: (v: number | null) => v ? <Button type="link" size="small" onClick={() => void downloadQuoteFile(v)}>Descargar</Button> : 'Sin archivo' },
+    { title: 'Archivo', dataIndex: 'file_id', render: (v: number | null) => v ? <Space wrap><Button type="link" size="small" onClick={() => setPreviewFileId(v)}>Previsualizar</Button><Button type="link" size="small" onClick={() => void downloadQuoteFile(v)}>Descargar</Button></Space> : 'Sin archivo' },
     { title: 'Estado', dataIndex: 'status', render: (v: string) => <Tag color={v === 'approved' ? 'green' : v === 'replaced' ? 'default' : 'blue'}>{({ sent: 'Enviada', approved: 'Validada por jefatura', replaced: 'Reemplazada', rejected: 'Rechazada', draft: 'Borrador' } as Row)[v] || v}</Tag> },
     { title: 'Registrada', dataIndex: 'created_at', render: (v: string) => v ? dayjs(v).format('DD MMM YYYY') : '—' },
     ...(isLead ? [{ title: 'Acción', key: 'action', render: (_: unknown, row: Row) => row.status === 'sent' ? <Space>
@@ -207,55 +215,35 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
       <Table size="small" rowKey="id" pagination={false} loading={loading} dataSource={documents} columns={[
         { title: 'Documento', dataIndex: 'document_type', render: (v: string) => ({ purchase_order: 'Orden de compra', service_acceptance: 'HES / aceptación de servicio', client_approval: 'Aprobación cliente', pdd: 'PDD', technical_commercial_proposal: 'Propuesta técnico comercial' } as Row)[v] || v },
         { title: 'Referencia', dataIndex: 'reference_number', render: (v: string) => v || '—' },
-        { title: 'Archivo', dataIndex: 'original_filename', render: (v: string) => v || 'Sin archivo adjunto' },
+        { title: 'Archivo', dataIndex: 'original_filename', render: (v: string, row: Row) => row.file_id ? <Button type="link" onClick={() => setPreviewFileId(row.file_id)}>{v || 'Previsualizar documento'}</Button> : 'Sin archivo adjunto' },
         { title: 'Fecha', dataIndex: 'document_date', render: (v: string) => v ? dayjs(v).format('DD MMM YYYY') : '—' },
         { title: 'Notas', dataIndex: 'notes', render: (v: string) => v || '—' }
       ]} />
     </Card>
     <div className="commercial-columns">
-      <Card title="Cierre de entrega" extra={project.delivery_accepted_at ? <Tag color="green">Aceptada</Tag> : <Tag>Abierta</Tag>}>
+      <Card className="commercial-close-card" title="Cierre de entrega" extra={project.delivery_accepted_at ? <Tag color="green">Aceptada</Tag> : <Tag>Abierta</Tag>}>
         <Text type="secondary">Registra el OK del cliente y la evidencia antes de dar por terminada la entrega.</Text>
         {!project.delivery_accepted_at && canManage && (hasClientAcceptanceEvidence
-          ? <Button style={{ marginTop: 14 }} icon={<CheckCircleOutlined />} onClick={() => void save(`${base}/delivery-acceptance`, {}, 'Entrega aceptada')}>Cerrar entrega con evidencia registrada</Button>
-          : <Button style={{ marginTop: 14 }} onClick={() => setDocumentType('client_approval')}>Registrar OK del cliente</Button>)}
+          ? <Button icon={<CheckCircleOutlined />} onClick={() => void save(`${base}/delivery-acceptance`, {}, 'Entrega aceptada')}>Cerrar entrega con evidencia registrada</Button>
+          : <Button onClick={() => setDocumentType('client_approval')}>Registrar OK del cliente</Button>)}
         {project.delivery_accepted_at && <p>Entrega aceptada el {dayjs(project.delivery_accepted_at).format('DD MMM YYYY')}</p>}
       </Card>
-      <Card title="Cierre financiero" extra={project.financial_closed_at ? <Tag color="green">Cerrado</Tag> : <Tag color="gold">Pendiente</Tag>}>
+      <Card className="commercial-close-card" title="Cierre financiero" extra={project.financial_closed_at ? <Tag color="green">Cerrado</Tag> : <Tag color="gold">Pendiente</Tag>}>
         <Text type="secondary">Pendiente hasta que la entrega esté aceptada, cada hito esté pagado y no existan facturas con saldo ni documentos obligatorios pendientes.</Text>
-        {isLead && project.delivery_accepted_at && !project.financial_closed_at && <Button style={{ marginTop: 14 }} type="primary" onClick={() => modal.confirm({ title: '¿Cerrar las finanzas del proyecto?', content: 'Esta acción registra el cierre financiero y completa el proyecto.', okText: 'Confirmar cierre', cancelText: 'Cancelar', onOk: async () => { await save(`${base}/financial-close`, {}, 'Cierre financiero completado'); } })}>Cerrar finanzas</Button>}
+        {isLead && project.delivery_accepted_at && !project.financial_closed_at && <Button type="primary" onClick={() => modal.confirm({ title: '¿Cerrar las finanzas del proyecto?', content: 'Esta acción registra el cierre financiero y completa el proyecto.', okText: 'Confirmar cierre', cancelText: 'Cancelar', onOk: async () => { await save(`${base}/financial-close`, {}, 'Cierre financiero completado'); } })}>Cerrar finanzas</Button>}
         {project.financial_closed_at && <p>Cierre financiero el {dayjs(project.financial_closed_at).format('DD MMM YYYY')}</p>}
       </Card>
     </div>
   </div>;
 
-  const billingContent = <div className="commercial-workspace">
-    <div className="commercial-kpis">
-      <Statistic title="Hitos cobrables" value={paymentMilestones.filter((m) => m.status === 'billable').length} />
-      <Statistic title="Facturas emitidas" value={invoices.length} />
-      <Statistic title="Facturas vencidas" value={invoices.filter((i) => i.status === 'overdue').length} />
-      <Statistic title="Hitos pagados" value={paymentMilestones.filter((m) => m.status === 'paid').length} />
-    </div>
-    <div className="commercial-columns">
-      <Card title="Hitos de pago">
-        {paymentMilestones.length ? <Table size="small" rowKey="id" pagination={false} dataSource={paymentMilestones} columns={[
-          { title: 'Hito', dataIndex: 'name' }, { title: 'Fecha prevista', dataIndex: 'planned_date', render: (v: string) => v ? dayjs(v).format('DD MMM YYYY') : 'Por definir' },
-          { title: 'Estado', dataIndex: 'status', render: (v: string) => <Tag color={v === 'paid' ? 'green' : v === 'overdue' ? 'red' : 'blue'}>{v}</Tag> },
-          ...(isLead ? [{ title: 'Monto', dataIndex: 'amount', render: (v: number, r: Row) => `${r.currency} ${Number(v).toLocaleString('es-CL')}` }] : [])
-        ]} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No hay hitos de pago registrados" />}
-      </Card>
-      <Card title="Facturas y pagos">
-        {invoices.length ? <Table size="small" rowKey="id" pagination={false} dataSource={invoices} columns={[
-          { title: 'Factura', dataIndex: 'invoice_number' }, { title: 'Vencimiento', dataIndex: 'due_date', render: (v: string) => dayjs(v).format('DD MMM YYYY') },
-          { title: 'Estado', dataIndex: 'status', render: (v: string) => <Tag color={v === 'paid' ? 'green' : v === 'overdue' ? 'red' : 'gold'}>{v}</Tag> },
-          ...(isLead ? [{ title: 'Pagos', dataIndex: 'payments', render: (v: Row[]) => v?.length || 0 }] : [])
-        ]} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Todavía no hay facturas asociadas" />}
-      </Card>
-    </div>
-  </div>;
+  const billingContent = <ProjectBillingWorkspace projectId={project.id} canManage={isLead}
+    milestones={paymentMilestones as PaymentMilestone[]} invoices={invoices as Invoice[]} loading={loading}
+    onRefresh={async () => { await load(); onRefresh?.(); }} />;
 
   const capacityContent = <div className="commercial-workspace">
     <div className="commercial-kpis"><Statistic title="Personas asignadas" value={capacity.length} prefix={<TeamOutlined />} /><Statistic title="FTE planificado" value={capacity.reduce((sum, row) => sum + Number(row.planned_fte || 0), 0)} precision={2} /></div>
-    <Card title="Dedicación y horas presupuestadas">
+    {!project.assigned_to && <Alert type="warning" showIcon message="Falta asignar un responsable de ejecución al proyecto" />}
+    <Card title="Dedicación y horas presupuestadas" extra={isLead && <Button type="primary" icon={<PlusOutlined />} onClick={() => setTeamEditorOpen(true)}>{capacity.length ? 'Editar equipo' : 'Asignar equipo'}</Button>}>
       <Table size="small" rowKey="user_id" loading={loading} pagination={false} dataSource={capacity} columns={[
         { title: 'Persona', dataIndex: 'full_name' }, { title: 'Rol', dataIndex: 'role' },
         { title: 'Asignación', dataIndex: 'allocation_percentage', render: (v: number) => `${Number(v || 0)}%` },
@@ -269,7 +257,10 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
   </div>;
 
   return <>
-    <Tabs className="commercial-inner-tabs" defaultActiveKey={initialTab === 'billing' ? 'billing' : 'commercial'} items={[
+    {teamEditorOpen && <ProjectTeamEditor projectId={project.id} responsibleId={project.assigned_to || undefined}
+      onClose={() => setTeamEditorOpen(false)} onSaved={() => { setTeamEditorOpen(false); void load(); onRefresh?.(); }} />}
+    <FilePreviewModal fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
+    <Tabs className="commercial-inner-tabs" activeKey={activeTab} onChange={(tab) => { setActiveTab(tab); onTabChange?.(tab); }} items={[
       { key: 'commercial', label: 'Oportunidad y cotización', children: commercialContent },
       { key: 'delivery', label: 'Contratos y cierre', children: deliveryContent },
       { key: 'capacity', label: 'Equipo y capacidad', children: capacityContent },

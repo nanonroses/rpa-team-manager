@@ -34,6 +34,7 @@ import { apiService } from '@/services/api';
 import { EmptyState, LoadingState } from '@/components/common';
 import { useAuthStore } from '@/store/authStore';
 import dayjs from 'dayjs';
+import { displayLabel } from '@/utils/displayLabels';
 import type { PhaseStatus, Responsibility, ProjectPhase, ROIAnalysis } from '@/types/lifecycle';
 
 const { Title, Text } = Typography;
@@ -68,11 +69,11 @@ export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ proj
       }
     } catch (error: any) {
       console.error('Error loading lifecycle data:', error);
-      if (error?.message?.includes('No phases found')) {
+      if (error?.message?.includes('No phases found') || error?.message?.includes('No hay fases registradas')) {
         // Phases not initialized yet - this is OK
         setPhases([]);
       } else {
-        message.error('Failed to load lifecycle data');
+        message.error("No se pudo cargar el ciclo de vida");
       }
     } finally {
       setLoading(false);
@@ -86,11 +87,11 @@ export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ proj
   const handleInitializePhases = async () => {
     try {
       await apiService.initializeProjectPhases(resolvedProjectId!);
-      message.success('Project phases initialized successfully!');
+      message.success("Fases del proyecto inicializadas");
       loadLifecycleData();
     } catch (error) {
       console.error('Error initializing phases:', error);
-      message.error('Failed to initialize project phases');
+      message.error("No se pudieron inicializar las fases");
     }
   };
 
@@ -101,10 +102,10 @@ export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ proj
         status: 'in_progress',
         actual_start_date: dayjs().format('YYYY-MM-DD')
       });
-      message.success(`Started phase: ${phase.name}`);
+      message.success(`Fase iniciada: ${phase.name}`);
       loadLifecycleData();
     } catch (error) {
-      message.error('Failed to start phase');
+      message.error("No se pudo iniciar la fase");
     }
   };
 
@@ -114,10 +115,10 @@ export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ proj
         status: 'completed',
         actual_end_date: dayjs().format('YYYY-MM-DD')
       });
-      message.success(`Completed phase: ${phase.name}`);
+      message.success(`Fase completada: ${phase.name}`);
       loadLifecycleData();
     } catch (error) {
-      message.error('Failed to complete phase');
+      message.error("No se pudo completar la fase");
     }
   };
 
@@ -140,11 +141,11 @@ export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ proj
         notes: values.notes,
         start_datetime: values.work_date.format('YYYY-MM-DD HH:mm:ss')
       });
-      message.success('Activity logged successfully!');
+      message.success("Actividad registrada");
       setActivityModalVisible(false);
       loadLifecycleData();
     } catch (error) {
-      message.error('Failed to log activity');
+      message.error("No se pudo registrar la actividad");
     }
   };
 
@@ -172,52 +173,52 @@ export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ proj
 
   const phaseColumns = [
     {
-      title: 'Phase',
+      title: "Fase",
       dataIndex: 'name',
       key: 'name',
       width: '25%',
       render: (text: string, record: ProjectPhase) => (
         <Space direction="vertical" size={0}>
           <Text strong>{text}</Text>
-          {!record.is_billable && <Tag color="orange">Non-Billable</Tag>}
+          {!record.is_billable && <Tag color="orange">No facturable</Tag>}
         </Space>
       )
     },
     {
-      title: 'Status',
+      title: "Estado",
       dataIndex: 'status',
       key: 'status',
       width: '12%',
       render: (status: PhaseStatus) => (
         <Tag icon={getPhaseStatusIcon(status)} color={getPhaseStatusColor(status)}>
-          {status.replace('_', ' ').toUpperCase()}
+          {displayLabel(status)}
         </Tag>
       )
     },
     {
-      title: 'Duration',
+      title: "Duración",
       key: 'duration',
       width: '15%',
       render: (_: any, record: ProjectPhase) => (
         <Space direction="vertical" size={0}>
           {record.actual_start_date && (
             <Text type="secondary" style={{ fontSize: '12px' }}>
-              Start: {dayjs(record.actual_start_date).format('MMM DD, YYYY')}
+              Inicio: {dayjs(record.actual_start_date).format('MMM DD, YYYY')}
             </Text>
           )}
           {record.actual_end_date && (
             <Text type="secondary" style={{ fontSize: '12px' }}>
-              End: {dayjs(record.actual_end_date).format('MMM DD, YYYY')}
+              Término: {dayjs(record.actual_end_date).format('MMM DD, YYYY')}
             </Text>
           )}
           {!record.actual_start_date && !record.actual_end_date && (
-            <Text type="secondary">Not started</Text>
+            <Text type="secondary">Sin iniciar</Text>
           )}
         </Space>
       )
     },
     {
-      title: 'Hours',
+      title: "Horas",
       key: 'hours',
       width: '12%',
       render: (_: any, record: ProjectPhase) => (
@@ -225,25 +226,25 @@ export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ proj
           <Text>{record.actual_hours.toFixed(1)}h</Text>
           {record.estimated_hours && (
             <Text type="secondary" style={{ fontSize: '12px' }}>
-              Est: {record.estimated_hours}h
+              Estimadas: {record.estimated_hours}h
             </Text>
           )}
         </Space>
       )
     },
     {
-      title: 'Responsibility',
+      title: "Responsabilidad",
       dataIndex: 'responsibility',
       key: 'responsibility',
       width: '12%',
       render: (resp: Responsibility) => (
         <Tag color={resp === 'internal' ? 'blue' : resp === 'client' ? 'purple' : 'orange'}>
-          {resp.toUpperCase()}
+          {displayLabel(resp)}
         </Tag>
       )
     },
     {
-      title: 'Actions',
+      title: "Acciones",
       key: 'actions',
       width: '24%',
       render: (_: any, record: ProjectPhase) => (
@@ -255,7 +256,7 @@ export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ proj
               icon={<PlayCircleOutlined />}
               onClick={() => handleStartPhase(record)}
             >
-              Start
+              Iniciar
             </Button>
           )}
           {record.status === 'in_progress' && (
@@ -266,14 +267,15 @@ export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ proj
                 icon={<CheckCircleOutlined />}
                 onClick={() => handleCompletePhase(record)}
               >
-                Complete
+                Completar
               </Button>
               <Button
                 size="small"
                 icon={<PlusOutlined />}
                 onClick={() => handleAddActivity(record)}
               >
-                Log Hours
+                
+                Registrar horas
               </Button>
             </>
           )}
@@ -283,7 +285,8 @@ export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ proj
               icon={<PlusOutlined />}
               onClick={() => handleAddActivity(record)}
             >
-              Add Hours
+              
+              Agregar horas
             </Button>
           )}
         </Space>
@@ -332,7 +335,7 @@ export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ proj
 
   return (
     <div style={{ padding: '24px' }}>
-      <Title level={3}>Project Lifecycle Management</Title>
+      <Title level={3}>Ciclo de vida del proyecto</Title>
 
       {/* ROI Analysis Cards */}
       {roiAnalysis && (
@@ -340,53 +343,55 @@ export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ proj
           <Col xs={24} sm={12} md={6}>
             <Card>
               <Statistic
-                title="Apparent ROI"
+                title="ROI aparente"
                 value={roiAnalysis.apparent_roi}
                 suffix="%"
                 prefix={roiAnalysis.apparent_roi > 0 ? <RiseOutlined /> : <FallOutlined />}
                 valueStyle={{
-                  color: roiAnalysis.apparent_roi > 20 ? '#3f8600' : '#cf1322'
+                  color: roiAnalysis.apparent_roi > 20 ? 'var(--color-success)' : 'var(--color-error)'
                 }}
               />
               <Text type="secondary" style={{ fontSize: '12px' }}>
-                Billable hours only ({roiAnalysis.billable_hours}h)
+                
+                Solo horas facturables ({roiAnalysis.billable_hours}h)
               </Text>
             </Card>
           </Col>
           <Col xs={24} sm={12} md={6}>
             <Card>
               <Statistic
-                title="Real ROI"
+                title="ROI real"
                 value={roiAnalysis.real_roi}
                 suffix="%"
                 prefix={roiAnalysis.real_roi > 0 ? <RiseOutlined /> : <FallOutlined />}
                 valueStyle={{
-                  color: roiAnalysis.real_roi > 20 ? '#3f8600' : '#cf1322'
+                  color: roiAnalysis.real_roi > 20 ? 'var(--color-success)' : 'var(--color-error)'
                 }}
               />
               <Text type="secondary" style={{ fontSize: '12px' }}>
-                All hours ({roiAnalysis.total_hours_real}h)
+                
+                Todas las horas ({roiAnalysis.total_hours_real}h)
               </Text>
             </Card>
           </Col>
           <Col xs={24} sm={12} md={6}>
             <Card>
               <Statistic
-                title="Non-Billable Hours"
+                title="Horas no facturables"
                 value={roiAnalysis.non_billable_hours}
                 suffix="h"
                 prefix={<ClockCircleOutlined />}
-                valueStyle={{ color: '#fa8c16' }}
+                valueStyle={{ color: 'var(--color-warning)' }}
               />
               <Text type="secondary" style={{ fontSize: '12px' }}>
-                {roiAnalysis.non_billable_percentage}% of total time
+                {roiAnalysis.non_billable_percentage}% del tiempo total
               </Text>
             </Card>
           </Col>
           <Col xs={24} sm={12} md={6}>
             <Card>
               <Statistic
-                title="Total Project Hours"
+                title="Horas totales del proyecto"
                 value={roiAnalysis.total_hours_real}
                 suffix="h"
                 prefix={<ClockCircleOutlined />}
@@ -394,7 +399,7 @@ export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ proj
               <Progress
                 percent={roiAnalysis.non_billable_percentage}
                 showInfo={false}
-                strokeColor="#fa8c16"
+                strokeColor="var(--color-warning)"
                 size="small"
               />
             </Card>
@@ -403,7 +408,7 @@ export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ proj
       )}
 
       {/* Phases Table */}
-      <Card title="Project Phases" style={{ marginBottom: '24px' }}>
+      <Card title="Fases del proyecto" style={{ marginBottom: '24px' }}>
         <Table
           dataSource={phases}
           columns={phaseColumns}
@@ -415,11 +420,11 @@ export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ proj
 
       {/* Activity Logging Modal */}
       <Modal
-        title={`Log Activity - ${selectedPhase?.name}`}
+        title={`Registrar actividad · ${selectedPhase?.name}`}
         open={activityModalVisible}
         onCancel={() => setActivityModalVisible(false)}
         onOk={() => activityForm.submit()}
-        okText="Log Activity"
+        okText="Registrar actividad"
         width={600}
       >
         <Form

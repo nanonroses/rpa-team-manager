@@ -35,7 +35,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const projects = await apiService.getProjects();
       set({ projects, isLoading: false });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to fetch projects';
+      const errorMessage = error.response?.data?.error || "No se pudieron cargar los proyectos";
       set({ error: errorMessage, isLoading: false });
       throw error;
     }
@@ -47,7 +47,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const project = await apiService.getProject(id);
       set({ selectedProject: project, isLoading: false });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to fetch project';
+      const errorMessage = error.response?.data?.error || "No se pudo cargar el proyecto";
       set({ error: errorMessage, isLoading: false });
       throw error;
     }
@@ -58,7 +58,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       const project = await apiService.getProject(id);
       return project;
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to get project';
+      const errorMessage = error.response?.data?.error || "No se pudo cargar el proyecto";
       set({ error: errorMessage });
       throw error;
     }
@@ -78,7 +78,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       
       return newProject;
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to create project';
+      const errorMessage = error.response?.data?.error || "No se pudo crear el proyecto";
       set({ error: errorMessage, isLoading: false });
       throw error;
     }
@@ -103,7 +103,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       
       return updatedProject;
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to update project';
+      const errorMessage = error.response?.data?.error || "No se pudo actualizar el proyecto";
       set({ error: errorMessage, isLoading: false });
       throw error;
     }
@@ -124,7 +124,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         isLoading: false 
       });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to delete project';
+      const errorMessage = error.response?.data?.error || "No se pudo eliminar el proyecto";
       set({ error: errorMessage, isLoading: false });
       throw error;
     }

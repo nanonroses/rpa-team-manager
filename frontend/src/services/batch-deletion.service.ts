@@ -83,7 +83,7 @@ export class BatchDeletionServiceImpl implements BatchDeletionService {
     const deletionPromises = this.createDeletionPromises(tasks, milestones);
     
     if (deletionPromises.length === 0) {
-      throw new Error('No valid deletion operations to perform');
+      throw new Error("No hay elementos válidos para eliminar");
     }
 
     // Execute deletions with timeout protection
@@ -153,7 +153,7 @@ export class BatchDeletionServiceImpl implements BatchDeletionService {
               success: false,
               deletedCount: 0,
               deletedIds: [],
-              error: error?.response?.data?.error || error?.message || 'Task deletion failed',
+              error: error?.response?.data?.error || error?.message || "No se pudo eliminar la tarea",
               code: error?.response?.data?.code || error?.code || 'API_ERROR',
               originalError: error
             };
@@ -181,7 +181,7 @@ export class BatchDeletionServiceImpl implements BatchDeletionService {
               success: false,
               deletedCount: 0,
               deletedIds: [],
-              error: error?.response?.data?.error || error?.message || 'Milestone deletion failed',
+              error: error?.response?.data?.error || error?.message || "No se pudo eliminar el hito",
               code: error?.response?.data?.code || error?.code || 'API_ERROR',
               originalError: error
             };

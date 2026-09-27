@@ -203,7 +203,7 @@ export const TeamManagementPage: React.FC = () => {
       key: 'full_name',
       render: (text, record) => (
         <Space>
-          <UserOutlined style={{ color: '#1890ff' }} />
+          <UserOutlined style={{ color: 'var(--color-info)' }} />
           <div>
             <div style={{ fontWeight: 500 }}>{text}</div>
             <Text type="secondary" style={{ fontSize: '12px' }}>ID: {record.id}</Text>
@@ -322,7 +322,7 @@ export const TeamManagementPage: React.FC = () => {
             <Statistic 
               title="Usuarios activos"
               value={stats.active} 
-              valueStyle={{ color: '#52c41a' }}
+              valueStyle={{ color: 'var(--color-success)' }}
             />
           </Card>
         </Col>
@@ -331,7 +331,7 @@ export const TeamManagementPage: React.FC = () => {
             <Statistic 
               title="Líderes de equipo"
               value={stats.teamLeads}
-              valueStyle={{ color: '#faad14' }}
+              valueStyle={{ color: 'var(--color-warning)' }}
             />
           </Card>
         </Col>
@@ -340,7 +340,7 @@ export const TeamManagementPage: React.FC = () => {
             <Statistic 
               title="Desarrolladores"
               value={stats.developers}
-              valueStyle={{ color: '#1890ff' }}
+              valueStyle={{ color: 'var(--color-info)' }}
             />
           </Card>
         </Col>
@@ -390,18 +390,18 @@ export const TeamManagementPage: React.FC = () => {
         >
           <Form.Item
             name="full_name"
-            label="Full Name"
-            rules={[{ required: true, message: 'Please enter full name' }]}
+            label="Nombre completo"
+            rules={[{ required: true, message: "Ingresa el nombre completo" }]}
           >
             <Input prefix={<IdcardOutlined />} aria-label="Nombre completo" placeholder="Ingresa el nombre completo" />
           </Form.Item>
 
           <Form.Item
             name="email"
-            label="Email"
+            label="Correo electrónico"
             rules={[
-              { required: true, message: 'Please enter email' },
-              { type: 'email', message: 'Please enter valid email' }
+              { required: true, message: "Ingresa el correo electrónico" },
+              { type: 'email', message: "Ingresa un correo electrónico válido" }
             ]}
           >
             <Input prefix={<MailOutlined />} aria-label="Correo electrónico" placeholder="Ingresa el correo electrónico" />
@@ -409,8 +409,8 @@ export const TeamManagementPage: React.FC = () => {
 
           <Form.Item
             name="role"
-            label="Role"
-            rules={[{ required: true, message: 'Please select role' }]}
+            label="Rol"
+            rules={[{ required: true, message: "Selecciona un rol" }]}
           >
             <Select aria-label="Rol del usuario" placeholder="Selecciona un rol">
               <Select.Option value="rpa_developer">Desarrollador RPA</Select.Option>
