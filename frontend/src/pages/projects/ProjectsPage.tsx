@@ -5,6 +5,7 @@ import { PlusOutlined, SearchOutlined, ProjectOutlined, ExclamationCircleOutline
 import dayjs, { Dayjs } from 'dayjs';
 import { ProjectCard } from '@/components/projects/ProjectCard';
 import { CreateProjectModal } from '@/components/projects/CreateProjectModal';
+import { CreateProjectWizard } from '@/components/projects/CreateProjectWizard';
 import { QuoteUploadModal } from '@/components/projects/QuoteUploadModal';
 import { EmptyState, ErrorState, LoadingState } from '@/components/common';
 import { useProjectStore } from '@/store/projectStore';
@@ -31,7 +32,8 @@ export const ProjectsPage: React.FC = () => {
   const [clients, setClients] = useState<Array<{ id: number; name: string }>>([]);
   const [projectHealth, setProjectHealth] = useState<Record<number, ProjectHealth>>({});
   const [healthLoading, setHealthLoading] = useState(false);
-  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [wizardVisible, setWizardVisible] = useState(false);
   const [quoteUploadModalVisible, setQuoteUploadModalVisible] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const { projects, isLoading, error, fetchProjects, deleteProject, clearError } = useProjectStore();
@@ -109,7 +111,7 @@ export const ProjectsPage: React.FC = () => {
     <main className="projects-page">
       <section className="projects-heading">
         <div><Text className="section-kicker">REPOSITORIO Y SEGUIMIENTO</Text><Title level={1}><ProjectOutlined /> Portafolio de proyectos</Title><Text type="secondary">Busca y revisa clientes, responsables, etapas, avance y fechas de cada iniciativa.</Text></div>
-        {canCreateProject && <Space wrap className="projects-heading-actions"><Button icon={<FileTextOutlined />} onClick={() => setQuoteUploadModalVisible(true)}>Crear desde cotización</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingProject(null); setCreateModalVisible(true); }}>Nuevo proyecto</Button></Space>}
+        {canCreateProject && <Space wrap className="projects-heading-actions"><Button icon={<FileTextOutlined />} onClick={() => setQuoteUploadModalVisible(true)}>Crear desde cotización</Button><Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingProject(null); setWizardVisible(true); }}>Nuevo proyecto</Button></Space>}
       </section>
       <section className="projects-toolbar" aria-label="Buscar y filtrar proyectos">
         <Row gutter={[10, 10]} align="middle">
@@ -125,12 +127,13 @@ export const ProjectsPage: React.FC = () => {
         </Row>
         <div className="projects-toolbar-footer"><Text type="secondary"><FilterOutlined /> {filteredProjects.length} de {projects.length} {filteredProjects.length === 1 ? 'proyecto' : 'proyectos'}</Text>{hasFilters && <Button type="link" size="small" onClick={resetFilters}>Limpiar filtros</Button>}</div>
       </section>
-      {isLoading && projects.length === 0 ? <LoadingState tip="Cargando proyectos…" minHeight={200} /> : filteredProjects.length === 0 ? (hasFilters ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Ningún proyecto coincide con estos filtros"><Button onClick={resetFilters}>Limpiar filtros</Button></Empty> : <EmptyState description="Todavía no hay proyectos en el portafolio" action={canCreateProject && <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalVisible(true)}>Crear el primer proyecto</Button>} />) : (
+      {isLoading && projects.length === 0 ? <LoadingState tip="Cargando proyectos…" minHeight={200} /> : filteredProjects.length === 0 ? (hasFilters ? <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Ningún proyecto coincide con estos filtros"><Button onClick={resetFilters}>Limpiar filtros</Button></Empty> : <EmptyState description="Todavía no hay proyectos en el portafolio" action={canCreateProject && <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditingProject(null); setWizardVisible(true); }}>Crear el primer proyecto</Button>} />) : (
         <Row gutter={[16, 16]} className="projects-grid">
-          {filteredProjects.map((project) => <Col xs={24} md={12} xl={8} key={project.id}><ProjectCard project={project} health={projectHealth[project.id]} onEdit={(item) => { setEditingProject(item); setCreateModalVisible(true); }} onDelete={handleDeleteProject} onView={(item) => navigate(`/projects/${item.id}`)} onClick={(item) => navigate(`/projects/${item.id}`)} /></Col>)}
+          {filteredProjects.map((project) => <Col xs={24} md={12} xl={8} key={project.id}><ProjectCard project={project} health={projectHealth[project.id]} onEdit={(item) => { setEditingProject(item); setEditModalVisible(true); }} onDelete={handleDeleteProject} onView={(item) => navigate(`/projects/${item.id}`)} onClick={(item) => navigate(`/projects/${item.id}`)} /></Col>)}
         </Row>
       )}
-      <CreateProjectModal visible={createModalVisible} onCancel={() => { setCreateModalVisible(false); setEditingProject(null); }} onSuccess={() => { void fetchProjects(); }} editProject={editingProject} />
+      <CreateProjectWizard visible={wizardVisible} onCancel={() => setWizardVisible(false)} onSuccess={() => { void fetchProjects(); }} />
+      <CreateProjectModal visible={editModalVisible} onCancel={() => { setEditModalVisible(false); setEditingProject(null); }} onSuccess={() => { void fetchProjects(); }} editProject={editingProject} />
       <QuoteUploadModal visible={quoteUploadModalVisible} onCancel={() => setQuoteUploadModalVisible(false)} onSuccess={handleQuoteUploadSuccess} />
     </main>
   );
