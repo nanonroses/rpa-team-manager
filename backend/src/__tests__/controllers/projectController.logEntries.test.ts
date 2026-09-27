@@ -137,8 +137,10 @@ describe('ProjectController - bitácora del proyecto', () => {
             expect(projectLogService.create).not.toHaveBeenCalled();
         });
 
-        it('si viene file_id, inserta la asociacion en file_associations para que cualquiera con acceso pueda descargarlo', async () => {
-            (db.get as jest.Mock).mockResolvedValue({ id: 7, assigned_to: 2, created_by: 3 });
+        it('si viene file_id subido por el mismo usuario, inserta la asociacion en file_associations para que cualquiera con acceso pueda descargarlo', async () => {
+            (db.get as jest.Mock)
+                .mockResolvedValueOnce({ id: 7, assigned_to: 2, created_by: 3 })
+                .mockResolvedValueOnce({ id: 99, uploaded_by: 1 });
             (projectLogService.create as jest.Mock).mockResolvedValue({ id: 5, entry_type: 'decision', description: 'Nueva', file_id: 99 });
             const req = {
                 params: { id: '7' },
@@ -153,6 +155,40 @@ describe('ProjectController - bitácora del proyecto', () => {
                 expect.stringContaining('INSERT INTO file_associations'),
                 [99, 7, 1, 99, 7]
             );
+        });
+
+        it('devuelve 400 si file_id no existe en files (IDOR)', async () => {
+            (db.get as jest.Mock)
+                .mockResolvedValueOnce({ id: 7, assigned_to: 2, created_by: 3 })
+                .mockResolvedValueOnce(undefined);
+            const req = {
+                params: { id: '7' },
+                body: { entry_type: 'decision', description: 'Nueva', file_id: 999 },
+                user: { id: 1, role: 'team_lead' }
+            } as unknown as AuthenticatedRequest;
+            const res = mockRes();
+
+            await controller.createProjectLogEntry(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(projectLogService.create).not.toHaveBeenCalled();
+        });
+
+        it('devuelve 403 si file_id existe pero fue subido por otro usuario (IDOR)', async () => {
+            (db.get as jest.Mock)
+                .mockResolvedValueOnce({ id: 7, assigned_to: 2, created_by: 3 })
+                .mockResolvedValueOnce({ id: 99, uploaded_by: 2 });
+            const req = {
+                params: { id: '7' },
+                body: { entry_type: 'decision', description: 'Nueva', file_id: 99 },
+                user: { id: 1, role: 'team_lead' }
+            } as unknown as AuthenticatedRequest;
+            const res = mockRes();
+
+            await controller.createProjectLogEntry(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(403);
+            expect(projectLogService.create).not.toHaveBeenCalled();
         });
     });
 });

@@ -741,13 +741,32 @@ export class ProjectController {
                 return;
             }
 
-            const entry = await projectLogService.create(projectId, userId, entry_type, description, file_id ?? null);
+            let fileId: number | null = null;
+            if (file_id !== undefined && file_id !== null) {
+                const parsedFileId = Number(file_id);
+                if (!Number.isInteger(parsedFileId)) {
+                    res.status(400).json({ error: 'Invalid file_id' });
+                    return;
+                }
+                const file = await db.get('SELECT id, uploaded_by FROM files WHERE id = ?', [parsedFileId]);
+                if (!file) {
+                    res.status(400).json({ error: 'Invalid file_id' });
+                    return;
+                }
+                if (file.uploaded_by !== userId) {
+                    res.status(403).json({ error: 'You do not have access to this file' });
+                    return;
+                }
+                fileId = parsedFileId;
+            }
 
-            if (file_id) {
+            const entry = await projectLogService.create(projectId, userId, entry_type, description, fileId);
+
+            if (fileId) {
                 await db.run(`INSERT INTO file_associations (file_id, entity_type, entity_id, association_type, created_by)
                     SELECT ?, 'project', ?, 'log_entry', ? WHERE NOT EXISTS (
                         SELECT 1 FROM file_associations WHERE file_id = ? AND entity_type = 'project' AND entity_id = ? AND association_type = 'log_entry'
-                    )`, [file_id, projectId, userId, file_id, projectId]);
+                    )`, [fileId, projectId, userId, fileId, projectId]);
             }
 
             await activityLogService.logActivity(userId, 'log_entry', entry.id, 'created', null, entry);
