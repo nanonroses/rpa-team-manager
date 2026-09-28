@@ -29,6 +29,8 @@ import {
 import { useLLMConfigStore, LLMProvider } from '@/store/llmConfigStore';
 import { SkillConfigModal } from '@/components/projects/SkillConfigModal';
 
+const REASONING_LABELS: Record<string, string> = { none: 'Sin razonamiento', minimal: 'Mínimo', low: 'Ligero', medium: 'Medio', high: 'Alto', xhigh: 'Muy alto', max: 'Máximo' };
+
 const { Title, Text, Paragraph } = Typography;
 
 interface ProviderConfig {
@@ -45,7 +47,7 @@ const PROVIDERS: ProviderConfig[] = [
     key: 'openai',
     name: 'OpenAI',
     icon: '🤖',
-    description: 'GPT-4, GPT-3.5, y otros modelos de OpenAI',
+    description: 'Modelos de OpenAI con selección de razonamiento según compatibilidad',
     docUrl: 'https://platform.openai.com/api-keys',
     placeholder: 'sk-...'
   },
@@ -93,6 +95,8 @@ export const LLMConfigPage: React.FC = () => {
 
   const [editingProvider, setEditingProvider] = useState<LLMProvider | null>(null);
   const [apiKeyInput, setApiKeyInput] = useState('');
+  const [reasoningEffort, setReasoningEffort] = useState<string | null>(null);
+  const [replaceKey, setReplaceKey] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string>('');
   const [validationResults, setValidationResults] = useState<Record<LLMProvider, boolean | null>>({
     openai: null,
@@ -140,12 +144,13 @@ export const LLMConfigPage: React.FC = () => {
   };
 
   const handleSave = async (provider: LLMProvider) => {
-    if (!apiKeyInput.trim()) {
+    const needsKey = !getProviderKey(provider) || replaceKey;
+    if (needsKey && !apiKeyInput.trim()) {
       message.warning('Por favor ingrese una API key');
       return;
     }
 
-    if (validationResults[provider] !== true) {
+    if (needsKey && validationResults[provider] !== true) {
       message.warning('Por favor valide la API key antes de guardar');
       return;
     }
@@ -159,10 +164,10 @@ export const LLMConfigPage: React.FC = () => {
       const existingKey = getProviderKey(provider);
 
       if (existingKey) {
-        await updateApiKey(provider, apiKeyInput, selectedModel);
-        message.success('API key actualizada exitosamente');
+        await updateApiKey(provider, apiKeyInput.trim(), selectedModel, reasoningEffort);
+        message.success('Configuración actualizada exitosamente');
       } else {
-        await saveApiKey(provider, apiKeyInput, selectedModel);
+        await saveApiKey(provider, apiKeyInput.trim(), selectedModel, reasoningEffort);
         message.success('API key guardada exitosamente');
       }
 
@@ -198,6 +203,9 @@ export const LLMConfigPage: React.FC = () => {
     setApiKeyInput('');
     const existingKey = getProviderKey(provider);
     setSelectedModel(existingKey?.selected_model || '');
+    const options = availableModels?.[provider]?.find(m => m.value === existingKey?.selected_model)?.reasoning_options;
+    setReasoningEffort(options ? existingKey?.reasoning_effort || 'low' : null);
+    setReplaceKey(false);
     setValidationResults(prev => ({ ...prev, [provider]: null }));
   };
 
@@ -219,6 +227,7 @@ export const LLMConfigPage: React.FC = () => {
     const isEditing = editingProvider === key;
     const isValidating = validating[key];
     const validationResult = validationResults[key];
+    const reasoningOptions = availableModels?.[key]?.find(m => m.value === selectedModel)?.reasoning_options;
 
     return (
       <Col xs={24} lg={12} key={key}>
@@ -276,6 +285,7 @@ export const LLMConfigPage: React.FC = () => {
                     </Tag>
                   </div>
                 )}
+                <div><Text strong>Razonamiento: </Text>{REASONING_LABELS[savedKey.reasoning_effort || ''] || (availableModels?.[key]?.find(m => m.value === savedKey.selected_model)?.reasoning_options ? 'Ligero' : 'No configurable para este modelo')}</div>
                 {savedKey.last_validated && (
                   <div>
                     <Text type="secondary">
@@ -293,9 +303,16 @@ export const LLMConfigPage: React.FC = () => {
                 )}
               </Space>
             </div>
-          ) : (
+          ) : isEditing ? (
             <div>
               <Form layout="vertical">
+                {savedKey && !replaceKey ? (
+                  <Form.Item label="Clave API">
+                    <Input value="••••••••••••" disabled />
+                    <Text type="secondary">Clave guardada. Se conserva al cambiar el modelo o el razonamiento.</Text>
+                    <Button type="link" onClick={() => setReplaceKey(true)}>Reemplazar clave API</Button>
+                  </Form.Item>
+                ) : (
                 <Form.Item
                   label="Clave API"
                   help={
@@ -322,6 +339,8 @@ export const LLMConfigPage: React.FC = () => {
                   />
                 </Form.Item>
 
+                )}
+
                 <Form.Item
                   label="Modelo"
                   help="Seleccione el modelo que desea utilizar"
@@ -329,12 +348,15 @@ export const LLMConfigPage: React.FC = () => {
                   <Select
                     placeholder="Seleccionar modelo"
                     value={selectedModel || undefined}
-                    onChange={(value) => setSelectedModel(value)}
+                    onChange={(value) => { setSelectedModel(value); setReasoningEffort(availableModels?.[key]?.find(m => m.value === value)?.reasoning_options ? 'low' : null); }}
                     options={availableModels?.[key] || []}
                     style={{ width: '100%' }}
                   />
                 </Form.Item>
 
+                <Form.Item label="Razonamiento" help="Un nivel mayor puede aumentar el consumo y el tiempo de respuesta.">
+                  {reasoningOptions ? <Select aria-label="Razonamiento" value={reasoningEffort} onChange={setReasoningEffort} options={reasoningOptions.map(value => ({ value, label: REASONING_LABELS[value] || value }))} /> : <Text type="secondary">Este modelo no admite un nivel de razonamiento configurable en esta integración.</Text>}
+                </Form.Item>
                 <Space>
                   <Button
                     icon={<SafetyOutlined />}
@@ -348,7 +370,7 @@ export const LLMConfigPage: React.FC = () => {
                     type="primary"
                     onClick={() => handleSave(key)}
                     loading={isLoading}
-                    disabled={validationResult !== true || !selectedModel}
+                    disabled={((!savedKey || replaceKey) && validationResult !== true) || !selectedModel}
                   >
                     {savedKey ? 'Actualizar' : 'Guardar'}
                   </Button>
@@ -356,7 +378,7 @@ export const LLMConfigPage: React.FC = () => {
                 </Space>
               </Form>
             </div>
-          )}
+          ) : null}
 
           {!savedKey && !isEditing && (
             <Button type="dashed" block onClick={() => handleEdit(key)}>
