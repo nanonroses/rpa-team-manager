@@ -498,6 +498,26 @@ class ApiService {
     return response.blob();
   }
 
+  // Capacity & FTE management (Fase 6F)
+  async getTeamCapacity(): Promise<{ data: any[]; summary: any }> {
+    const response = await this.api.get('/commercial/team-capacity');
+    return response.data;
+  }
+
+  async getProjectCapacity(projectId: number): Promise<any[]> {
+    const response = await this.api.get(`/commercial/projects/${projectId}/capacity`);
+    return response.data?.data || response.data || [];
+  }
+
+  async saveProjectCapacity(projectId: number, data: any): Promise<any> {
+    const response = await this.api.post(`/commercial/projects/${projectId}/capacity`, data);
+    return response.data;
+  }
+
+  async deleteProjectCapacity(projectId: number, userId: number): Promise<void> {
+    await this.api.delete(`/commercial/projects/${projectId}/capacity/${userId}`);
+  }
+
   // Timesheet endpoints (Fase 3 - Tiempo confiable y efectividad)
   async getTimesheetWeek(weekStart: string): Promise<any> {
     const response = await this.api.get(`/timesheet/week?week_start=${weekStart}`);

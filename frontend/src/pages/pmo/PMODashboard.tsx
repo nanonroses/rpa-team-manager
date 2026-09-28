@@ -45,7 +45,8 @@ import {
   DeleteOutlined,
   ImportOutlined,
   CodeOutlined,
-  FileTextOutlined
+  FileTextOutlined,
+  ReloadOutlined
 } from '@ant-design/icons';
 import { useAuthStore } from '@/store/authStore';
 import apiService from '@/services/api';
@@ -103,6 +104,8 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   const [analytics, setAnalytics] = useState<PMOAnalytics | null>(null);
   const [milestoneModalVisible, setMilestoneModalVisible] = useState(false);
   const [milestoneForm] = Form.useForm();
+  const [teamCapacityData, setTeamCapacityData] = useState<{ data: any[]; summary: any } | null>(null);
+  const [capacityLoading, setCapacityLoading] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
@@ -483,6 +486,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
     loadDashboardData();
     loadAnalytics();
     loadDropdownData();
+    loadTeamCapacity();
   }, []);
 
   // Handle gantt mode and project param separately
@@ -646,6 +650,18 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
     } catch (error) {
       console.error('❌ Error loading dropdown data:', error);
       message.error('Error cargando datos básicos del dashboard');
+    }
+  };
+
+  const loadTeamCapacity = async () => {
+    try {
+      setCapacityLoading(true);
+      const res = await apiService.getTeamCapacity();
+      setTeamCapacityData(res);
+    } catch (error) {
+      console.error('❌ Error loading team capacity:', error);
+    } finally {
+      setCapacityLoading(false);
     }
   };
 
@@ -1255,6 +1271,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                 title={<span><TeamOutlined /> Carga del Equipo</span>} 
                 size="small"
                 style={{ height: '300px' }}
+                extra={<Button type="link" size="small" onClick={() => setActiveTab('capacity')}>Ver detalle FTE</Button>}
               >
                 <div style={{ height: '240px', overflowY: 'auto' }}>
                   {dashboardData?.teamCapacity?.length ? dashboardData.teamCapacity.slice(0, 6).map((member: any) => (
@@ -2856,6 +2873,179 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                 </Card>
               </Col>
             </Row>
+          </Card>
+        </TabPane>
+
+        <TabPane tab="👥 Capacidad FTE" key="capacity">
+          <Card
+            title={
+              <Space>
+                <TeamOutlined />
+                <span>Balance y Carga de Capacidad del Equipo</span>
+              </Space>
+            }
+            extra={
+              <Button icon={<ReloadOutlined />} onClick={loadTeamCapacity} loading={capacityLoading}>
+                Actualizar
+              </Button>
+            }
+          >
+            {/* KPI Summary Cards */}
+            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+              <Col xs={12} sm={6}>
+                <Card size="small">
+                  <Statistic
+                    title="Equipo Total"
+                    value={teamCapacityData?.summary?.total_members ?? 0}
+                    prefix={<TeamOutlined />}
+                  />
+                </Card>
+              </Col>
+              <Col xs={12} sm={6}>
+                <Card size="small">
+                  <Statistic
+                    title="Sobreasignados (>1.05 FTE)"
+                    value={teamCapacityData?.summary?.overallocated ?? 0}
+                    valueStyle={{ color: (teamCapacityData?.summary?.overallocated ?? 0) > 0 ? '#cf1322' : '#3f8600' }}
+                    prefix={<AlertOutlined />}
+                  />
+                </Card>
+              </Col>
+              <Col xs={12} sm={6}>
+                <Card size="small">
+                  <Statistic
+                    title="Carga Óptima (0.8 - 1.05 FTE)"
+                    value={teamCapacityData?.summary?.optimal ?? 0}
+                    valueStyle={{ color: '#3f8600' }}
+                    prefix={<CheckCircleOutlined />}
+                  />
+                </Card>
+              </Col>
+              <Col xs={12} sm={6}>
+                <Card size="small">
+                  <Statistic
+                    title="Capacidad Disponible (<0.80 FTE)"
+                    value={teamCapacityData?.summary?.available ?? 0}
+                    valueStyle={{ color: '#1677ff' }}
+                    prefix={<ClockCircleOutlined />}
+                  />
+                </Card>
+              </Col>
+            </Row>
+
+            {/* Table / List of Team Capacity */}
+            <Table
+              dataSource={teamCapacityData?.data || []}
+              rowKey="id"
+              loading={capacityLoading}
+              pagination={false}
+              expandable={{
+                expandedRowRender: (record: any) => (
+                  <div style={{ margin: '8px 16px' }}>
+                    <Text strong style={{ display: 'block', marginBottom: 8 }}>
+                      Proyectos y dedicación asignada:
+                    </Text>
+                    {record.assignments?.length ? (
+                      <Table
+                        size="small"
+                        rowKey="project_id"
+                        pagination={false}
+                        dataSource={record.assignments}
+                        columns={[
+                          {
+                            title: 'Proyecto',
+                            dataIndex: 'project_name',
+                            render: (val: string, item: any) => (
+                              <span>
+                                <strong>{val}</strong> {item.project_code ? `(${item.project_code})` : ''}
+                              </span>
+                            )
+                          },
+                          { title: 'Rol', dataIndex: 'role' },
+                          {
+                            title: 'Dedicación',
+                            dataIndex: 'allocation_percentage',
+                            render: (v: number) => `${Number(v || 0)}% (${(Number(v || 0) / 100).toFixed(2)} FTE)`
+                          },
+                          {
+                            title: 'Horas presupuestadas',
+                            dataIndex: 'budgeted_hours',
+                            render: (v: number) => (v != null ? `${Number(v).toLocaleString('es-CL')} h` : '—')
+                          },
+                          {
+                            title: 'Horas reales',
+                            dataIndex: 'actual_hours',
+                            render: (v: number) => `${Number(v || 0).toLocaleString('es-CL')} h`
+                          },
+                          {
+                            title: 'Periodo',
+                            render: (_: any, item: any) => `${item.start_date || 'Sin inicio'} — ${item.end_date || 'Sin término'}`
+                          }
+                        ]}
+                      />
+                    ) : (
+                      <Text type="secondary">Sin proyectos activos asignados actualmente.</Text>
+                    )}
+                  </div>
+                ),
+                rowExpandable: (record: any) => Boolean(record.assignments?.length)
+              }}
+              columns={[
+                {
+                  title: 'Integrante',
+                  dataIndex: 'full_name',
+                  render: (val: string, record: any) => (
+                    <div>
+                      <div style={{ fontWeight: 600 }}>{val}</div>
+                      <div style={{ fontSize: 12, color: '#888' }}>{record.email} · {record.role}</div>
+                    </div>
+                  )
+                },
+                {
+                  title: 'Proyectos',
+                  dataIndex: 'active_projects_count',
+                  width: 120,
+                  render: (v: number) => <Tag color="blue">{v} {v === 1 ? 'proyecto' : 'proyectos'}</Tag>
+                },
+                {
+                  title: 'Carga FTE Total',
+                  dataIndex: 'total_fte',
+                  width: 280,
+                  render: (val: number, record: any) => {
+                    const percent = Math.min(Math.round(val * 100), 200);
+                    const strokeColor =
+                      record.status === 'overallocated'
+                        ? '#ff4d4f'
+                        : record.status === 'optimal'
+                        ? '#52c41a'
+                        : '#1890ff';
+                    return (
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <span><strong>{Number(val).toFixed(2)} FTE</strong> ({Math.round(val * 100)}%)</span>
+                          <Tag color={record.status === 'overallocated' ? 'error' : record.status === 'optimal' ? 'success' : 'processing'}>
+                            {record.status === 'overallocated' ? 'Sobreasignado' : record.status === 'optimal' ? 'Carga Óptima' : 'Disponible'}
+                          </Tag>
+                        </div>
+                        <Progress percent={Math.min(percent, 100)} strokeColor={strokeColor} showInfo={false} size="small" />
+                      </div>
+                    );
+                  }
+                },
+                {
+                  title: 'Horas Presupuestadas',
+                  dataIndex: 'total_budgeted_hours',
+                  width: 160,
+                  render: (v: number) => `${Number(v || 0).toLocaleString('es-CL')} h`
+                },
+                {
+                  title: 'Horas Reales Imputadas',
+                  dataIndex: 'total_actual_hours',
+                  width: 170,
+                  render: (v: number) => `${Number(v || 0).toLocaleString('es-CL')} h`
+                }
+              ]}
+            />
           </Card>
         </TabPane>
       </Tabs>
