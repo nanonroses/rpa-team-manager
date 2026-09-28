@@ -1,4 +1,3 @@
-import { ProjectBillingWorkspace } from './ProjectBillingWorkspace';
 import { ProjectTeamEditor } from './ProjectTeamEditor';
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Button, Card, Checkbox, DatePicker, Descriptions, Empty, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Statistic, Switch, Table, Tabs, Tag, Typography, App } from 'antd';
@@ -8,7 +7,6 @@ import { apiService } from '@/services/api';
 import { fileService } from '@/services/fileService';
 import { User } from '@/types/auth';
 import { Project } from '@/types/project';
-import { Invoice, PaymentMilestone } from '@/types/billing';
 import { FileManager } from '@/components/files';
 import { FilePreviewModal } from '@/components/files/FilePreviewModal';
 
