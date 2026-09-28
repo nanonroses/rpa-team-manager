@@ -91,6 +91,10 @@ router.patch('/:id/comments/:commentId', projectController.updateProjectComment)
 router.delete('/:id/comments/:commentId', projectController.deleteProjectComment);
 router.get('/:id/mentionable-users', projectController.getProjectMentionableUsers);
 
+// GET/POST /api/projects/:id/log-entries - Bitácora inmutable (hitos técnicos, aprobaciones, decisiones, cambios de alcance, incidentes)
+router.get('/:id/log-entries', projectController.getProjectLogEntries);
+router.post('/:id/log-entries', projectController.createProjectLogEntry);
+
 // POST /api/projects/:id/baseline - Freeze project baseline (irreversible, team_lead only)
 router.post('/:id/baseline', authorize(['team_lead']), projectController.freezeBaseline);
 

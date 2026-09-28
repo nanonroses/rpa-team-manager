@@ -14,11 +14,18 @@ const ACTION_LABEL: Record<string, string> = {
   tasks_batch_created: 'creó varias tareas en lote',
   tasks_batch_deleted: 'eliminó varias tareas en lote',
   task_deleted: 'eliminó una tarea de',
-  created_from_quote: 'creó desde cotización'
+  created_from_quote: 'creó desde cotización',
+  milestone_created: 'agregó un hito técnico nuevo',
+  milestone_updated: 'cambió el estado o la fecha de un hito técnico',
+  milestone_deleted: 'eliminó un hito técnico',
+  log_entry_created: 'agregó una entrada a la bitácora del proyecto'
 };
 
 // Acciones cuyo label es autocontenido (no se les debe anexar el sufijo de entidad).
-const SELF_CONTAINED_ACTIONS = new Set(['board_created', 'tasks_batch_created', 'tasks_batch_deleted']);
+const SELF_CONTAINED_ACTIONS = new Set([
+  'board_created', 'tasks_batch_created', 'tasks_batch_deleted',
+  'milestone_created', 'milestone_updated', 'milestone_deleted', 'log_entry_created'
+]);
 
 function summarizeValues(values: Record<string, any> | null | undefined): string | null {
   if (!values) return null;

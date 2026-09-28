@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { db } from '../database/database';
 import { logger } from '../utils/logger';
+import { activityLogService } from '../services/activityLogService';
 
 interface AuthenticatedRequest extends Request {
     user?: {
@@ -378,6 +379,14 @@ export class PMOController {
                 WHERE m.id = ?
             `, [result.id]);
 
+            await activityLogService.logActivity(req.user?.id, 'milestone', Number(result.id), 'created', null, newMilestone);
+            await activityLogService.logActivity(req.user?.id, 'project', Number(project_id), 'milestone_created', null, {
+                milestone_id: result.id,
+                name,
+                planned_date,
+                status: newMilestone.status
+            });
+
             logger.info(`Milestone created: ${name} for project ${project_id}`);
             res.status(201).json(newMilestone);
         } catch (error) {
@@ -391,6 +400,12 @@ export class PMOController {
         try {
             const { id } = req.params;
             const updates = req.body;
+
+            const existing = await db.get(`SELECT * FROM project_milestones WHERE id = ?`, [id]);
+            if (!existing) {
+                res.status(404).json({ error: 'Milestone not found' });
+                return;
+            }
 
             // Remove fields that shouldn't be updated directly
             delete updates.id;
@@ -442,6 +457,20 @@ export class PMOController {
                 WHERE m.id = ?
             `, [id]);
 
+            await activityLogService.logActivity(req.user?.id, 'milestone', Number(id), 'updated', existing, updatedMilestone);
+
+            const statusChanged = existing.status !== updatedMilestone.status;
+            const dateChanged = existing.planned_date !== updatedMilestone.planned_date;
+            if (statusChanged || dateChanged) {
+                await activityLogService.logActivity(req.user?.id, 'project', existing.project_id, 'milestone_updated', {
+                    status: existing.status,
+                    planned_date: existing.planned_date
+                }, {
+                    status: updatedMilestone.status,
+                    planned_date: updatedMilestone.planned_date
+                });
+            }
+
             logger.info(`Milestone updated: ${id}`);
             res.json(updatedMilestone);
         } catch (error) {
@@ -462,7 +491,7 @@ export class PMOController {
             try {
                 // First, perform atomic existence check
                 const existsCheck = await db.get(`
-                    SELECT id, name FROM project_milestones WHERE id = ?
+                    SELECT id, name, project_id, status, planned_date FROM project_milestones WHERE id = ?
                 `, [id]);
 
                 if (!existsCheck) {
@@ -493,10 +522,18 @@ export class PMOController {
                 }
 
                 await db.commit();
-                
+
+                await activityLogService.logActivity(userId, 'milestone', Number(id), 'deleted', existsCheck, null);
+                await activityLogService.logActivity(userId, 'project', existsCheck.project_id, 'milestone_deleted', {
+                    milestone_id: id,
+                    name: milestoneName,
+                    status: existsCheck.status,
+                    planned_date: existsCheck.planned_date
+                }, null);
+
                 logger.info(`Milestone deleted successfully: ${id} (${milestoneName}) by user ${userId}`);
-                res.json({ 
-                    success: true, 
+                res.json({
+                    success: true,
                     message: 'Milestone deleted successfully',
                     deletedId: id
                 });

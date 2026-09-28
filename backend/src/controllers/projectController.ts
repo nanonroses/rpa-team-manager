@@ -7,6 +7,7 @@ import { DocumentParserService } from '../services/documentParserService';
 import { projectHealthService } from '../services/projectHealthService';
 import { activityLogService } from '../services/activityLogService';
 import { commentService } from '../services/commentService';
+import { projectLogService, ProjectLogEntryType } from '../services/projectLogService';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as crypto from 'crypto';
@@ -35,6 +36,10 @@ export class ProjectController {
 
     private static readonly FINANCIAL_LOG_FIELDS = [
         ...ProjectController.FINANCIAL_RESPONSE_FIELDS, 'sale_price_currency', 'hours_budgeted'
+    ];
+
+    private static readonly LOG_ENTRY_TYPES: ProjectLogEntryType[] = [
+        'technical_milestone', 'client_approval', 'decision', 'scope_change', 'incident'
     ];
 
     private financialInputFor(user: AuthenticatedRequest['user'], body: Record<string, any>): Record<string, any> {
@@ -674,6 +679,105 @@ export class ProjectController {
         }
         return true;
     }
+
+    private canWriteProjectLog(
+        user: AuthenticatedRequest['user'],
+        project: { assigned_to: number | null; created_by: number }
+    ): boolean {
+        if (user?.role === 'team_lead') return true;
+        return project.assigned_to === user?.id || project.created_by === user?.id;
+    }
+
+    // GET /api/projects/:id/log-entries - Bitácora inmutable del proyecto
+    getProjectLogEntries = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.id);
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [projectId]);
+
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
+
+            const entries = await projectLogService.getForProject(projectId);
+            res.json(entries);
+        } catch (error) {
+            logger.error('Get project log entries error:', error);
+            res.status(500).json({ error: 'Failed to get project log entries' });
+        }
+    };
+
+    // POST /api/projects/:id/log-entries - Agregar entrada a la bitácora (inmutable, sin edición/borrado)
+    createProjectLogEntry = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const projectId = parseInt(req.params.id);
+            const userId = req.user?.id as number;
+            const { entry_type, description, file_id } = req.body;
+
+            if (!ProjectController.LOG_ENTRY_TYPES.includes(entry_type)) {
+                res.status(400).json({ error: 'Invalid entry_type' });
+                return;
+            }
+            if (!description || typeof description !== 'string' || !description.trim()) {
+                res.status(400).json({ error: 'Description is required' });
+                return;
+            }
+
+            const project = await db.get('SELECT id, assigned_to, created_by FROM projects WHERE id = ?', [projectId]);
+            if (!project) {
+                res.status(404).json({ error: 'Project not found' });
+                return;
+            }
+            if (!this.hasProjectAccess(req.user, project)) {
+                res.status(403).json({ error: 'Access denied' });
+                return;
+            }
+            if (!this.canWriteProjectLog(req.user, project)) {
+                res.status(403).json({ error: 'Only the team lead or the project owner/responsible can write to the log' });
+                return;
+            }
+
+            let fileId: number | null = null;
+            if (file_id !== undefined && file_id !== null) {
+                const parsedFileId = Number(file_id);
+                if (!Number.isInteger(parsedFileId)) {
+                    res.status(400).json({ error: 'Invalid file_id' });
+                    return;
+                }
+                const file = await db.get('SELECT id, uploaded_by FROM files WHERE id = ?', [parsedFileId]);
+                if (!file) {
+                    res.status(400).json({ error: 'Invalid file_id' });
+                    return;
+                }
+                if (file.uploaded_by !== userId) {
+                    res.status(403).json({ error: 'You do not have access to this file' });
+                    return;
+                }
+                fileId = parsedFileId;
+            }
+
+            const entry = await projectLogService.create(projectId, userId, entry_type, description, fileId);
+
+            if (fileId) {
+                await db.run(`INSERT INTO file_associations (file_id, entity_type, entity_id, association_type, created_by)
+                    SELECT ?, 'project', ?, 'log_entry', ? WHERE NOT EXISTS (
+                        SELECT 1 FROM file_associations WHERE file_id = ? AND entity_type = 'project' AND entity_id = ? AND association_type = 'log_entry'
+                    )`, [fileId, projectId, userId, fileId, projectId]);
+            }
+
+            await activityLogService.logActivity(userId, 'log_entry', entry.id, 'created', null, entry);
+            await activityLogService.logActivity(userId, 'project', projectId, 'log_entry_created', null, { log_entry_id: entry.id, entry_type });
+
+            res.status(201).json(entry);
+        } catch (error) {
+            logger.error('Create project log entry error:', error);
+            res.status(500).json({ error: 'Failed to create project log entry' });
+        }
+    };
 
     // GET /api/projects/:id/comments
     getProjectComments = async (req: AuthenticatedRequest, res: Response): Promise<void> => {

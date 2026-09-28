@@ -82,4 +82,24 @@ describe('ActivityTimeline', () => {
     });
     expect(screen.queryByText('el proyecto')).not.toBeInTheDocument();
   });
+
+  it('muestra un label legible para milestone_created (self-contained, sin sufijo de entidad)', async () => {
+    (apiService.getProjectActivity as any).mockResolvedValue([
+      { id: 1, user_id: 1, user_name: 'Ana', entity_type: 'project', entity_id: 3, action: 'milestone_created', old_values: null, new_values: { name: 'Entrega v1' }, created_at: '2026-09-27T10:00:00Z' }
+    ]);
+
+    render(<ActivityTimeline projectId={3} />);
+
+    expect(await screen.findByText('agregó un hito técnico nuevo')).toBeInTheDocument();
+  });
+
+  it('muestra un label legible para log_entry_created', async () => {
+    (apiService.getProjectActivity as any).mockResolvedValue([
+      { id: 2, user_id: 1, user_name: 'Ana', entity_type: 'project', entity_id: 3, action: 'log_entry_created', old_values: null, new_values: { entry_type: 'decision' }, created_at: '2026-09-27T10:00:00Z' }
+    ]);
+
+    render(<ActivityTimeline projectId={3} />);
+
+    expect(await screen.findByText('agregó una entrada a la bitácora del proyecto')).toBeInTheDocument();
+  });
 });
