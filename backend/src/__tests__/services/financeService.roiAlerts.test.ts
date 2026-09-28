@@ -73,19 +73,30 @@ describe('FinanceService.syncROIAlerts', () => {
         );
     });
 
-    it('no evalúa alertas de costo mientras las horas aprobadas cubran solo parte de lo planificado', async () => {
+    it('evalúa alertas de sobrecosto y margen bajo usando métricas proyectadas aun con horas aprobadas parciales', async () => {
         jest.spyOn(financeService, 'calculateProjectFinancials').mockResolvedValue({
             project_id: 1, project_name: 'AGROSUPER', planned_hours: 100, real_hours: 4,
             real_hours_source: 'approved', approved_hours: 4,
             client_delay_hours: 0, hourly_rate_uf: 1, uf_value_clp: 38000, engineer_hourly_cost: 15000,
             assigned_users: 1, user_cost_breakdown: [], sale_price: 1000000, planned_cost: 1500000,
-            real_cost: 60000, planned_profit: -500000, real_profit: 940000, planned_roi: -33, real_roi: 1566,
-            delay_impact: -1440000, lost_profit: -1440000
+            real_cost: 60000, projected_cost: 1500000, projected_hours: 100,
+            planned_profit: -500000, real_profit: 940000, projected_profit: -500000,
+            planned_margin_percentage: -50, real_margin_percentage: 94, projected_margin_percentage: -50,
+            planned_roi: -33, real_roi: 1566, projected_roi: -33,
+            delay_impact: -1440000, lost_profit: -1440000, variance_impact: 0
         } as any);
+        (db.get as jest.Mock).mockResolvedValue(undefined);
+        (db.run as jest.Mock).mockResolvedValue({ id: 10, changes: 1 });
 
         await financeService.syncROIAlerts(1);
 
-        expect(db.get).not.toHaveBeenCalled();
-        expect(db.run).not.toHaveBeenCalled();
+        expect(db.run).toHaveBeenCalledWith(
+            expect.stringContaining('INSERT INTO roi_alerts'),
+            expect.arrayContaining([1, 'cost_overrun'])
+        );
+        expect(db.run).toHaveBeenCalledWith(
+            expect.stringContaining('INSERT INTO roi_alerts'),
+            expect.arrayContaining([1, 'low_margin'])
+        );
     });
 });

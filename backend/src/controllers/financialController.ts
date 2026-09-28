@@ -182,7 +182,13 @@ export class FinancialController {
 
             const result = {
                 ...financials,
-                alerts: this.generateROIAlerts(financials.planned_roi, financials.real_roi, financials.client_delay_hours)
+                alerts: this.generateROIAlerts(
+                    financials.planned_roi,
+                    financials.real_roi,
+                    financials.client_delay_hours,
+                    financials.projected_roi,
+                    financials.variance_impact
+                )
             };
 
             logger.info(`ROI calculated for project ${projectId}: Planned=${financials.planned_roi.toFixed(1)}%, Real=${financials.real_roi.toFixed(1)}%`);
@@ -333,7 +339,13 @@ export class FinancialController {
     };
 
     // Private helper method for ROI alerts
-    private generateROIAlerts(plannedROI: number, realROI: number, clientDelayHours: number): any[] {
+    private generateROIAlerts(
+        plannedROI: number,
+        realROI: number,
+        clientDelayHours: number,
+        projectedROI?: number,
+        varianceImpact?: number
+    ): any[] {
         const alerts: any[] = [];
 
         // Critical ROI loss
@@ -365,6 +377,16 @@ export class FinancialController {
                 level: roiDrop > 10 ? 'warning' : 'info',
                 message: `Client delays (${clientDelayHours}h) reduced ROI by ${roiDrop.toFixed(1)} percentage points`,
                 impact: roiDrop > 10 ? 'medium' : 'low'
+            });
+        }
+
+        // Desvío económico proyectado
+        if (varianceImpact && varianceImpact > 0) {
+            alerts.push({
+                type: 'variance_impact',
+                level: 'warning',
+                message: `Desvío económico proyectado de $${varianceImpact.toLocaleString('es-CL')} sobre lo planificado`,
+                impact: 'medium'
             });
         }
 
