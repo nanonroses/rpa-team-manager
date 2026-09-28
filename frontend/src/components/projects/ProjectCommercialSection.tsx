@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Card, Checkbox, DatePicker, Descriptions, Empty, Form, Input, InputNumber, Modal, Select, Space, Statistic, Switch, Table, Tabs, Tag, Typography, App } from 'antd';
-import { CalendarOutlined, CheckCircleOutlined, DollarOutlined, FileTextOutlined, PlusOutlined, TeamOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Checkbox, DatePicker, Descriptions, Empty, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Statistic, Switch, Table, Tabs, Tag, Typography, App } from 'antd';
+import { CalendarOutlined, CheckCircleOutlined, DeleteOutlined, DollarOutlined, EditOutlined, FileTextOutlined, PlusOutlined, TeamOutlined, UserAddOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { apiService } from '@/services/api';
 import { fileService } from '@/services/fileService';
@@ -20,6 +20,7 @@ const rowsFrom = (response: any): Row[] => {
 export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRefresh, initialTab = 'commercial' }) => {
   const { message, modal } = App.useApp();
   const [quoteForm] = Form.useForm();
+  const [capacityForm] = Form.useForm();
   const [meetings, setMeetings] = useState<Row[]>([]);
   const [quotes, setQuotes] = useState<Row[]>([]);
   const [documents, setDocuments] = useState<Row[]>([]);
@@ -36,6 +37,10 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
   const [completeMilestoneTarget, setCompleteMilestoneTarget] = useState<Row | null>(null);
   const [completeNotes, setCompleteNotes] = useState('');
   const [completing, setCompleting] = useState(false);
+  const [capacityModalOpen, setCapacityModalOpen] = useState(false);
+  const [editingCapacity, setEditingCapacity] = useState<Row | null>(null);
+  const [savingCapacity, setSavingCapacity] = useState(false);
+  const [teamUsers, setTeamUsers] = useState<Array<{ id: number; full_name: string; email: string; role: string }>>([]);
   const isLead = user?.role === 'team_lead';
   const canManage = isLead || user?.role === 'rpa_operations';
   const canViewBilling = isLead || canManage || user?.role === 'billing';
@@ -249,6 +254,61 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
     }
   };
 
+  const openAssignModal = (row?: Row) => {
+    if (row) {
+      setEditingCapacity(row);
+      capacityForm.setFieldsValue({
+        user_id: row.user_id,
+        role: row.role,
+        allocation_percentage: row.allocation_percentage ?? 100,
+        budgeted_hours: row.budgeted_hours,
+        dates: row.start_date && row.end_date ? [dayjs(row.start_date), dayjs(row.end_date)] : undefined
+      });
+    } else {
+      setEditingCapacity(null);
+      capacityForm.resetFields();
+      capacityForm.setFieldsValue({ allocation_percentage: 100 });
+    }
+    setCapacityModalOpen(true);
+    if (!teamUsers.length) {
+      apiService.getUsers().then(res => setTeamUsers(res || [])).catch(() => {});
+    }
+  };
+
+  const handleSaveCapacity = async (values: any) => {
+    setSavingCapacity(true);
+    try {
+      const payload = {
+        user_id: values.user_id,
+        role: values.role,
+        allocation_percentage: values.allocation_percentage,
+        budgeted_hours: values.budgeted_hours != null ? Number(values.budgeted_hours) : undefined,
+        start_date: values.dates?.[0]?.format('YYYY-MM-DD'),
+        end_date: values.dates?.[1]?.format('YYYY-MM-DD')
+      };
+      await apiService.saveProjectCapacity(project.id, payload);
+      message.success(editingCapacity ? 'Asignación actualizada' : 'Persona asignada al proyecto');
+      setCapacityModalOpen(false);
+      await load();
+      onRefresh?.();
+    } catch (err: any) {
+      message.error(err?.response?.data?.error || 'Error al guardar asignación');
+    } finally {
+      setSavingCapacity(false);
+    }
+  };
+
+  const handleDeleteCapacity = async (userId: number) => {
+    try {
+      await apiService.deleteProjectCapacity(project.id, userId);
+      message.success('Persona desasignada del proyecto');
+      await load();
+      onRefresh?.();
+    } catch (err: any) {
+      message.error(err?.response?.data?.error || 'Error al desasignar persona');
+    }
+  };
+
   const billingContent = <div className="commercial-workspace">
     <div className="commercial-kpis">
       <Statistic title="Hitos cobrables" value={paymentMilestones.filter((m) => m.status === 'billable').length} />
@@ -331,22 +391,58 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
   </div>;
 
   const capacityContent = <div className="commercial-workspace">
-    <div className="commercial-kpis"><Statistic title="Personas asignadas" value={capacity.length} prefix={<TeamOutlined />} /><Statistic title="FTE planificado" value={capacity.reduce((sum, row) => sum + Number(row.planned_fte || 0), 0)} precision={2} /></div>
-    <Card title="Dedicación y horas presupuestadas">
+    <div className="commercial-kpis">
+      <Statistic title="Personas asignadas" value={capacity.length} prefix={<TeamOutlined />} />
+      <Statistic title="FTE planificado" value={capacity.reduce((sum, row) => sum + Number(row.planned_fte || 0), 0)} precision={2} />
+    </div>
+    <Card
+      title="Dedicación y horas presupuestadas"
+      extra={canManage ? (
+        <Button type="primary" icon={<UserAddOutlined />} onClick={() => openAssignModal()}>
+          Asignar persona
+        </Button>
+      ) : null}
+    >
       <Table size="small" rowKey="user_id" loading={loading} pagination={false} dataSource={capacity} columns={[
-        { title: 'Persona', dataIndex: 'full_name' }, { title: 'Rol', dataIndex: 'role' },
+        { title: 'Persona', dataIndex: 'full_name' },
+        { title: 'Rol', dataIndex: 'role' },
         { title: 'Asignación', dataIndex: 'allocation_percentage', render: (v: number) => `${Number(v || 0)}%` },
         { title: 'FTE', dataIndex: 'planned_fte', render: (v: number) => Number(v || 0).toFixed(2) },
         { title: 'Horas presupuestadas', dataIndex: 'budgeted_hours', render: (v: number) => v == null ? 'Por definir' : `${Number(v).toLocaleString('es-CL')} h` },
         { title: 'Horas aprobadas', dataIndex: 'actual_hours', render: (v: number) => `${Number(v || 0).toLocaleString('es-CL')} h` },
-        { title: 'Periodo', render: (_: unknown, row: Row) => `${row.start_date || 'Sin inicio'} — ${row.end_date || 'Sin término'}` }
+        { title: 'Periodo', render: (_: unknown, row: Row) => `${row.start_date || 'Sin inicio'} — ${row.end_date || 'Sin término'}` },
+        ...(canManage ? [{
+          title: 'Acciones',
+          key: 'actions',
+          render: (_: any, r: Row) => (
+            <Space size="small">
+              <Button size="small" type="link" icon={<EditOutlined />} onClick={() => openAssignModal(r)}>
+                Editar
+              </Button>
+              <Popconfirm
+                title="¿Desasignar del proyecto?"
+                description={`Se removerá a ${r.full_name || 'este integrante'} de las asignaciones.`}
+                okText="Desasignar"
+                cancelText="Cancelar"
+                okButtonProps={{ danger: true }}
+                onConfirm={() => handleDeleteCapacity(r.user_id)}
+              >
+                <Button size="small" type="link" danger icon={<DeleteOutlined />}>
+                  Desasignar
+                </Button>
+              </Popconfirm>
+            </Space>
+          )
+        }] : [])
       ]} />
-      <Text type="secondary">El FTE representa la dedicación asignada. La planificación de ausencias no está incluida en esta versión.</Text>
+      <Text type="secondary" style={{ display: 'block', marginTop: 12 }}>
+        El FTE representa la dedicación asignada (100% = 1.00 FTE). La planificación de ausencias no está incluida en esta versión.
+      </Text>
     </Card>
   </div>;
 
   return <>
-    <Tabs className="commercial-inner-tabs" defaultActiveKey={initialTab === 'billing' ? 'billing' : 'commercial'} items={[
+    <Tabs className="commercial-inner-tabs" defaultActiveKey={initialTab || 'commercial'} items={[
       { key: 'commercial', label: 'Oportunidad y cotización', children: commercialContent },
       { key: 'delivery', label: 'Contratos y cierre', children: deliveryContent },
       { key: 'capacity', label: 'Equipo y capacidad', children: capacityContent },
@@ -437,6 +533,79 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
           style={{ marginTop: 8 }}
         />
       </div>
+    </Modal>
+    <Modal
+      title={editingCapacity ? `Editar asignación: ${editingCapacity.full_name}` : 'Asignar persona al proyecto'}
+      open={capacityModalOpen}
+      footer={null}
+      onCancel={() => setCapacityModalOpen(false)}
+      destroyOnClose
+    >
+      <Form
+        form={capacityForm}
+        layout="vertical"
+        onFinish={handleSaveCapacity}
+      >
+        <Form.Item
+          label="Integrante del equipo"
+          name="user_id"
+          rules={[{ required: true, message: 'Selecciona una persona' }]}
+        >
+          <Select
+            placeholder="Selecciona persona"
+            disabled={Boolean(editingCapacity)}
+            showSearch
+            optionFilterProp="label"
+            options={teamUsers.map(u => ({
+              value: u.id,
+              label: `${u.full_name} (${u.role})`
+            }))}
+          />
+        </Form.Item>
+        <Form.Item
+          label="Rol en el proyecto"
+          name="role"
+          rules={[{ required: true, message: 'Especifica el rol' }]}
+        >
+          <Select
+            placeholder="Selecciona o escribe el rol"
+            options={[
+              { value: 'Desarrollador RPA', label: 'Desarrollador RPA' },
+              { value: 'Arquitecto RPA', label: 'Arquitecto RPA' },
+              { value: 'Tech Lead', label: 'Tech Lead' },
+              { value: 'QA Engineer', label: 'QA Engineer' },
+              { value: 'Project Manager', label: 'Project Manager' },
+              { value: 'Business Analyst', label: 'Business Analyst' }
+            ]}
+          />
+        </Form.Item>
+        <Space style={{ width: '100%' }} align="start">
+          <Form.Item
+            label="% Asignación"
+            name="allocation_percentage"
+            rules={[{ required: true, message: 'Ingresa el porcentaje' }]}
+            extra="100% = 1.00 FTE"
+          >
+            <InputNumber min={1} max={200} style={{ width: 140 }} addonAfter="%" />
+          </Form.Item>
+          <Form.Item
+            label="Horas presupuestadas"
+            name="budgeted_hours"
+            extra="Opcional"
+          >
+            <InputNumber min={0} style={{ width: 160 }} addonAfter="h" placeholder="Ej: 160" />
+          </Form.Item>
+        </Space>
+        <Form.Item
+          label="Periodo de asignación"
+          name="dates"
+        >
+          <DatePicker.RangePicker style={{ width: '100%' }} format="DD MMM YYYY" />
+        </Form.Item>
+        <Button type="primary" htmlType="submit" block loading={savingCapacity}>
+          {editingCapacity ? 'Actualizar asignación' : 'Asignar al proyecto'}
+        </Button>
+      </Form>
     </Modal>
   </>;
 };

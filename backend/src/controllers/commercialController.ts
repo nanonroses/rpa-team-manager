@@ -283,6 +283,196 @@ export class CommercialController {
     res.json({ data: rows.map((r: any) => ({ ...r, planned_fte: Number(r.allocation_percentage || 0) / 100 })) });
   };
 
+  getTeamCapacity = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    if (!canManage(req.user?.role)) {
+      res.status(403).json({ error: 'No tienes permiso para consultar la capacidad del equipo' });
+      return;
+    }
+
+    const users = await db.query(
+      `SELECT u.id, u.full_name, u.username, u.email, u.role, u.avatar_url
+       FROM users u
+       WHERE u.is_active = 1 AND u.role IN ('team_lead', 'rpa_developer', 'rpa_operations', 'it_support')
+       ORDER BY u.full_name ASC`
+    );
+
+    const assignments = await db.query(
+      `SELECT pa.user_id, pa.project_id, p.name as project_name, p.status as project_status,
+              pa.role as assignment_role, pa.allocation_percentage, pa.budgeted_hours,
+              pa.start_date, pa.end_date,
+              COALESCE((
+                SELECT SUM(te.hours)
+                FROM time_entries te
+                WHERE te.project_id = pa.project_id
+                  AND te.user_id = pa.user_id
+                  AND te.approval_status = 'approved'
+              ), 0) as actual_hours
+       FROM project_assignments pa
+       JOIN projects p ON p.id = pa.project_id
+       WHERE pa.is_active = 1
+         AND p.status NOT IN ('completed', 'cancelled')
+       ORDER BY p.name ASC`
+    );
+
+    const assignmentsByUser = new Map<number, any[]>();
+    for (const a of assignments) {
+      if (!assignmentsByUser.has(a.user_id)) {
+        assignmentsByUser.set(a.user_id, []);
+      }
+      assignmentsByUser.get(a.user_id)!.push({
+        ...a,
+        planned_fte: Number(a.allocation_percentage || 0) / 100
+      });
+    }
+
+    const teamCapacity = users.map((u: any) => {
+      const userAssignments = assignmentsByUser.get(u.id) || [];
+      const totalAllocation = userAssignments.reduce((acc: number, cur: any) => acc + Number(cur.allocation_percentage || 0), 0);
+      const totalFte = Math.round((totalAllocation / 100) * 100) / 100;
+      const totalBudgetedHours = userAssignments.reduce((acc: number, cur: any) => acc + Number(cur.budgeted_hours || 0), 0);
+      const totalActualHours = userAssignments.reduce((acc: number, cur: any) => acc + Number(cur.actual_hours || 0), 0);
+
+      let status = 'available';
+      if (totalFte > 1.05) {
+        status = 'overallocated';
+      } else if (totalFte >= 0.8) {
+        status = 'optimal';
+      }
+
+      return {
+        user_id: u.id,
+        full_name: u.full_name,
+        username: u.username,
+        email: u.email,
+        role: u.role,
+        avatar_url: u.avatar_url,
+        total_allocation_percentage: totalAllocation,
+        total_fte: totalFte,
+        total_budgeted_hours: totalBudgetedHours,
+        total_actual_hours: totalActualHours,
+        status,
+        projects_count: userAssignments.length,
+        projects: userAssignments
+      };
+    });
+
+    const summary = {
+      total_team_members: teamCapacity.length,
+      overallocated_count: teamCapacity.filter((m: any) => m.status === 'overallocated').length,
+      optimal_count: teamCapacity.filter((m: any) => m.status === 'optimal').length,
+      available_count: teamCapacity.filter((m: any) => m.status === 'available').length,
+      average_fte: teamCapacity.length ? Math.round((teamCapacity.reduce((sum: number, m: any) => sum + m.total_fte, 0) / teamCapacity.length) * 100) / 100 : 0
+    };
+
+    res.json({ data: teamCapacity, summary });
+  };
+
+  saveCapacity = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    if (!canManage(req.user?.role)) {
+      res.status(403).json({ error: 'No tienes permiso para gestionar la capacidad del equipo' });
+      return;
+    }
+    const projectId = Number(req.params.projectId);
+    const { user_id, role, allocation_percentage, budgeted_hours, start_date, end_date } = req.body;
+
+    if (!user_id || !Number.isInteger(Number(user_id))) {
+      res.status(400).json({ error: 'Usuario obligatorio' });
+      return;
+    }
+
+    if (!await this.projectExists(projectId)) {
+      res.status(404).json({ error: 'Proyecto no encontrado' });
+      return;
+    }
+
+    const allocation = allocation_percentage !== undefined ? Math.max(0, Math.min(100, Number(allocation_percentage))) : 100;
+    const hours = budgeted_hours !== undefined && budgeted_hours !== null && budgeted_hours !== '' ? Math.max(0, Number(budgeted_hours)) : null;
+
+    const existing = await db.get(
+      `SELECT * FROM project_assignments WHERE project_id = ? AND user_id = ?`,
+      [projectId, user_id]
+    );
+
+    if (existing) {
+      await db.run(
+        `UPDATE project_assignments
+         SET role = COALESCE(?, role),
+             allocation_percentage = ?,
+             budgeted_hours = ?,
+             start_date = ?,
+             end_date = ?,
+             is_active = 1,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [role || existing.role, allocation, hours, start_date || null, end_date || null, existing.id]
+      );
+      await activityLogService.logActivity(req.user?.id, 'project_assignment', existing.id, 'updated', existing, {
+        allocation_percentage: allocation, budgeted_hours: hours, start_date, end_date
+      });
+    } else {
+      const result = await db.run(
+        `INSERT INTO project_assignments (project_id, user_id, role, allocation_percentage, budgeted_hours, start_date, end_date, is_active, assigned_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+        [projectId, user_id, role || 'contributor', allocation, hours, start_date || null, end_date || null, req.user?.id]
+      );
+      await activityLogService.logActivity(req.user?.id, 'project_assignment', Number(result.id), 'created', null, {
+        project_id: projectId, user_id, allocation_percentage: allocation, budgeted_hours: hours
+      });
+    }
+
+    const saved = await db.get(
+      `SELECT pa.user_id, u.full_name, pa.role, pa.allocation_percentage, pa.budgeted_hours, pa.start_date, pa.end_date, pa.is_active,
+              COALESCE((SELECT SUM(te.hours) FROM time_entries te WHERE te.project_id = pa.project_id AND te.user_id = pa.user_id AND te.approval_status = 'approved'), 0) AS actual_hours
+       FROM project_assignments pa
+       JOIN users u ON u.id = pa.user_id
+       WHERE pa.project_id = ? AND pa.user_id = ?`,
+      [projectId, user_id]
+    );
+
+    res.json({
+      data: {
+        ...saved,
+        planned_fte: Number(saved.allocation_percentage || 0) / 100
+      }
+    });
+  };
+
+  deleteCapacity = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    if (!canManage(req.user?.role)) {
+      res.status(403).json({ error: 'No tienes permiso para gestionar la capacidad del equipo' });
+      return;
+    }
+    const projectId = Number(req.params.projectId);
+    const userId = Number(req.params.userId);
+
+    const existing = await db.get(
+      `SELECT * FROM project_assignments WHERE project_id = ? AND user_id = ?`,
+      [projectId, userId]
+    );
+
+    if (!existing) {
+      res.status(404).json({ error: 'Asignación no encontrada' });
+      return;
+    }
+
+    const hasHours = await db.get(
+      `SELECT COUNT(*) as count FROM time_entries WHERE project_id = ? AND user_id = ?`,
+      [projectId, userId]
+    );
+
+    if (hasHours && hasHours.count > 0) {
+      await db.run(
+        `UPDATE project_assignments SET is_active = 0, allocation_percentage = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        [existing.id]
+      );
+    } else {
+      await db.run(`DELETE FROM project_assignments WHERE id = ?`, [existing.id]);
+    }
+
+    await activityLogService.logActivity(req.user?.id, 'project_assignment', existing.id, 'deleted', existing, null);
+    res.json({ message: 'Asignación eliminada correctamente' });
+  };
+
   estimateQuoteCost = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     if (req.user?.role !== 'team_lead') { res.status(403).json({ error: 'Solo la jefatura puede consultar costos del equipo' }); return; }
     const projectId = Number(req.params.projectId);
