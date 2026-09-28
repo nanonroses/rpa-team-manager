@@ -203,4 +203,45 @@ describe('TaskController - dependencias entre tareas', () => {
             expect(res.json).toHaveBeenCalledWith({ error: 'Dependency not found' });
         });
     });
+
+    describe('getBoard - conteos de dependencias', () => {
+        it('incluye depends_on_count y blocks_count en la consulta de tareas del tablero', async () => {
+            (db.get as jest.Mock).mockResolvedValue({ id: 1, name: 'Main Board', project_name: 'Alpha' });
+            (db.query as jest.Mock)
+                .mockResolvedValueOnce([
+                    { id: 101, name: 'To Do', position: 1 }
+                ])
+                .mockResolvedValueOnce([
+                    {
+                        id: 10,
+                        title: 'Tarea con dependencias',
+                        board_id: 1,
+                        depends_on_count: 2,
+                        blocks_count: 1
+                    }
+                ]);
+
+            const req = { params: { id: '1' }, user: { id: 3 } } as unknown as AuthenticatedRequest;
+            const res = mockRes();
+
+            await controller.getBoard(req, res);
+
+            expect(db.query).toHaveBeenCalledWith(
+                expect.stringContaining('COALESCE(dep_on.depends_on_count, 0) as depends_on_count'),
+                ['1']
+            );
+            expect(db.query).toHaveBeenCalledWith(
+                expect.stringContaining('COALESCE(dep_bl.blocks_count, 0) as blocks_count'),
+                ['1']
+            );
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+                tasks: [expect.objectContaining({
+                    id: 10,
+                    depends_on_count: 2,
+                    blocks_count: 1
+                })]
+            }));
+        });
+    });
 });
+

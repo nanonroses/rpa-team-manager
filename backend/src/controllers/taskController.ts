@@ -96,7 +96,9 @@ export class TaskController {
           tg.tags as tags,
           COALESCE(col.collaborators_count, 0) as collaborators_count,
           col.collaborators_names as collaborators_names,
-          tas.assignee_ids, tas.assignee_names
+          tas.assignee_ids, tas.assignee_names,
+          COALESCE(dep_on.depends_on_count, 0) as depends_on_count,
+          COALESCE(dep_bl.blocks_count, 0) as blocks_count
         FROM tasks t
         LEFT JOIN users u_assignee ON t.assignee_id = u_assignee.id
         LEFT JOIN users u_reporter ON t.reporter_id = u_reporter.id
@@ -142,6 +144,20 @@ export class TaskController {
           JOIN users u_ta ON ta.user_id = u_ta.id
           GROUP BY ta.task_id
         ) tas ON t.id = tas.task_id
+        LEFT JOIN (
+          SELECT
+            successor_id as task_id,
+            COUNT(*) as depends_on_count
+          FROM task_dependencies
+          GROUP BY successor_id
+        ) dep_on ON t.id = dep_on.task_id
+        LEFT JOIN (
+          SELECT
+            predecessor_id as task_id,
+            COUNT(*) as blocks_count
+          FROM task_dependencies
+          GROUP BY predecessor_id
+        ) dep_bl ON t.id = dep_bl.task_id
         WHERE t.board_id = ?
         ORDER BY t.position ASC
       `, [id]);
@@ -253,7 +269,9 @@ export class TaskController {
           u_reporter.full_name as reporter_name,
           te.total_hours,
           te.total_value,
-          tas.assignee_ids, tas.assignee_names
+          tas.assignee_ids, tas.assignee_names,
+          COALESCE(dep_on.depends_on_count, 0) as depends_on_count,
+          COALESCE(dep_bl.blocks_count, 0) as blocks_count
         FROM tasks t
         LEFT JOIN task_boards tb ON t.board_id = tb.id
         LEFT JOIN projects p ON tb.project_id = p.id
@@ -278,6 +296,20 @@ export class TaskController {
           JOIN users u_ta ON ta.user_id = u_ta.id
           GROUP BY ta.task_id
         ) tas ON t.id = tas.task_id
+        LEFT JOIN (
+          SELECT
+            successor_id as task_id,
+            COUNT(*) as depends_on_count
+          FROM task_dependencies
+          GROUP BY successor_id
+        ) dep_on ON t.id = dep_on.task_id
+        LEFT JOIN (
+          SELECT
+            predecessor_id as task_id,
+            COUNT(*) as blocks_count
+          FROM task_dependencies
+          GROUP BY predecessor_id
+        ) dep_bl ON t.id = dep_bl.task_id
         WHERE (p.assigned_to = ? OR p.created_by = ? OR EXISTS (SELECT 1 FROM task_assignees ta WHERE ta.task_id = t.id AND ta.user_id = ?))
       `;
 

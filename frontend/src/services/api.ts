@@ -688,6 +688,21 @@ class ApiService {
     return response.data;
   }
 
+  async getTaskDependencies(taskId: number): Promise<{ depends_on: any[]; blocks: any[] }> {
+    const response = await this.api.get(`/tasks/${taskId}/dependencies`);
+    return response.data;
+  }
+
+  async createTaskDependency(taskId: number, data: { depends_on_task_id: number; dependency_type?: string; lag_days?: number }): Promise<any> {
+    const response = await this.api.post(`/tasks/${taskId}/dependencies`, data);
+    return response.data;
+  }
+
+  async deleteTaskDependency(taskId: number, dependencyId: number): Promise<any> {
+    const response = await this.api.delete(`/tasks/${taskId}/dependencies/${dependencyId}`);
+    return response.data;
+  }
+
   async getProjectGantt(id: number): Promise<{ tasks: any[]; dependencies: any[]; milestones: any[] }> {
     const response = await this.api.get(`/pmo/projects/${id}/gantt`);
     return response.data;

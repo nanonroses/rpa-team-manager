@@ -18,7 +18,10 @@ vi.mock('@/services/api', () => ({
     deleteTaskTag: vi.fn(),
     getTaskCollaborators: vi.fn(),
     addTaskCollaborator: vi.fn(),
-    removeTaskCollaborator: vi.fn()
+    removeTaskCollaborator: vi.fn(),
+    getTaskDependencies: vi.fn(),
+    createTaskDependency: vi.fn(),
+    deleteTaskDependency: vi.fn()
   }
 }));
 
@@ -54,6 +57,7 @@ describe('TasksPage - deep link ?taskId=', () => {
     (apiService.getMentionableUsers as any).mockResolvedValue([]);
     (apiService.getTaskTags as any).mockResolvedValue([]);
     (apiService.getTaskCollaborators as any).mockResolvedValue([]);
+    (apiService.getTaskDependencies as any).mockResolvedValue({ depends_on: [], blocks: [] });
   });
 
   it('abre el modal de edición de la tarea indicada por ?taskId=', async () => {
@@ -202,4 +206,53 @@ describe('TasksPage - deep link ?taskId=', () => {
     expect(apiService.put).not.toHaveBeenCalled();
     expect(screen.getByDisplayValue('Tarea deep-link')).toBeInTheDocument();
   });
+
+  it('muestra el badge de dependencias en la tarjeta del tablero cuando tiene dependencias', async () => {
+    const boardWithDeps = {
+      ...board,
+      tasks: [{ ...board.tasks[0], depends_on_count: 2, blocks_count: 1 }]
+    };
+    (apiService.get as any).mockImplementation((url: string) => {
+      if (url.startsWith('/auth/users')) return Promise.resolve([]);
+      if (url.startsWith('/tasks/boards?')) return Promise.resolve([boardWithDeps]);
+      if (url.startsWith('/tasks/boards/')) return Promise.resolve(boardWithDeps);
+      return Promise.resolve(null);
+    });
+
+    render(
+      <MemoryRouter initialEntries={['/tasks']}>
+        <TasksPage />
+      </MemoryRouter>
+    );
+
+    const badge = await screen.findByTestId('task-dependency-badge');
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent('3');
+  });
+
+  it('muestra la sección de dependencias en el modal de edición de tarea', async () => {
+    (apiService.getTaskById as any).mockResolvedValue({ ...board.tasks[0], project_id: 7 });
+
+    renderWithTaskId('42');
+
+    expect(await screen.findByText(/^Dependencias/)).toBeInTheDocument();
+    expect(apiService.getTaskDependencies).toHaveBeenCalledWith(42);
+  });
+
+  it('no muestra la sección de dependencias en el modal de "Nueva Tarea" (crear, no editar)', async () => {
+    render(
+      <MemoryRouter initialEntries={['/tasks']}>
+        <TasksPage />
+      </MemoryRouter>
+    );
+
+    const newTaskButton = await screen.findByRole('button', { name: /nueva tarea/i });
+    await waitFor(() => expect(newTaskButton).not.toBeDisabled());
+    await userEvent.click(newTaskButton);
+
+    expect(await screen.findByText('Título')).toBeInTheDocument();
+    expect(screen.queryByTestId('task-dependencies-editor')).not.toBeInTheDocument();
+    expect(apiService.getTaskDependencies).not.toHaveBeenCalled();
+  });
 });
+
