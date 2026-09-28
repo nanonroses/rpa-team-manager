@@ -406,4 +406,190 @@ JSON Response:`;
             throw new Error(`Failed to parse LLM response: ${error instanceof Error ? error.message : 'Invalid JSON'}`);
         }
     }
+
+    /**
+     * Public helper to get the resolved provider for a user
+     */
+    public async getAvailableProvider(userId: number, requestedProvider?: string): Promise<{ provider: string; model: string } | null> {
+        try {
+            const apiKeys = await this.llmConfigService.getUserApiKeys(userId);
+            const validKeys = apiKeys.filter(k => k.is_valid);
+            if (validKeys.length === 0) return null;
+
+            const getDefaultModel = (p: string) => {
+                switch (p) {
+                    case 'openai': return 'gpt-4o';
+                    case 'gemini': return 'gemini-2.5-flash-latest';
+                    case 'claude': return 'claude-3-5-sonnet-20241022';
+                    case 'deepseek': return 'deepseek-chat';
+                    default: return 'default';
+                }
+            };
+
+            if (requestedProvider) {
+                const found = validKeys.find(k => k.provider === requestedProvider);
+                if (found) {
+                    return { provider: found.provider, model: found.selected_model || getDefaultModel(found.provider) };
+                }
+            }
+
+            const priorityOrder = ['openai', 'claude', 'gemini', 'deepseek'];
+            for (const p of priorityOrder) {
+                const found = validKeys.find(k => k.provider === p);
+                if (found) {
+                    return { provider: found.provider, model: found.selected_model || getDefaultModel(found.provider) };
+                }
+            }
+
+            return { provider: validKeys[0].provider, model: validKeys[0].selected_model || getDefaultModel(validKeys[0].provider) };
+        } catch (error) {
+            logger.warn('Error resolving available provider:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Generate text/JSON completion using the user's configured LLM provider
+     */
+    public async generateCompletion(
+        prompt: string,
+        userId: number,
+        options?: {
+            provider?: string;
+            systemPrompt?: string;
+            temperature?: number;
+            maxTokens?: number;
+            responseFormat?: 'json' | 'text';
+        }
+    ): Promise<{ content: string; provider: string; model: string }> {
+        const providerInfo = await this.getAvailableProvider(userId, options?.provider);
+        if (!providerInfo) {
+            throw new Error('No valid LLM API key configured for this user');
+        }
+
+        const { provider, model } = providerInfo;
+        const apiKey = await this.llmConfigService.getDecryptedApiKey(userId, provider);
+        if (!apiKey) {
+            throw new Error(`Could not retrieve API key for provider ${provider}`);
+        }
+
+        const systemPrompt = options?.systemPrompt || 'You are an expert AI assistant for RPA engineering and project management.';
+        const temperature = options?.temperature ?? 0.3;
+        const maxTokens = options?.maxTokens ?? 2500;
+
+        let content = '';
+
+        switch (provider) {
+            case 'openai': {
+                const body: any = {
+                    model,
+                    messages: [
+                        { role: 'system', content: systemPrompt },
+                        { role: 'user', content: prompt }
+                    ],
+                    temperature,
+                    max_tokens: maxTokens
+                };
+                if (options?.responseFormat === 'json') {
+                    body.response_format = { type: 'json_object' };
+                }
+
+                const response = await axios.post(
+                    'https://api.openai.com/v1/chat/completions',
+                    body,
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${apiKey}`,
+                            'Content-Type': 'application/json'
+                        },
+                        timeout: 60000
+                    }
+                );
+                content = (response.data as OpenAIResponse).choices[0].message.content;
+                break;
+            }
+
+            case 'gemini': {
+                const body: any = {
+                    contents: [
+                        {
+                            role: 'user',
+                            parts: [{ text: `${systemPrompt}\n\n${prompt}` }]
+                        }
+                    ],
+                    generationConfig: {
+                        temperature,
+                        maxOutputTokens: maxTokens
+                    }
+                };
+                if (options?.responseFormat === 'json') {
+                    body.generationConfig.responseMimeType = 'application/json';
+                }
+
+                const response = await axios.post(
+                    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+                    body,
+                    {
+                        headers: { 'Content-Type': 'application/json' },
+                        timeout: 60000
+                    }
+                );
+                content = (response.data as GeminiResponse).candidates[0].content.parts[0].text;
+                break;
+            }
+
+            case 'claude': {
+                const response = await axios.post(
+                    'https://api.anthropic.com/v1/messages',
+                    {
+                        model,
+                        system: systemPrompt,
+                        messages: [{ role: 'user', content: prompt }],
+                        max_tokens: maxTokens,
+                        temperature
+                    },
+                    {
+                        headers: {
+                            'x-api-key': apiKey,
+                            'anthropic-version': '2023-06-01',
+                            'Content-Type': 'application/json'
+                        },
+                        timeout: 60000
+                    }
+                );
+                content = (response.data as ClaudeResponse).content[0].text;
+                break;
+            }
+
+            case 'deepseek': {
+                const response = await axios.post(
+                    'https://api.deepseek.com/v1/chat/completions',
+                    {
+                        model,
+                        messages: [
+                            { role: 'system', content: systemPrompt },
+                            { role: 'user', content: prompt }
+                        ],
+                        temperature,
+                        max_tokens: maxTokens,
+                        ...(options?.responseFormat === 'json' ? { response_format: { type: 'json_object' } } : {})
+                    },
+                    {
+                        headers: {
+                            'Authorization': `Bearer ${apiKey}`,
+                            'Content-Type': 'application/json'
+                        },
+                        timeout: 60000
+                    }
+                );
+                content = (response.data as any).choices[0].message.content;
+                break;
+            }
+
+            default:
+                throw new Error(`Unsupported provider: ${provider}`);
+        }
+
+        return { content, provider, model };
+    }
 }

@@ -4,7 +4,7 @@
  */
 
 import express from 'express';
-import { authenticate } from '../middleware/auth';
+import { authenticate, authorize } from '../middleware/auth';
 import {
   getHealthStatus,
   getModelsInfo,
@@ -18,7 +18,11 @@ import {
   checkDataDrift,
   getPerformanceMetrics,
   triggerRetraining,
-  getDashboardData
+  getDashboardData,
+  reviewProjectWithSkill,
+  getProjectReviewerSkillConfig,
+  updateProjectReviewerSkillConfig,
+  resetProjectReviewerSkillConfig
 } from '../controllers/aiController';
 
 const router = express.Router();
@@ -710,5 +714,16 @@ router.post('/models/retrain', triggerRetraining);
  *         description: Failed to retrieve dashboard data
  */
 router.get('/dashboard', getDashboardData);
+
+/**
+  * RPA Project Reviewer Skill routes
+  */
+router.post('/projects/:id/review', reviewProjectWithSkill);
+router.get('/projects/:id/review', reviewProjectWithSkill);
+
+// Skill configuration routes (editable by Team Lead)
+router.get('/skills/project-reviewer', getProjectReviewerSkillConfig);
+router.put('/skills/project-reviewer', authorize(['team_lead']), updateProjectReviewerSkillConfig);
+router.post('/skills/project-reviewer/reset', authorize(['team_lead']), resetProjectReviewerSkillConfig);
 
 export default router;

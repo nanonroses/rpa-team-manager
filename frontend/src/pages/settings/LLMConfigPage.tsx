@@ -22,9 +22,12 @@ import {
   DeleteOutlined,
   EditOutlined,
   KeyOutlined,
-  SafetyOutlined
+  SafetyOutlined,
+  RobotOutlined,
+  SettingOutlined
 } from '@ant-design/icons';
 import { useLLMConfigStore, LLMProvider } from '@/store/llmConfigStore';
+import { SkillConfigModal } from '@/components/projects/SkillConfigModal';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -97,6 +100,7 @@ export const LLMConfigPage: React.FC = () => {
     gemini: null,
     deepseek: null
   });
+  const [skillModalOpen, setSkillModalOpen] = useState(false);
 
   useEffect(() => {
     fetchApiKeys();
@@ -392,6 +396,76 @@ export const LLMConfigPage: React.FC = () => {
           {PROVIDERS.map(provider => renderProviderCard(provider))}
         </Row>
       </Spin>
+
+      <Divider style={{ margin: '36px 0 24px 0' }} />
+
+      {/* Skills Configuration Section */}
+      <div style={{ marginBottom: '24px' }}>
+        <Title level={3}>
+          <RobotOutlined style={{ marginRight: '8px', color: '#1677ff' }} />
+          Skills de IA del Equipo RPA
+        </Title>
+        <Paragraph type="secondary">
+          Gestiona los agentes y directivas preconfiguradas que se ejecutan automáticamente en los proyectos y módulos del sistema.
+        </Paragraph>
+
+        <Card
+          style={{
+            borderColor: '#b7eb8f',
+            background: 'linear-gradient(135deg, #f6ffed 0%, #ffffff 100%)'
+          }}
+        >
+          <Row justify="space-between" align="middle" gutter={[16, 16]}>
+            <Col xs={24} md={18}>
+              <Space align="center" size="middle">
+                <div
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 12,
+                    backgroundColor: '#52c41a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#fff',
+                    fontSize: 24
+                  }}
+                >
+                  <RobotOutlined />
+                </div>
+                <div>
+                  <Space align="center">
+                    <Title level={4} style={{ margin: 0 }}>
+                      Skill: Revisor IA de Proyecto RPA
+                    </Title>
+                    <Tag color="success">Activa</Tag>
+                    <Tag color="blue">v1.1.0</Tag>
+                  </Space>
+                  <Paragraph type="secondary" style={{ margin: '4px 0 0 0' }}>
+                    Auditoría inteligente del estado real de proyectos: diagnóstico de salud, detección de cuellos de botella, plan de acción táctico y redacción de reporte al cliente.
+                  </Paragraph>
+                </div>
+              </Space>
+            </Col>
+
+            <Col xs={24} md={6} style={{ textAlign: 'right' }}>
+              <Button
+                type="primary"
+                icon={<SettingOutlined />}
+                size="large"
+                onClick={() => setSkillModalOpen(true)}
+              >
+                Configurar Skill
+              </Button>
+            </Col>
+          </Row>
+        </Card>
+      </div>
+
+      <SkillConfigModal
+        visible={skillModalOpen}
+        onClose={() => setSkillModalOpen(false)}
+      />
     </div>
   );
 };

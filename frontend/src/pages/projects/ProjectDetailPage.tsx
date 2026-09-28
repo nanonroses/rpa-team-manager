@@ -574,7 +574,7 @@ export const ProjectDetailPage: React.FC = () => {
               label: (
                 <span>
                   <RobotOutlined />
-                  Analítica IA
+                  Revisor IA (Skill)
                 </span>
               ),
               children: (
