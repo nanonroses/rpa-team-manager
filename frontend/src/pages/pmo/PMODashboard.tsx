@@ -1,3 +1,4 @@
+import { displayLabel } from '@/utils/displayLabels';
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
@@ -342,7 +343,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
           console.log('Board data:', boardData);
           
           // Use "To Do" column or first available column
-          const todoColumn = boardData.columns.find((col: any) => col.name === 'To Do');
+          const todoColumn = boardData.columns.find((col: any) => col.name === "Pendiente");
           columnId = todoColumn ? todoColumn.id : boardData.columns[0]?.id;
           console.log('Using column ID:', columnId);
         } else {
@@ -351,11 +352,11 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
           
           // Create default board for this project
           try {
-            const projectName = projects.find(p => p.id === selectedProjectId)?.name || 'Project';
+            const projectName = projects.find(p => p.id === selectedProjectId)?.name || "Proyecto";
             const newBoard = await apiService.createTaskBoard({
               project_id: selectedProjectId,
-              name: `${projectName} Board`,
-              description: `Main kanban board for ${projectName}`,
+              name: `Tablero de ${projectName}`,
+              description: `Tablero principal de ${projectName}`,
               board_type: 'kanban'
             });
             
@@ -367,7 +368,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
             console.log('New board data:', boardData);
             
             // Use "To Do" column or first available column
-            const todoColumn = boardData.columns.find((col: any) => col.name === 'To Do');
+            const todoColumn = boardData.columns.find((col: any) => col.name === "Pendiente");
             columnId = todoColumn ? todoColumn.id : boardData.columns[0]?.id;
             console.log('Using column ID from new board:', columnId);
             
@@ -1034,25 +1035,25 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
 
   const getHealthIcon = (status: string) => {
     switch (status) {
-      case 'healthy': return <CheckCircleOutlined style={{ color: '#52c41a' }} />;
-      case 'warning': return <AlertOutlined style={{ color: '#faad14' }} />;
-      case 'critical': return <AlertOutlined style={{ color: '#f5222d' }} />;
-      default: return <ClockCircleOutlined style={{ color: '#d9d9d9' }} />;
+      case 'healthy': return <CheckCircleOutlined style={{ color: 'var(--color-success)' }} />;
+      case 'warning': return <AlertOutlined style={{ color: 'var(--color-warning)' }} />;
+      case 'critical': return <AlertOutlined style={{ color: 'var(--color-error)' }} />;
+      default: return <ClockCircleOutlined style={{ color: 'var(--color-border)' }} />;
     }
   };
 
   const getResponsibilityIndicator = (responsibility: string) => {
     switch (responsibility) {
       case 'internal': 
-        return { icon: '🏢', color: '#1890ff', bg: '#e6f7ff', label: 'Interno' };
+        return { icon: '🏢', color: 'var(--color-info)', bg: 'var(--color-info-bg)', label: 'Interno' };
       case 'client': 
-        return { icon: '👤', color: '#faad14', bg: '#fff7e6', label: 'Cliente' };
+        return { icon: '👤', color: 'var(--color-warning)', bg: 'var(--color-warning-bg)', label: 'Cliente' };
       case 'external': 
-        return { icon: '🏪', color: '#f5222d', bg: '#fff1f0', label: 'Externo' };
+        return { icon: '🏪', color: 'var(--color-error)', bg: 'var(--color-error-bg)', label: 'Externo' };
       case 'shared': 
-        return { icon: '🤝', color: '#722ed1', bg: '#f9f0ff', label: 'Compartido' };
+        return { icon: '🤝', color: 'var(--color-info)', bg: 'var(--color-info-bg)', label: 'Compartido' };
       default: 
-        return { icon: '🏢', color: '#1890ff', bg: '#e6f7ff', label: 'Interno' };
+        return { icon: '🏢', color: 'var(--color-info)', bg: 'var(--color-info-bg)', label: 'Interno' };
     }
   };
 
@@ -1116,10 +1117,10 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                 <Statistic
                   title="Proyectos Activos"
                   value={dashboardData?.overallMetrics?.active_projects || 0}
-                  prefix={<ThunderboltOutlined style={{ color: '#1890ff' }} />}
-                  valueStyle={{ color: '#1890ff', fontSize: '24px' }}
+                  prefix={<ThunderboltOutlined style={{ color: 'var(--color-info)' }} />}
+                  valueStyle={{ color: 'var(--color-info)', fontSize: '24px' }}
                 />
-                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
                   de {dashboardData?.overallMetrics?.total_projects || 0} totales
                 </div>
               </Card>
@@ -1129,10 +1130,10 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                 <Statistic
                   title="En Riesgo"
                   value={dashboardData?.overallMetrics?.critical_projects || 0}
-                  prefix={<WarningOutlined style={{ color: '#ff4d4f' }} />}
-                  valueStyle={{ color: '#ff4d4f', fontSize: '24px' }}
+                  prefix={<WarningOutlined style={{ color: 'var(--color-error)' }} />}
+                  valueStyle={{ color: 'var(--color-error)', fontSize: '24px' }}
                 />
-                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
                   requieren atención
                 </div>
               </Card>
@@ -1143,10 +1144,10 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                   title="Presupuesto Total"
                   value={totalPlannedBudget == null ? 'N/D' : Math.round(Number(totalPlannedBudget) / 1000000)}
                   suffix={totalPlannedBudget == null ? undefined : 'M'}
-                  prefix={<DollarOutlined style={{ color: '#52c41a' }} />}
-                  valueStyle={{ color: '#52c41a', fontSize: '24px' }}
+                  prefix={<DollarOutlined style={{ color: 'var(--color-success)' }} />}
+                  valueStyle={{ color: 'var(--color-success)', fontSize: '24px' }}
                 />
-                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
                   CLP planificado
                 </div>
               </Card>
@@ -1157,10 +1158,10 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                   title="Progreso Global"
                   value={Math.round(dashboardData?.overallMetrics?.avg_completion || 0)}
                   suffix="%"
-                  prefix={<TrophyOutlined style={{ color: '#faad14' }} />}
-                  valueStyle={{ color: '#faad14', fontSize: '24px' }}
+                  prefix={<TrophyOutlined style={{ color: 'var(--color-warning)' }} />}
+                  valueStyle={{ color: 'var(--color-warning)', fontSize: '24px' }}
                 />
-                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
                   completitud promedio
                 </div>
               </Card>
@@ -1172,7 +1173,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
             {/* Panel de Alertas Críticas */}
             <Col xs={24} lg={8}>
               <Card 
-                title={<span><FireOutlined style={{ color: '#ff4d4f' }} /> Alertas Críticas</span>} 
+                title={<span><FireOutlined style={{ color: 'var(--color-error)' }} /> Alertas Críticas</span>} 
                 size="small"
                 style={{ height: '300px' }}
               >
@@ -1203,7 +1204,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                       />
                     ))}
                   {needsAttention.length === 0 && (
-                    <div style={{ textAlign: 'center', padding: '60px 0', color: '#999' }}>
+                    <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)' }}>
                       <CheckCircleOutlined style={{ fontSize: '32px', marginBottom: '8px' }} />
                       <div>No hay alertas críticas</div>
                     </div>
@@ -1229,7 +1230,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                       <div key={status} style={{ marginBottom: '16px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
                           <span style={{ 
-                            color: status === 'healthy' ? '#52c41a' : status === 'warning' ? '#faad14' : '#ff4d4f',
+                            color: status === 'healthy' ? 'var(--color-success)' : status === 'warning' ? 'var(--color-warning)' : 'var(--color-error)',
                             fontWeight: 'bold'
                           }}>
                             {status === 'healthy' ? '🟢 Saludables' : status === 'warning' ? '🟡 En Alerta' : '🔴 Críticos'}
@@ -1237,7 +1238,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                           <span>{count} ({percentage}%)</span>
                         </div>
                         <div style={{ 
-                          background: '#f0f0f0', 
+                          background: 'var(--color-border)', 
                           borderRadius: '10px', 
                           height: '10px',
                           overflow: 'hidden'
@@ -1245,7 +1246,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                           <div style={{ 
                             width: `${percentage}%`,
                             height: '100%',
-                            background: status === 'healthy' ? '#52c41a' : status === 'warning' ? '#faad14' : '#ff4d4f',
+                            background: status === 'healthy' ? 'var(--color-success)' : status === 'warning' ? 'var(--color-warning)' : 'var(--color-error)',
                             borderRadius: '10px'
                           }} />
                         </div>
@@ -1256,10 +1257,10 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                   {/* Satisfacción Cliente */}
                   <Divider style={{ margin: '16px 0' }} />
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1890ff' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: 'var(--color-info)' }}>
                       {dashboardData?.overallMetrics?.avg_satisfaction?.toFixed(1) || 'N/A'}/10
                     </div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>Satisfacción Promedio</div>
+                    <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>Satisfacción Promedio</div>
                   </div>
                 </div>
               </Card>
@@ -1280,7 +1281,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                       justifyContent: 'space-between',
                       alignItems: 'center',
                       padding: '8px',
-                      background: '#fafafa',
+                      background: 'var(--color-surface-raised)',
                       borderRadius: '4px',
                       marginBottom: '6px'
                     }}>
@@ -1288,7 +1289,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                         <div style={{ fontWeight: 'bold', fontSize: '12px' }}>
                           {member.full_name}
                         </div>
-                        <div style={{ fontSize: '10px', color: '#666' }}>
+                        <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
                           {member.assigned_projects} proyectos · {Number(member.planned_fte).toFixed(2)} FTE comprometido · {Number(member.budgeted_hours || 0).toLocaleString('es-CL')} h presupuestadas
                         </div>
                       </div>
@@ -1296,16 +1297,16 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                         padding: '2px 6px',
                         borderRadius: '10px',
                         fontSize: '10px',
-                        background: member.active_tasks > 8 ? '#fff1f0' : member.active_tasks > 4 ? '#fff7e6' : '#f6ffed',
-                        color: member.active_tasks > 8 ? '#f5222d' : member.active_tasks > 4 ? '#fa8c16' : '#52c41a'
+                        background: member.active_tasks > 8 ? 'var(--color-error-bg)' : member.active_tasks > 4 ? 'var(--color-warning-bg)' : 'var(--color-primary-bg)',
+                        color: member.active_tasks > 8 ? 'var(--color-error)' : member.active_tasks > 4 ? 'var(--color-warning)' : 'var(--color-success)'
                       }}>
                         {Number(member.planned_fte).toFixed(2)} FTE
                       </div>
                     </div>
                   )) : dashboardData?.teamWorkload?.length ? dashboardData.teamWorkload.slice(0, 6).map((member: any) => (
-                    <div key={member.id} style={{ padding: '8px', borderBottom: '1px solid #eee' }}>{member.full_name} · {member.active_tasks} tareas activas</div>
+                    <div key={member.id} style={{ padding: '8px', borderBottom: '1px solid var(--color-border)' }}>{member.full_name} · {member.active_tasks} tareas activas</div>
                   )) : (
-                    <div style={{ textAlign: 'center', padding: '60px 0', color: '#999' }}>
+                    <div style={{ textAlign: 'center', padding: '60px 0', color: 'var(--color-text-muted)' }}>
                       Sin datos del equipo
                     </div>
                   )}
@@ -1345,7 +1346,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                       render: (text: string, record: any) => (
                         <div>
                           <Button type="link" style={{ height: 'auto', padding: 0, fontWeight: 'bold', fontSize: '12px', whiteSpace: 'normal', textAlign: 'left' }} onClick={() => openProject(record.id)}>{text}</Button>
-                          <div style={{ fontSize: '10px', color: '#666' }}>
+                          <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
                             {getHealthIcon(record.project_health_status)} {record.assigned_to_name || 'Sin asignar'}
                           </div>
                         </div>
@@ -1360,12 +1361,12 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                         <Progress
                           percent={value || 0}
                           size="small"
-                          strokeColor={value > 80 ? '#52c41a' : value > 50 ? '#faad14' : '#ff4d4f'}
+                          strokeColor={value > 80 ? 'var(--color-success)' : value > 50 ? 'var(--color-warning)' : 'var(--color-error)'}
                         />
                       ),
                     },
                     {
-                      title: 'Deadline',
+                      title: "Fecha límite",
                       key: 'deadline',
                       width: 100,
                       render: (record: any) => (
@@ -1373,12 +1374,12 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                           <div>{record.end_date ? dayjs(record.end_date).format('DD/MM/YY') : 'N/A'}</div>
                           <div style={{
                             color: record.days_to_deadline === null || record.days_to_deadline === undefined
-                              ? '#8c8c8c'
+                              ? 'var(--color-text-muted)'
                               : record.days_to_deadline < 0
-                                ? '#ff4d4f'
+                                ? 'var(--color-error)'
                                 : record.days_to_deadline < 7
-                                  ? '#faad14'
-                                  : '#52c41a'
+                                  ? 'var(--color-warning)'
+                                  : 'var(--color-success)'
                           }}>
                             {record.days_to_deadline !== null
                               ? `${record.days_to_deadline < 0 ? 'Retrasado' : record.days_to_deadline === 0 ? 'Hoy' : record.days_to_deadline + 'd'}`
@@ -1397,7 +1398,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                         user?.role === 'team_lead' ? <div style={{ fontSize: '11px' }}>
                           <div>{record.planned_budget ? `$${(record.planned_budget / 1000000).toFixed(1)}M` : 'N/A'}</div>
                           <div style={{ 
-                            color: record.cost_variance_percentage > 10 ? '#ff4d4f' : record.cost_variance_percentage > 0 ? '#faad14' : '#52c41a'
+                            color: record.cost_variance_percentage > 10 ? 'var(--color-error)' : record.cost_variance_percentage > 0 ? 'var(--color-warning)' : 'var(--color-success)'
                           }}>
                             {record.cost_variance_percentage ? `${record.cost_variance_percentage > 0 ? '+' : ''}${record.cost_variance_percentage.toFixed(1)}%` : 'N/A'}
                           </div>
@@ -1434,7 +1435,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
             {/* Hitos próximos mejorado */}
             <Col xs={24} lg={8}>
               <Card 
-                title={<span><CalendarOutlined /> Timeline de Entregas</span>} 
+                title={<span><CalendarOutlined /> Cronograma de entregas</span>} 
                 extra={<Tag color="blue">{dashboardData?.upcomingMilestones?.length || 0} hitos</Tag>}
                 size="small"
               >
@@ -1459,7 +1460,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                           <div><Button type="link" size="small" style={{ padding: 0, height: 'auto' }} onClick={() => navigate(`/pmo/gantt/${milestone.project_id}`)}>{milestone.project_name} · Abrir cronograma</Button></div>
                           <div style={{ 
                             fontSize: '10px',
-                            color: milestone.days_until < 0 ? '#ff4d4f' : milestone.days_until < 3 ? '#faad14' : '#52c41a'
+                            color: milestone.days_until < 0 ? 'var(--color-error)' : milestone.days_until < 3 ? 'var(--color-warning)' : 'var(--color-success)'
                           }}>
                             📅 {dayjs(milestone.planned_date).format('DD/MM/YYYY')} 
                             {milestone.days_until !== null && (
@@ -1470,7 +1471,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                             )}
                           </div>
                           {milestone.responsible_name && (
-                            <div style={{ fontSize: '10px', color: '#999', marginTop: '2px' }}>
+                            <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
                               👤 {milestone.responsible_name}
                             </div>
                           )}
@@ -1495,10 +1496,10 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                       title="Proyectos Activos"
                       value={analytics.executiveSummary?.active_projects || 0}
                       suffix={`/ ${analytics.executiveSummary?.total_projects || 0}`}
-                      prefix={<ProjectOutlined style={{ color: '#1890ff' }} />}
-                      valueStyle={{ color: '#1890ff', fontSize: '20px' }}
+                      prefix={<ProjectOutlined style={{ color: 'var(--color-info)' }} />}
+                      valueStyle={{ color: 'var(--color-info)', fontSize: '20px' }}
                     />
-                    <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
                       {analytics.executiveSummary?.completed_projects || 0} completados
                     </div>
                   </Card>
@@ -1508,10 +1509,10 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                     <Statistic
                       title="En Riesgo Crítico"
                       value={analytics.executiveSummary?.critical_projects || 0}
-                      prefix={<AlertOutlined style={{ color: '#ff4d4f' }} />}
-                      valueStyle={{ color: '#ff4d4f', fontSize: '20px' }}
+                      prefix={<AlertOutlined style={{ color: 'var(--color-error)' }} />}
+                      valueStyle={{ color: 'var(--color-error)', fontSize: '20px' }}
                     />
-                    <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
                       {analytics.executiveSummary?.over_budget_projects || 0} sobre presupuesto
                     </div>
                   </Card>
@@ -1522,10 +1523,10 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                       title="Desempeño Global"
                       value={analytics.executiveSummary?.avg_completion || 0}
                       suffix="%"
-                      prefix={<RiseOutlined style={{ color: '#52c41a' }} />}
-                      valueStyle={{ color: '#52c41a', fontSize: '20px' }}
+                      prefix={<RiseOutlined style={{ color: 'var(--color-success)' }} />}
+                      valueStyle={{ color: 'var(--color-success)', fontSize: '20px' }}
                     />
-                    <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
                       {analytics.executiveSummary?.delayed_projects || 0} proyectos retrasados
                     </div>
                   </Card>
@@ -1536,10 +1537,10 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                       title="Satisfacción Cliente"
                       value={analytics.executiveSummary?.avg_satisfaction || 0}
                       suffix="/10"
-                      prefix={<TrophyOutlined style={{ color: '#faad14' }} />}
-                      valueStyle={{ color: '#faad14', fontSize: '20px' }}
+                      prefix={<TrophyOutlined style={{ color: 'var(--color-warning)' }} />}
+                      valueStyle={{ color: 'var(--color-warning)', fontSize: '20px' }}
                     />
-                    <div style={{ fontSize: '11px', color: '#666', marginTop: '4px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
                       promedio general
                     </div>
                   </Card>
@@ -1553,7 +1554,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                   <Card 
                     title={
                       <span>
-                        <DollarOutlined style={{ marginRight: '8px', color: '#52c41a' }} />
+                        <DollarOutlined style={{ marginRight: '8px', color: 'var(--color-success)' }} />
                         Desempeño Presupuestario
                       </span>
                     }
@@ -1573,20 +1574,20 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                             justifyContent: 'space-between',
                             alignItems: 'center',
                             padding: '8px',
-                            background: index % 2 === 0 ? '#fafafa' : 'white',
+                            background: index % 2 === 0 ? 'var(--color-surface-raised)' : 'var(--surface)',
                             borderRadius: '4px',
                             marginBottom: '4px',
-                            border: project.budget_status === 'critical' ? '1px solid #ff4d4f' : '1px solid transparent'
+                            border: project.budget_status === 'critical' ? '1px solid var(--color-error)' : '1px solid transparent'
                           }}
                         >
                           <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 'bold', fontSize: '12px' }}>
                               {project.project_name}
                             </div>
-                            <div style={{ fontSize: '10px', color: '#666' }}>
+                            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
                               PM: {project.project_manager || 'Sin asignar'}
                             </div>
-                            <div style={{ fontSize: '10px', color: '#666' }}>
+                            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
                               Cronograma: {project.completion_percentage || 0}%
                             </div>
                           </div>
@@ -1615,7 +1616,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                   <Card 
                     title={
                       <span>
-                        <ClockCircleOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
+                        <ClockCircleOutlined style={{ marginRight: '8px', color: 'var(--color-info)' }} />
                         Desempeño de Cronograma
                       </span>
                     }
@@ -1630,20 +1631,20 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                             justifyContent: 'space-between',
                             alignItems: 'center',
                             padding: '8px',
-                            background: index % 2 === 0 ? '#fafafa' : 'white',
+                            background: index % 2 === 0 ? 'var(--color-surface-raised)' : 'var(--surface)',
                             borderRadius: '4px',
                             marginBottom: '4px',
-                            border: project.schedule_status === 'severely_delayed' ? '1px solid #ff4d4f' : '1px solid transparent'
+                            border: project.schedule_status === 'severely_delayed' ? '1px solid var(--color-error)' : '1px solid transparent'
                           }}
                         >
                           <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 'bold', fontSize: '12px' }}>
                               {project.project_name}
                             </div>
-                            <div style={{ fontSize: '10px', color: '#666' }}>
-                              {project.planned_end ? `Deadline: ${dayjs(project.planned_end).format('DD/MM/YY')}` : 'Sin deadline'}
+                            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
+                              {project.planned_end ? `Deadline: ${dayjs(project.planned_end).format('DD/MM/YY')}` : "Sin fecha límite"}
                             </div>
-                            <div style={{ fontSize: '10px', color: '#666' }}>
+                            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
                               Cronograma: {project.completion_percentage || 0}%
                             </div>
                           </div>
@@ -1652,12 +1653,12 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                               fontSize: '11px',
                               fontWeight: 'bold',
                               color: project.days_to_deadline === null || project.days_to_deadline === undefined
-                                ? '#8c8c8c'
+                                ? 'var(--color-text-muted)'
                                 : project.days_to_deadline < 0
-                                  ? '#ff4d4f'
+                                  ? 'var(--color-error)'
                                   : project.days_to_deadline < 7
-                                    ? '#faad14'
-                                    : '#52c41a'
+                                    ? 'var(--color-warning)'
+                                    : 'var(--color-success)'
                             }}>
                               {project.days_to_deadline !== null ?
                                 (project.days_to_deadline < 0 ? `${Math.abs(project.days_to_deadline)}d atrás` : `${project.days_to_deadline}d`) :
@@ -1687,7 +1688,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                   <Card 
                     title={
                       <span>
-                        <WarningOutlined style={{ marginRight: '8px', color: '#ff4d4f' }} />
+                        <WarningOutlined style={{ marginRight: '8px', color: 'var(--color-error)' }} />
                         Análisis de Riesgos
                       </span>
                     }
@@ -1702,11 +1703,11 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                               <span style={{ 
                                 fontSize: '12px',
                                 fontWeight: 'bold',
-                                color: risk.risk_level === 'critical' ? '#ff4d4f' : 
-                                       risk.risk_level === 'high' ? '#fa8c16' : 
-                                       risk.risk_level === 'medium' ? '#faad14' : '#52c41a'
+                                color: risk.risk_level === 'critical' ? 'var(--color-error)' : 
+                                       risk.risk_level === 'high' ? 'var(--color-warning)' : 
+                                       risk.risk_level === 'medium' ? 'var(--color-warning)' : 'var(--color-success)'
                               }}>
-                                {risk.risk_level?.toUpperCase()}
+                                {displayLabel(risk.risk_level)}
                               </span>
                               <span style={{ fontSize: '11px' }}>{risk.project_count} ({risk.percentage}%)</span>
                             </div>
@@ -1715,12 +1716,12 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                               showInfo={false}
                               size="small"
                               strokeColor={
-                                risk.risk_level === 'critical' ? '#ff4d4f' :
-                                risk.risk_level === 'high' ? '#fa8c16' :
-                                risk.risk_level === 'medium' ? '#faad14' : '#52c41a'
+                                risk.risk_level === 'critical' ? 'var(--color-error)' :
+                                risk.risk_level === 'high' ? 'var(--color-warning)' :
+                                risk.risk_level === 'medium' ? 'var(--color-warning)' : 'var(--color-success)'
                               }
                             />
-                            <div style={{ fontSize: '10px', color: '#666', marginTop: '2px' }}>
+                            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
                               Satisfacción: {risk.avg_satisfaction?.toFixed(1) || 'N/A'}/10
                             </div>
                           </div>
@@ -1733,7 +1734,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                         <Alert
                           key={project.project_id}
                           message={project.project_name}
-                          description={`${project.risk_level?.toUpperCase()} - ${project.schedule_variance_days}d retraso`}
+                          description={`${displayLabel(project.risk_level)} - ${project.schedule_variance_days}d retraso`}
                           type="error"
                           style={{ marginBottom: '8px' }}
                           showIcon
@@ -1747,8 +1748,8 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                   <Card 
                     title={
                       <span>
-                        <TeamOutlined style={{ marginRight: '8px', color: '#1890ff' }} />
-                        Performance del Equipo
+                        <TeamOutlined style={{ marginRight: '8px', color: 'var(--color-info)' }} />
+                        Rendimiento del equipo
                       </span>
                     }
                     size="small"
@@ -1762,28 +1763,28 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                             justifyContent: 'space-between',
                             alignItems: 'center',
                             padding: '10px',
-                            background: index % 2 === 0 ? '#fafafa' : 'white',
+                            background: index % 2 === 0 ? 'var(--color-surface-raised)' : 'var(--surface)',
                             borderRadius: '6px',
                             marginBottom: '6px',
-                            border: '1px solid #f0f0f0'
+                            border: '1px solid var(--color-border)'
                           }}
                         >
                           <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 'bold', fontSize: '12px' }}>
                               {member.full_name}
                             </div>
-                            <div style={{ fontSize: '10px', color: '#666', marginBottom: '2px' }}>
+                            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginBottom: '2px' }}>
                               {member.role} • {member.total_projects} proyectos
                             </div>
-                            <div style={{ fontSize: '10px', color: '#666' }}>
+                            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
                               Satisfacción: {member.avg_satisfaction?.toFixed(1) || 'N/A'}/10
                             </div>
                           </div>
                           <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#1890ff' }}>
+                            <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--color-info)' }}>
                               {member.avg_completion?.toFixed(0) || 0}%
                             </div>
-                            <div style={{ fontSize: '10px', color: '#666' }}>
+                            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
                               Velocidad: {member.avg_velocity?.toFixed(1) || 'N/A'}
                             </div>
                             <div style={{ fontSize: '9px', marginTop: '2px' }}>
@@ -1802,7 +1803,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                   <Card 
                     title={
                       <span>
-                        <BarChartOutlined style={{ marginRight: '8px', color: '#52c41a' }} />
+                        <BarChartOutlined style={{ marginRight: '8px', color: 'var(--color-success)' }} />
                         Calidad & Satisfacción
                       </span>
                     }
@@ -1810,14 +1811,14 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                   >
                     <div style={{ height: '300px', overflowY: 'auto' }}>
                       {/* Quality Overview */}
-                      <div style={{ marginBottom: '16px', padding: '8px', background: '#f9f9f9', borderRadius: '4px' }}>
+                      <div style={{ marginBottom: '16px', padding: '8px', background: 'var(--color-surface-raised)', borderRadius: '4px' }}>
                         <div style={{ fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>
                           Resumen de Calidad
                         </div>
-                        <div style={{ fontSize: '10px', color: '#666' }}>
+                        <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
                           Bugs totales: {analytics.qualityMetrics?.reduce((acc: number, p: any) => acc + (p.bugs_found || 0), 0) || 0}
                         </div>
-                        <div style={{ fontSize: '10px', color: '#666' }}>
+                        <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
                           Resueltos: {analytics.qualityMetrics?.reduce((acc: number, p: any) => acc + (p.bugs_resolved || 0), 0) || 0}
                         </div>
                       </div>
@@ -1831,22 +1832,22 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                             justifyContent: 'space-between',
                             alignItems: 'center',
                             padding: '8px',
-                            background: index % 2 === 0 ? '#fafafa' : 'white',
+                            background: index % 2 === 0 ? 'var(--color-surface-raised)' : 'var(--surface)',
                             borderRadius: '4px',
                             marginBottom: '4px',
-                            border: project.quality_status === 'critical' ? '1px solid #ff4d4f' : '1px solid transparent'
+                            border: project.quality_status === 'critical' ? '1px solid var(--color-error)' : '1px solid transparent'
                           }}
                         >
                           <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 'bold', fontSize: '11px' }}>
                               {project.project_name}
                             </div>
-                            <div style={{ fontSize: '9px', color: '#666' }}>
+                            <div style={{ fontSize: '9px', color: 'var(--color-text-secondary)' }}>
                               Bugs: {project.bugs_found || 0} / Resueltos: {project.bugs_resolved || 0}
                             </div>
                           </div>
                           <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#faad14' }}>
+                            <div style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--color-warning)' }}>
                               {project.client_satisfaction_score?.toFixed(1) || 'N/A'}/10
                             </div>
                             <Tag
@@ -1873,7 +1874,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                   <Card 
                     title={
                       <span>
-                        <TrophyOutlined style={{ marginRight: '8px', color: '#faad14' }} />
+                        <TrophyOutlined style={{ marginRight: '8px', color: 'var(--color-warning)' }} />
                         Satisfacción por Cliente
                       </span>
                     }
@@ -1939,7 +1940,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                   <Card 
                     title={
                       <span>
-                        <ThunderboltOutlined style={{ marginRight: '8px', color: '#722ed1' }} />
+                        <ThunderboltOutlined style={{ marginRight: '8px', color: 'var(--color-info)' }} />
                         Utilización de Recursos
                       </span>
                     }
@@ -1954,20 +1955,20 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                             justifyContent: 'space-between',
                             alignItems: 'center',
                             padding: '10px',
-                            background: index % 2 === 0 ? '#fafafa' : 'white',
+                            background: index % 2 === 0 ? 'var(--color-surface-raised)' : 'var(--surface)',
                             borderRadius: '6px',
                             marginBottom: '6px',
-                            border: resource.utilization_status === 'overutilized' ? '1px solid #ff4d4f' : '1px solid #f0f0f0'
+                            border: resource.utilization_status === 'overutilized' ? '1px solid var(--color-error)' : '1px solid var(--color-border)'
                           }}
                         >
                           <div style={{ flex: 1 }}>
                             <div style={{ fontWeight: 'bold', fontSize: '12px' }}>
                               {resource.full_name}
                             </div>
-                            <div style={{ fontSize: '10px', color: '#666', marginBottom: '2px' }}>
+                            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginBottom: '2px' }}>
                               {resource.role} • {resource.assigned_projects} proyectos
                             </div>
-                            <div style={{ fontSize: '10px', color: '#666' }}>
+                            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
                               {resource.total_planned_hours}h plan / {resource.total_actual_hours}h real
                             </div>
                           </div>
@@ -1975,12 +1976,12 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                             <div style={{ 
                               fontSize: '14px', 
                               fontWeight: 'bold', 
-                              color: resource.utilization_status === 'overutilized' ? '#ff4d4f' : 
-                                     resource.utilization_status === 'underutilized' ? '#faad14' : '#52c41a'
+                              color: resource.utilization_status === 'overutilized' ? 'var(--color-error)' : 
+                                     resource.utilization_status === 'underutilized' ? 'var(--color-warning)' : 'var(--color-success)'
                             }}>
                               {resource.utilization_percentage?.toFixed(0) || 0}%
                             </div>
-                            <div style={{ fontSize: '10px', color: '#666' }}>
+                            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
                               Velocidad: {resource.avg_velocity?.toFixed(1) || 'N/A'}
                             </div>
                             <Tag
@@ -2003,7 +2004,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
           ) : (
             <Card>
               <div style={{ textAlign: 'center', padding: '60px' }}>
-                <BarChartOutlined style={{ fontSize: '48px', color: '#d9d9d9', marginBottom: '16px' }} />
+                <BarChartOutlined style={{ fontSize: '48px', color: 'var(--color-border)', marginBottom: '16px' }} />
                 <Title level={4} type="secondary">Cargando Analytics...</Title>
                 <Text type="secondary">Preparando análisis avanzado de PMO</Text>
               </div>
@@ -2108,7 +2109,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
               ) : ganttError ? (
                 <Card>
                   <Alert
-                    message="Error loading project timeline"
+                    message="No se pudo cargar el cronograma"
                     description={ganttError}
                     type="error"
                     showIcon
@@ -2123,7 +2124,8 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                           }
                         }}
                       >
-                        Retry
+                        
+                        Reintentar
                       </Button>
                     }
                   />
@@ -2245,13 +2247,13 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                         paddingRight: '10px'
                       }}>
                         <div style={{ 
-                          background: '#fafafa', 
+                          background: 'var(--color-surface-raised)', 
                           padding: '8px 12px', 
                           borderRadius: '4px',
                           display: 'flex',
                           justifyContent: 'space-between',
                           alignItems: 'center',
-                          borderRight: '2px solid #f0f0f0'
+                          borderRight: '2px solid var(--color-border)'
                         }}>
                           <strong>ELEMENTOS DEL PROYECTO</strong>
                           <Text type="secondary">
@@ -2263,7 +2265,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                       {/* Header Timeline */}
                       <div style={{ flex: 1, paddingLeft: '10px' }}>
                         <div style={{ 
-                          background: '#fafafa', 
+                          background: 'var(--color-surface-raised)', 
                           padding: '8px 12px', 
                           borderRadius: '4px',
                           textAlign: 'center'
@@ -2283,7 +2285,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                           display: 'grid', 
                           gridTemplateColumns: 'repeat(6, 1fr)', 
                           gap: '1px',
-                          background: '#e0e0e0',
+                          background: 'var(--color-border)',
                           padding: '1px',
                           borderRadius: '4px',
                           marginBottom: '10px'
@@ -2294,7 +2296,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                               <div 
                                 key={i}
                                 style={{ 
-                                  background: '#f5f5f5', 
+                                  background: 'var(--color-surface-raised)', 
                                   padding: '6px',
                                   textAlign: 'center',
                                   fontSize: '12px',
@@ -2318,7 +2320,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                         <div style={{ 
                           height: '30px',
                           display: 'flex',
-                          borderBottom: '1px solid #e0e0e0',
+                          borderBottom: '1px solid var(--color-border)',
                           marginBottom: '5px'
                         }}>
                           {Array.from({ length: 180 }, (_, i) => {
@@ -2331,12 +2333,12 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                 key={i}
                                 style={{ 
                                   width: '30px',
-                                  borderRight: isMonthStart ? '2px solid #1890ff' : isWeekStart ? '1px solid #d9d9d9' : 'none',
+                                  borderRight: isMonthStart ? '2px solid var(--color-info)' : isWeekStart ? '1px solid var(--color-border)' : 'none',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
                                   fontSize: '10px',
-                                  color: isMonthStart ? '#1890ff' : '#999',
+                                  color: isMonthStart ? 'var(--color-info)' : 'var(--color-text-muted)',
                                   fontWeight: isMonthStart ? 'bold' : 'normal'
                                 }}
                               >
@@ -2352,13 +2354,13 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                     <div style={{ 
                       display: 'flex', 
                       height: '500px',
-                      border: '1px solid #e0e0e0',
+                      border: '1px solid var(--color-border)',
                       borderRadius: '4px'
                     }}>
                       {/* Panel izquierdo con elementos */}
                       <div style={{ 
                         width: '350px', 
-                        borderRight: '2px solid #f0f0f0',
+                        borderRight: '2px solid var(--color-border)',
                         paddingRight: '10px',
                         overflowY: 'auto'
                       }}>
@@ -2386,21 +2388,21 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                               alignItems: 'center',
                               padding: '8px',
                               height: '45px', // Altura fija para alineación
-                              background: item.type === 'milestone' ? responsibilityInfo.bg : '#f9f9f9',
+                              background: item.type === 'milestone' ? responsibilityInfo.bg : 'var(--color-surface-raised)',
                               borderRadius: '4px',
-                              borderLeft: item.type === 'milestone' ? `4px solid ${responsibilityInfo.color}` : '4px solid #1890ff',
+                              borderLeft: item.type === 'milestone' ? `4px solid ${responsibilityInfo.color}` : '4px solid var(--color-info)',
                               cursor: 'pointer',
                               transition: 'all 0.2s',
                               marginBottom: '2px'
                             }}
                             onMouseEnter={(e) => {
                               e.currentTarget.style.background = item.type === 'milestone' ? 
-                                (item.responsibility === 'external' ? '#ffccc7' : 
-                                 item.responsibility === 'client' ? '#ffeaa7' : 
-                                 item.responsibility === 'shared' ? '#efdbff' : '#bae7ff') : '#e6f7ff';
+                                (item.responsibility === 'external' ? 'var(--color-error-bg)' : 
+                                 item.responsibility === 'client' ? 'var(--color-warning-bg)' : 
+                                 item.responsibility === 'shared' ? 'var(--color-info-bg)' : 'var(--color-info-bg)') : 'var(--color-info-bg)';
                             }}
                             onMouseLeave={(e) => {
-                              e.currentTarget.style.background = item.type === 'milestone' ? responsibilityInfo.bg : '#f9f9f9';
+                              e.currentTarget.style.background = item.type === 'milestone' ? responsibilityInfo.bg : 'var(--color-surface-raised)';
                             }}
                           >
                             <div style={{ flex: 1 }}>
@@ -2414,7 +2416,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                 </span>
                                 <strong style={{ 
                                   fontSize: '12px',
-                                  color: item.type === 'milestone' ? responsibilityInfo.color : '#1890ff'
+                                  color: item.type === 'milestone' ? responsibilityInfo.color : 'var(--color-info)'
                                 }}>
                                   {item.name || item.title}
                                 </strong>
@@ -2430,7 +2432,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                   </Tag>
                                 )}
                               </div>
-                              <div style={{ fontSize: '10px', color: '#666' }}>
+                              <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
                                 {item.type === 'milestone' 
                                   ? item.actual_date
                                     ? `📅 ${dayjs(item.planned_date).format('DD/MM')} → ${dayjs(item.actual_date).format('DD/MM')}`
@@ -2493,7 +2495,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                         height: '20px',
                                         width: '20px',
                                         fontSize: '10px',
-                                        color: '#ff4d4f'
+                                        color: 'var(--color-error)'
                                       }}
                                     />
                                   </>
@@ -2519,7 +2521,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                           left: 10,
                           right: 0,
                           height: '100%',
-                          background: 'repeating-linear-gradient(to right, transparent, transparent 30px, #f0f0f0 30px, #f0f0f0 31px)',
+                          background: 'repeating-linear-gradient(to right, transparent, transparent 30px, var(--color-border) 30px, var(--color-border) 31px)',
                           pointerEvents: 'none'
                         }} />
 
@@ -2588,8 +2590,8 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                         width: `${width}px`,
                                         height: '16px',
                                         background: item.status === 'completed' 
-                                          ? 'linear-gradient(90deg, #faad14, #52c41a)' 
-                                          : 'linear-gradient(90deg, #faad14, #ffd666)',
+                                          ? 'linear-gradient(90deg, var(--color-warning), var(--color-success))' 
+                                          : 'linear-gradient(90deg, var(--color-warning), var(--color-warning))',
                                         borderRadius: '8px',
                                         border: '1px solid rgba(255,255,255,0.8)',
                                         boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
@@ -2597,7 +2599,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                         alignItems: 'center',
                                         padding: '0 4px',
                                         fontSize: '10px',
-                                        color: 'white',
+                                        color: 'var(--surface)',
                                         fontWeight: 'bold'
                                       }}
                                       title={`${item.name} - ${startDate.format('DD/MM')} → ${endDate.format('DD/MM')} (${durationDays} días)`}
@@ -2611,7 +2613,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                         top: '11px',
                                         width: '12px',
                                         height: '12px',
-                                        background: item.status === 'completed' ? '#52c41a' : '#faad14',
+                                        background: item.status === 'completed' ? 'var(--color-success)' : 'var(--color-warning)',
                                         transform: 'rotate(45deg)',
                                         border: '1px solid white',
                                         boxShadow: '0 1px 2px rgba(0,0,0,0.2)',
@@ -2628,7 +2630,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                       top: '13px',
                                       width: '20px',
                                       height: '20px',
-                                      background: item.status === 'completed' ? '#52c41a' : '#faad14',
+                                      background: item.status === 'completed' ? 'var(--color-success)' : 'var(--color-warning)',
                                       transform: 'rotate(45deg)',
                                       border: '2px solid white',
                                       boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
@@ -2647,10 +2649,10 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                     width: `${width}px`,
                                     height: '16px',
                                     background: item.status === 'done' 
-                                      ? 'linear-gradient(90deg, #52c41a, #73d13d)' 
+                                      ? 'linear-gradient(90deg, var(--color-success), var(--color-success))' 
                                       : item.status === 'in_progress' 
-                                        ? 'linear-gradient(90deg, #1890ff, #40a9ff)'
-                                        : 'linear-gradient(90deg, #d9d9d9, #f0f0f0)',
+                                        ? 'linear-gradient(90deg, var(--color-info), var(--color-info))'
+                                        : 'linear-gradient(90deg, var(--color-border), var(--color-border))',
                                     borderRadius: '8px',
                                     border: '1px solid rgba(255,255,255,0.8)',
                                     boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
@@ -2658,7 +2660,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                     alignItems: 'center',
                                     padding: '0 4px',
                                     fontSize: '10px',
-                                    color: item.status === 'pending' ? '#666' : 'white',
+                                    color: ['done', 'in_progress'].includes(item.status) ? 'var(--color-on-accent)' : 'var(--ink)',
                                     fontWeight: 'bold'
                                   }}
                                   title={`${item.title} - ${startDate.format('DD/MM')} → ${endDate.format('DD/MM')}`}
@@ -2676,7 +2678,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                     top: 4,
                                     width: '3px',
                                     height: '37px',
-                                    background: '#8c8c8c',
+                                    background: 'var(--color-text-muted)',
                                     borderRadius: '1px',
                                     zIndex: 1
                                   }}
@@ -2692,7 +2694,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                     top: 0,
                                     bottom: 0,
                                     width: '2px',
-                                    background: '#ff4d4f',
+                                    background: 'var(--color-error)',
                                     zIndex: 10
                                   }}
                                   title="Hoy"
@@ -2725,7 +2727,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
             {/* Métricas de dependencias */}
             <Row gutter={[16, 16]} style={{ marginBottom: '24px' }}>
               <Col xs={24} sm={8}>
-                <Card size="small" style={{ background: '#fff1f0', borderColor: '#ffccc7' }}>
+                <Card size="small" style={{ background: 'var(--color-error-bg)', borderColor: 'var(--color-error-bg)' }}>
                   <Statistic
                     title="Dependencias Externas"
                     value={
@@ -2736,12 +2738,12 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                       }, 0) || 0
                     }
                     prefix="🏪"
-                    valueStyle={{ color: '#f5222d' }}
+                    valueStyle={{ color: 'var(--color-error)' }}
                   />
                 </Card>
               </Col>
               <Col xs={24} sm={8}>
-                <Card size="small" style={{ background: '#fff7e6', borderColor: '#ffd591' }}>
+                <Card size="small" style={{ background: 'var(--color-warning-bg)', borderColor: 'var(--color-warning-bg)' }}>
                   <Statistic
                     title="Retrasos por Cliente"
                     value={
@@ -2750,12 +2752,12 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                       ).length || 0
                     }
                     prefix="⏰"
-                    valueStyle={{ color: '#faad14' }}
+                    valueStyle={{ color: 'var(--color-warning)' }}
                   />
                 </Card>
               </Col>
               <Col xs={24} sm={8}>
-                <Card size="small" style={{ background: '#f6ffed', borderColor: '#b7eb8f' }}>
+                <Card size="small" style={{ background: 'var(--color-primary-bg)', borderColor: 'var(--color-primary-bg)' }}>
                   <Statistic
                     title="Impacto Financiero"
                     value={Math.round(
@@ -2765,7 +2767,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                     )}
                     suffix="M CLP"
                     prefix="💰"
-                    valueStyle={{ color: '#52c41a' }}
+                    valueStyle={{ color: 'var(--color-success)' }}
                   />
                 </Card>
               </Col>
@@ -2795,8 +2797,8 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                               size="small" 
                               style={{ 
                                 marginBottom: '12px',
-                                border: isDelayed ? '2px solid #ff4d4f' : '1px solid #d9d9d9',
-                                background: isDelayed ? '#fff1f0' : responsibilityInfo.bg
+                                border: isDelayed ? '2px solid var(--color-error)' : '1px solid var(--color-border)',
+                                background: isDelayed ? 'var(--color-error-bg)' : responsibilityInfo.bg
                               }}
                             >
                               <Row justify="space-between" align="middle">
@@ -2805,7 +2807,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                     <span style={{ fontSize: '16px' }}>{responsibilityInfo.icon}</span>
                                     <div>
                                       <strong>{milestone.name}</strong>
-                                      <div style={{ fontSize: '12px', color: '#666' }}>
+                                      <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
                                         📅 {dayjs(milestone.planned_date).format('DD/MM/YYYY')}
                                       </div>
                                     </div>
@@ -2824,16 +2826,16 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                                 <Col span={6}>
                                   {milestone.financial_impact > 0 && (
                                     <div style={{ textAlign: 'right' }}>
-                                      <strong style={{ color: '#f5222d' }}>
+                                      <strong style={{ color: 'var(--color-error)' }}>
                                         ${(milestone.financial_impact / 1000000).toFixed(1)}M
                                       </strong>
-                                      <div style={{ fontSize: '10px', color: '#666' }}>
+                                      <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
                                         Impacto CLP
                                       </div>
                                     </div>
                                   )}
                                   {milestone.external_contact && (
-                                    <div style={{ fontSize: '10px', color: '#666' }}>
+                                    <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
                                       👤 {milestone.external_contact}
                                     </div>
                                   )}
@@ -2841,7 +2843,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                               </Row>
                               
                               {milestone.blocking_reason && (
-                                <div style={{ marginTop: '8px', padding: '8px', background: '#fafafa', borderRadius: '4px' }}>
+                                <div style={{ marginTop: '8px', padding: '8px', background: 'var(--color-surface-raised)', borderRadius: '4px' }}>
                                   <strong style={{ fontSize: '11px' }}>Razón del bloqueo:</strong>
                                   <div style={{ fontSize: '11px', marginTop: '2px' }}>
                                     {milestone.blocking_reason}
@@ -2850,7 +2852,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                               )}
                               
                               {milestone.delay_justification && (
-                                <div style={{ marginTop: '4px', padding: '8px', background: '#fff7e6', borderRadius: '4px' }}>
+                                <div style={{ marginTop: '4px', padding: '8px', background: 'var(--color-warning-bg)', borderRadius: '4px' }}>
                                   <strong style={{ fontSize: '11px' }}>Justificación:</strong>
                                   <div style={{ fontSize: '11px', marginTop: '2px' }}>
                                     {milestone.delay_justification}
@@ -2862,7 +2864,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                         })}
                     </div>
                   ) : (
-                    <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+                    <div style={{ textAlign: 'center', padding: '40px', color: 'var(--color-text-muted)' }}>
                       <CheckCircleOutlined style={{ fontSize: '48px', marginBottom: '16px' }} />
                       <div>¡Excelente! No hay dependencias externas críticas</div>
                       <div style={{ fontSize: '12px', marginTop: '8px' }}>
@@ -3113,16 +3115,16 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
               <Form.Item name="responsibility" label="Tipo de Responsabilidad">
                 <Select>
                   <Select.Option value="internal">
-                    <span style={{ color: '#1890ff' }}>🏢 Interno</span> - Tu equipo
+                    <span style={{ color: 'var(--color-info)' }}>🏢 Interno</span> - Tu equipo
                   </Select.Option>
                   <Select.Option value="client">
-                    <span style={{ color: '#faad14' }}>👤 Cliente</span> - Responsabilidad del cliente
+                    <span style={{ color: 'var(--color-warning)' }}>👤 Cliente</span> - Responsabilidad del cliente
                   </Select.Option>
                   <Select.Option value="external">
-                    <span style={{ color: '#f5222d' }}>🏪 Externo</span> - Proveedores/Terceros
+                    <span style={{ color: 'var(--color-error)' }}>🏪 Externo</span> - Proveedores/Terceros
                   </Select.Option>
                   <Select.Option value="shared">
-                    <span style={{ color: '#722ed1' }}>🤝 Compartido</span> - Colaboración requerida
+                    <span style={{ color: 'var(--color-info)' }}>🤝 Compartido</span> - Colaboración requerida
                   </Select.Option>
                 </Select>
               </Form.Item>
@@ -3258,7 +3260,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                     {projects.find(p => p.id === selectedProjectId)?.name || 'Proyecto Seleccionado'}
                   </Select.Option>
                 </Select>
-                <div style={{ fontSize: '12px', color: '#666', marginTop: '4px' }}>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
                   Proyecto seleccionado desde el Gantt Chart
                 </div>
               </div>
@@ -3292,7 +3294,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
               <Select.Option value="review">Revisión</Select.Option>
               <Select.Option value="go_live">Go Live</Select.Option>
               <Select.Option value="checkpoint">Checkpoint</Select.Option>
-              <Select.Option value="deadline">Deadline</Select.Option>
+              <Select.Option value="deadline">Fecha límite</Select.Option>
             </Select>
           </Form.Item>
 
@@ -3340,16 +3342,16 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
           <Form.Item name="responsibility" label="Tipo de Responsabilidad" initialValue="internal">
             <Select>
               <Select.Option value="internal">
-                <span style={{ color: '#1890ff' }}>🏢 Interno</span> - Tu equipo
+                <span style={{ color: 'var(--color-info)' }}>🏢 Interno</span> - Tu equipo
               </Select.Option>
               <Select.Option value="client">
-                <span style={{ color: '#faad14' }}>👤 Cliente</span> - Responsabilidad del cliente
+                <span style={{ color: 'var(--color-warning)' }}>👤 Cliente</span> - Responsabilidad del cliente
               </Select.Option>
               <Select.Option value="external">
-                <span style={{ color: '#f5222d' }}>🏪 Externo</span> - Proveedores/Terceros
+                <span style={{ color: 'var(--color-error)' }}>🏪 Externo</span> - Proveedores/Terceros
               </Select.Option>
               <Select.Option value="shared">
-                <span style={{ color: '#722ed1' }}>🤝 Compartido</span> - Colaboración requerida
+                <span style={{ color: 'var(--color-info)' }}>🤝 Compartido</span> - Colaboración requerida
               </Select.Option>
             </Select>
           </Form.Item>
@@ -3588,7 +3590,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
 
         <div>
           <Typography.Title level={5}>Ejemplo de formato Mermaid:</Typography.Title>
-          <Card size="small" style={{ background: '#f8f9fa' }}>
+          <Card size="small" style={{ background: 'var(--color-surface-raised)' }}>
             <pre style={{ margin: 0, fontSize: '12px' }}>
 {`gantt
     title Mi Proyecto

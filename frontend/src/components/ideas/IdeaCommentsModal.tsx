@@ -4,6 +4,7 @@ import { UserOutlined, SendOutlined } from '@ant-design/icons';
 import { Idea, IdeaComment } from '@/types/idea';
 import { useIdeaStore } from '@/store/ideaStore';
 import { formatDistanceToNow } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 const { TextArea } = Input;
 const { Text } = Typography;
@@ -36,7 +37,7 @@ export const IdeaCommentsModal: React.FC<IdeaCommentsModalProps> = ({ idea }) =>
       setSubmitting(true);
       await createIdeaComment(idea.id, newComment.trim());
       setNewComment('');
-      message.success('Comment added successfully');
+      message.success("Comentario agregado");
       // Refresh comments
       await fetchIdeaComments(idea.id);
     } catch (error) {
@@ -56,7 +57,7 @@ export const IdeaCommentsModal: React.FC<IdeaCommentsModalProps> = ({ idea }) =>
           rows={3}
           value={newComment}
           onChange={(e) => setNewComment(e.target.value)}
-          placeholder="Add a comment..."
+          placeholder="Escribe un comentario..."
           style={{ marginBottom: 8 }}
         />
         <div style={{ textAlign: 'right' }}>
@@ -67,7 +68,7 @@ export const IdeaCommentsModal: React.FC<IdeaCommentsModalProps> = ({ idea }) =>
             loading={submitting}
             disabled={!newComment.trim()}
           >
-            Post Comment
+            Publicar comentario
           </Button>
         </div>
       </div>
@@ -76,7 +77,7 @@ export const IdeaCommentsModal: React.FC<IdeaCommentsModalProps> = ({ idea }) =>
       <Spin spinning={isLoading}>
         {comments.length === 0 ? (
           <Empty
-            description="No comments yet"
+            description="Todavía no hay comentarios"
             image={Empty.PRESENTED_IMAGE_SIMPLE}
           />
         ) : (
@@ -96,7 +97,7 @@ export const IdeaCommentsModal: React.FC<IdeaCommentsModalProps> = ({ idea }) =>
                     <Space>
                       <Text strong>{comment.user_name}</Text>
                       <Text type="secondary" style={{ fontSize: '12px' }}>
-                        {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true })}
+                        {formatDistanceToNow(new Date(comment.created_at), { addSuffix: true, locale: es })}
                       </Text>
                     </Space>
                   }

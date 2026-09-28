@@ -38,7 +38,7 @@ class FileErrorBoundary extends Component<Props, State> {
             description={
               <div>
                 <p>Se produjo un problema en el componente de carga de archivos.</p>
-                <p style={{ fontSize: '12px', color: '#666', marginTop: '8px' }}>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '8px' }}>
                   {this.state.error?.message || 'Error desconocido'}
                 </p>
                 <Button 

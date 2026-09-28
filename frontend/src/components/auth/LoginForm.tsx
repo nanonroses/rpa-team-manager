@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Form, Input, Button, Alert, Card, Typography, Space, Divider } from 'antd';
-import { UserOutlined, LockOutlined, LoginOutlined } from '@ant-design/icons';
+import { UserOutlined, LockOutlined, LoginOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
 import { useAuthStore } from '@/store/authStore';
 import { LoginCredentials } from '@/types/auth';
+import { ThemeSelector, PaletteSelector } from '@/components/common/ThemeProvider';
 
 const { Title, Text } = Typography;
 
@@ -20,15 +21,15 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
       clearError();
       await login(values);
       onSuccess?.();
-    } catch (error) {
+    } catch {
       // Error is handled by the store
     }
   };
 
   const demoUsers = [
-    { email: 'admin@rpa.com', role: 'Team Lead', description: 'Full access to all features' },
-    { email: 'dev1@rpa.com', role: 'RPA Developer 1', description: 'Task management and time tracking' },
-    { email: 'ops1@rpa.com', role: 'RPA Operations', description: 'Project monitoring and coordination' }
+    { email: 'admin@rpa.com', role: 'Líder de equipo', description: 'Acceso completo a todas las funciones' },
+    { email: 'dev1@rpa.com', role: 'Desarrollador RPA 1', description: 'Gestión de tareas y registro de tiempo' },
+    { email: 'ops1@rpa.com', role: 'Operaciones RPA', description: 'Seguimiento y coordinación de proyectos' }
   ];
 
   const fillDemoCredentials = (email: string) => {
@@ -43,45 +44,62 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
       display: 'flex', 
       alignItems: 'center', 
       justifyContent: 'center',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      padding: '20px'
+      background: 'var(--canvas)',
+      padding: '24px',
+      position: 'relative'
     }}>
+      <div className="login-theme-selector" style={{ display: 'flex', gap: '8px' }}>
+        <PaletteSelector />
+        <ThemeSelector />
+      </div>
+      
       <Card
         style={{
           width: '100%',
-          maxWidth: 400,
-          boxShadow: '0 10px 30px rgba(0,0,0,0.2)',
-          borderRadius: '12px'
+          maxWidth: 420,
+          border: '1px solid var(--line)',
+          borderRadius: 'var(--radius-lg)',
+          boxShadow: 'var(--elevation-2)',
+          background: 'var(--surface)'
         }}
-        styles={{ body: { padding: '40px' } }}
+        styles={{ body: { padding: '36px 32px' } }}
       >
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{ 
-            fontSize: '48px', 
-            marginBottom: '16px',
-            background: 'linear-gradient(45deg, #1890ff, #52c41a)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent'
+        <div style={{ textAlign: 'center', marginBottom: '28px' }}>
+          {/* Professional Engineering Brand Mark */}
+          <div style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 44,
+            height: 44,
+            borderRadius: 10,
+            background: 'linear-gradient(135deg, #171717 0%, #0A0A0A 100%)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            color: '#FFFFFF',
+            fontSize: 20,
+            marginBottom: 14,
+            boxShadow: 'var(--elevation-1)'
           }}>
-            🤖
+            <SafetyCertificateOutlined style={{ color: 'var(--color-primary)' }} />
           </div>
-          <Title level={2} style={{ margin: 0, color: '#1f1f1f' }}>
+
+          <Title level={3} style={{ margin: '0 0 4px', fontFamily: 'var(--font-display)', fontWeight: 700, letterSpacing: '-0.025em' }}>
             RPA Team Manager
           </Title>
-          <Text type="secondary">
-            Team collaboration for RPA projects
+          <Text type="secondary" style={{ fontSize: '13px' }}>
+            Plataforma de operaciones y gestión de proyectos
           </Text>
         </div>
 
         {error && (
           <Alert
-            message="Login Failed"
-            description={error || 'Unknown error occurred'}
+            message="No se pudo iniciar sesión"
+            description={error || 'Ocurrió un error desconocido'}
             type="error"
             showIcon
             closable
             onClose={clearError}
-            style={{ marginBottom: '24px' }}
+            style={{ marginBottom: '20px', borderRadius: 'var(--radius-md)' }}
           />
         )}
 
@@ -89,39 +107,41 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
           form={form}
           onFinish={handleSubmit}
           layout="vertical"
-          size="large"
+          size="middle"
           autoComplete="off"
         >
           <Form.Item
             name="email"
-            label="Email"
+            label={<span style={{ fontSize: '13px', fontWeight: 500 }}>Correo electrónico</span>}
             rules={[
-              { required: true, message: 'Please enter your email' },
-              { type: 'email', message: 'Please enter a valid email' }
+              { required: true, message: 'Ingresa tu correo electrónico' },
+              { type: 'email', message: 'Ingresa un correo electrónico válido' }
             ]}
           >
             <Input
-              prefix={<UserOutlined />}
-              placeholder="Enter your email"
+              prefix={<UserOutlined style={{ color: 'var(--color-text-muted)' }} />}
+              placeholder="tu.correo@empresa.com"
               autoComplete="email"
+              style={{ height: 40 }}
             />
           </Form.Item>
 
           <Form.Item
             name="password"
-            label="Password"
+            label={<span style={{ fontSize: '13px', fontWeight: 500 }}>Contraseña</span>}
             rules={[
-              { required: true, message: 'Please enter your password' }
+              { required: true, message: 'Ingresa tu contraseña' }
             ]}
           >
             <Input.Password
-              prefix={<LockOutlined />}
-              placeholder="Enter your password"
+              prefix={<LockOutlined style={{ color: 'var(--color-text-muted)' }} />}
+              placeholder="••••••••"
               autoComplete="current-password"
+              style={{ height: 40 }}
             />
           </Form.Item>
 
-          <Form.Item style={{ marginBottom: '16px' }}>
+          <Form.Item style={{ marginTop: '20px', marginBottom: '16px' }}>
             <Button
               type="primary"
               htmlType="submit"
@@ -129,26 +149,29 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
               block
               icon={<LoginOutlined />}
               style={{ 
-                height: '48px',
-                fontSize: '16px',
-                borderRadius: '8px'
+                height: '42px',
+                fontSize: '14px',
+                fontWeight: 600,
+                borderRadius: 'var(--radius-md)'
               }}
             >
-              {isLoading ? 'Signing In...' : 'Sign In'}
+              {isLoading ? 'Iniciando sesión…' : 'Acceder al espacio'}
             </Button>
           </Form.Item>
         </Form>
 
-        <Divider>Demo Users</Divider>
+        <Divider style={{ margin: '20px 0 16px', fontSize: '11px', color: 'var(--color-text-muted)' }}>
+          ACCESO DE DEMOSTRACIÓN
+        </Divider>
 
-        <div style={{ marginBottom: '16px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '12px' }}>
           <Button
             type="link"
             size="small"
             onClick={() => setShowDemoCredentials(!showDemoCredentials)}
-            style={{ padding: 0 }}
+            style={{ padding: 0, fontSize: '12px' }}
           >
-            {showDemoCredentials ? 'Hide' : 'Show'} demo credentials
+            {showDemoCredentials ? 'Ocultar credenciales' : 'Ver cuentas preconfiguradas'}
           </Button>
         </div>
 
@@ -160,10 +183,11 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
                 size="small"
                 style={{
                   cursor: 'pointer',
-                  transition: 'all 0.2s',
-                  border: '1px solid #f0f0f0'
+                  border: '1px solid var(--line)',
+                  borderRadius: 'var(--radius-md)',
+                  background: 'var(--color-surface-raised)'
                 }}
-                styles={{ body: { padding: '12px' } }}
+                styles={{ body: { padding: '10px 12px' } }}
                 hoverable
                 onClick={() => fillDemoCredentials(user.email)}
               >
@@ -172,11 +196,11 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
                     <Text strong style={{ fontSize: '12px' }}>{user.email}</Text>
                     <br />
                     <Text type="secondary" style={{ fontSize: '11px' }}>
-                      {user.role} - {user.description}
+                      {user.role} · {user.description}
                     </Text>
                   </div>
-                  <Button size="small" type="text">
-                    Use
+                  <Button size="small" type="default" style={{ fontSize: '11px', height: 26, padding: '0 8px' }}>
+                    Usar
                   </Button>
                 </div>
               </Card>
@@ -187,22 +211,22 @@ export const LoginForm: React.FC<LoginFormProps> = ({ onSuccess }) => {
                 fontSize: '11px', 
                 textAlign: 'center', 
                 display: 'block',
-                marginTop: '8px'
+                marginTop: '6px'
               }}
             >
-              Passwords: admin123, dev123, ops123
+              Claves de demo: <code>admin123</code>, <code>dev123</code>, <code>ops123</code>
             </Text>
           </Space>
         )}
 
         <div style={{ 
           textAlign: 'center', 
-          marginTop: '24px',
+          marginTop: '20px',
           paddingTop: '16px',
-          borderTop: '1px solid #f0f0f0'
+          borderTop: '1px solid var(--line)'
         }}>
-          <Text type="secondary" style={{ fontSize: '12px' }}>
-            Optimized for 5-person RPA teams
+          <Text type="secondary" style={{ fontSize: '11px' }}>
+            RPA Team Manager · Edición Enterprise
           </Text>
         </div>
       </Card>

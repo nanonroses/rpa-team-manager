@@ -120,32 +120,32 @@ export interface TaskDependency {
 }
 
 export const ProjectStatusLabels: Record<ProjectStatus, string> = {
-  active: 'Active',
-  on_hold: 'On Hold',
-  completed: 'Completed',
-  cancelled: 'Cancelled'
+  active: "Activo",
+  on_hold: "En pausa",
+  completed: "Completado",
+  cancelled: "Cancelado"
 };
 
 export const PriorityLabels: Record<Priority, string> = {
-  critical: 'Critical',
-  high: 'High',
-  medium: 'Medium',
-  low: 'Low'
+  critical: "Crítico",
+  high: "Alto",
+  medium: "Medio",
+  low: "Bajo"
 };
 
 export const TaskTypeLabels: Record<TaskType, string> = {
-  task: 'Task',
-  bug: 'Bug',
-  feature: 'Feature',
-  research: 'Research',
-  documentation: 'Documentation'
+  task: 'Tarea',
+  bug: 'Error',
+  feature: 'Funcionalidad',
+  research: 'Investigación',
+  documentation: 'Documentación'
 };
 
 export const TaskStatusLabels: Record<TaskStatus, string> = {
-  todo: 'To Do',
-  in_progress: 'In Progress',
-  review: 'Review',
-  testing: 'Testing',
-  done: 'Done',
-  blocked: 'Blocked'
+  todo: "Pendiente",
+  in_progress: "En curso",
+  review: 'En revisión',
+  testing: 'En pruebas',
+  done: "Completado",
+  blocked: 'Bloqueado'
 };

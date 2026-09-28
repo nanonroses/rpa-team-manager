@@ -116,4 +116,19 @@ describe('ProjectController - asignaciones de equipo (SQLite real)', () => {
         await controller.getProjectAssignments(makeReq(lead, {}, { id: String(projectId) }), resLead);
         expect((resLead.json as jest.Mock).mock.calls[0][0][0]).toMatchObject({ monthly_cost: 1760000, hourly_rate: 10000 });
     });
+    it('guarda el responsable del resumen junto al equipo y permite cambiarlo', async () => {
+        const assignments = [
+            { user_id: users.dev, role: 'lead', allocation_percentage: 100 },
+            { user_id: users.ops, role: 'contributor', allocation_percentage: 50 }
+        ];
+        const response = await post({ user_assignments: assignments, responsible_user_id: users.ops });
+        expect(response.status).toHaveBeenCalledWith(201);
+        expect(await testDb.get('SELECT assigned_to FROM projects WHERE id = ?', [projectId])).toEqual({ assigned_to: users.ops });
+        const invalid = await post({ user_assignments: assignments, responsible_user_id: users.lead });
+        expect(invalid.status).toHaveBeenCalledWith(400);
+        expect(await testDb.get('SELECT assigned_to FROM projects WHERE id = ?', [projectId])).toEqual({ assigned_to: users.ops });
+        await post({ user_assignments: assignments, responsible_user_id: users.dev });
+        expect(await testDb.get('SELECT assigned_to FROM projects WHERE id = ?', [projectId])).toEqual({ assigned_to: users.dev });
+    });
+
 });

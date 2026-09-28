@@ -67,6 +67,7 @@ router.get('/:id', fileController.getFile);
  * @access Private
  */
 router.get('/:id/download', fileController.downloadFile);
+router.get('/:id/preview', fileController.previewFile);
 
 /**
  * @route POST /api/files/:id/associate

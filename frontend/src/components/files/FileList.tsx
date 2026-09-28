@@ -32,6 +32,8 @@ import {
 } from '@ant-design/icons';
 import { fileService, FileRecord, FileFilters } from '@/services/fileService';
 import { Link } from 'react-router-dom';
+import { FilePreviewModal } from './FilePreviewModal';
+import { displayLabel } from '@/utils/displayLabels';
 import { useAuthStore } from '@/store/authStore';
 import dayjs from 'dayjs';
 import 'dayjs/locale/es';
@@ -85,6 +87,7 @@ export const FileList: React.FC<FileListProps> = ({
   const [selectedAssociationType, setSelectedAssociationType] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<FileRecord | null>(null);
   const [detailModalVisible, setDetailModalVisible] = useState(false);
+  const [previewFile, setPreviewFile] = useState<FileRecord | null>(null);
 
   useEffect(() => {
     loadFiles();
@@ -162,7 +165,7 @@ export const FileList: React.FC<FileListProps> = ({
 
   const getFileIcon = (file: FileRecord) => {
     const iconName = fileService.getFileIcon(file.mime_type, file.file_extension);
-    const iconProps = { style: { fontSize: 24, color: file.category_color || '#1890ff' } };
+    const iconProps = { style: { fontSize: 24, color: file.category_color || 'var(--color-info)' } };
     
     switch (iconName) {
       case 'FileImageOutlined':
@@ -188,6 +191,10 @@ export const FileList: React.FC<FileListProps> = ({
     if (!showActions) return [];
 
     const actions = [
+      <Tooltip key="preview" title="Previsualizar">
+        <Button type="text" size="small" aria-label={`Previsualizar ${file.original_filename}`} icon={<EyeOutlined />}
+          onClick={(event) => { event.stopPropagation(); setPreviewFile(file); }} />
+      </Tooltip>,
       <Tooltip title="Descargar">
         <Button 
           type="text" 
@@ -296,7 +303,7 @@ export const FileList: React.FC<FileListProps> = ({
                   >
                     {associationTypes.map(type => (
                       <Option key={type} value={type}>
-                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                        {displayLabel(type)}
                       </Option>
                     ))}
                   </Select>
@@ -314,6 +321,7 @@ export const FileList: React.FC<FileListProps> = ({
             />
           ) : (
             <List
+              className="document-file-list"
               itemLayout="horizontal"
               dataSource={files}
               renderItem={(file) => (
@@ -325,14 +333,14 @@ export const FileList: React.FC<FileListProps> = ({
                   <List.Item.Meta
                     avatar={getFileIcon(file)}
                     title={
-                      <Space>
-                        <Text strong>{file.original_filename}</Text>
+                      <Space wrap>
+                        <Button type="link" className="file-name-button" onClick={(event) => { event.stopPropagation(); setPreviewFile(file); }}>{file.original_filename}</Button>
                         {file.category_name && (
                           <Tag color={file.category_color}>
-                            {file.category_name}
+                            {displayLabel(file.category_name)}
                           </Tag>
                         )}
-                        {file.is_public && (
+                        {Boolean(file.is_public) && (
                           <Tag color="blue">Público</Tag>
                         )}
                       </Space>
@@ -362,7 +370,7 @@ export const FileList: React.FC<FileListProps> = ({
 
                           {showAssociations && file.associations && file.associations.length > 0 && (
                             <Space wrap size="small">
-                              <LinkOutlined style={{ color: '#8c8c8c', fontSize: '12px' }} />
+                              <LinkOutlined style={{ color: 'var(--color-text-muted)', fontSize: '12px' }} />
                               {file.associations.map(assoc => (
                                 <Tag key={assoc.id} color="processing">
                                   {assoc.entity_type === 'project' ? <Link to={`/projects/${assoc.entity_id}`}>Proyecto: {assoc.entity_name || `#${assoc.entity_id}`}</Link> : assoc.entity_type === 'task' ? <Link to={`/tasks?taskId=${assoc.entity_id}`}>Tarea: {assoc.entity_name || `#${assoc.entity_id}`}</Link> : `${assoc.entity_type === 'idea' ? 'Idea' : 'Usuario'}: ${assoc.entity_name || `#${assoc.entity_id}`}`}
@@ -382,6 +390,7 @@ export const FileList: React.FC<FileListProps> = ({
       </Card>
 
       {/* File Details Modal */}
+      <FilePreviewModal fileId={previewFile?.id ?? null} filename={previewFile?.original_filename} onClose={() => setPreviewFile(null)} />
       <Modal
         title="Detalle del archivo"
         open={detailModalVisible}
@@ -411,7 +420,7 @@ export const FileList: React.FC<FileListProps> = ({
               <Descriptions.Item label="Categoría">
                 {selectedFile.category_name ? (
                   <Tag color={selectedFile.category_color}>
-                    {selectedFile.category_name}
+                    {displayLabel(selectedFile.category_name)}
                   </Tag>
               ) : 'Sin categoría'}
               </Descriptions.Item>
@@ -445,7 +454,7 @@ export const FileList: React.FC<FileListProps> = ({
                       <Space>
                         <Tag color="processing">{assoc.entity_type === 'project' ? 'Proyecto' : assoc.entity_type === 'task' ? 'Tarea' : assoc.entity_type === 'idea' ? 'Idea' : 'Usuario'}</Tag>
                         {assoc.entity_type === 'project' ? <Link to={`/projects/${assoc.entity_id}`}>{assoc.entity_name || `#${assoc.entity_id}`}</Link> : assoc.entity_type === 'task' ? <Link to={`/tasks?taskId=${assoc.entity_id}`}>{assoc.entity_name || `#${assoc.entity_id}`}</Link> : <Text>{assoc.entity_name || `#${assoc.entity_id}`}</Text>}
-                        <Text type="secondary">({assoc.association_type})</Text>
+                        <Text type="secondary">({displayLabel(assoc.association_type)})</Text>
                       </Space>
                     </List.Item>
                   )}

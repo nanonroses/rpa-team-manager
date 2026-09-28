@@ -34,10 +34,10 @@ export interface AuthState {
 }
 
 export const RoleLabels: Record<UserRole, string> = {
-  team_lead: 'Team Lead',
-  rpa_developer: 'RPA Developer',
-  rpa_operations: 'RPA Operations',
-  it_support: 'IT Support',
+  team_lead: 'Líder de equipo',
+  rpa_developer: 'Desarrollador RPA',
+  rpa_operations: 'Operaciones RPA',
+  it_support: 'Soporte TI',
   billing: 'Facturación y Cobranza'
 };
 

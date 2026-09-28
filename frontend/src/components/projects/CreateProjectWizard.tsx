@@ -299,7 +299,7 @@ export const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ visibl
 
       <div style={{ display: currentKey === 'milestones' ? 'block' : 'none' }}>
         {isOperations ? (
-          <Alert type="info" showIcon message="Solo Team Lead puede cargar hitos de pago. Se pueden completar después desde la ficha del proyecto." />
+          <Alert type="info" showIcon message="Solo el líder de equipo puede cargar hitos de pago. Se pueden completar después desde la ficha del proyecto." />
         ) : (
           <>
             <Form form={milestoneForm} layout="inline" style={{ marginBottom: 16 }}>

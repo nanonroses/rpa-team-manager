@@ -50,7 +50,7 @@ export const useAuthStore = create<AuthStore>()(
             error: null
           });
         } catch (error: any) {
-          const errorMessage = error.response?.data?.error || 'Login failed';
+          const errorMessage = error.response?.data?.error || "No se pudo iniciar sesión";
           set({
             user: null,
             token: null,
@@ -123,7 +123,7 @@ export const useAuthStore = create<AuthStore>()(
           } else {
             set({
               isLoading: false,
-              error: error.response?.data?.error || 'Failed to get user profile'
+              error: error.response?.data?.error || "No se pudo cargar el perfil"
             });
           }
           throw error; // Re-throw for ProtectedRoute to handle
@@ -138,7 +138,7 @@ export const useAuthStore = create<AuthStore>()(
           
           set({ isLoading: false });
         } catch (error: any) {
-          const errorMessage = error.response?.data?.error || 'Failed to change password';
+          const errorMessage = error.response?.data?.error || "No se pudo cambiar la contraseña";
           set({ isLoading: false, error: errorMessage });
           throw error;
         }
@@ -153,7 +153,7 @@ export const useAuthStore = create<AuthStore>()(
           set({ isLoading: false });
           return response;
         } catch (error: any) {
-          const errorMessage = error.response?.data?.error || 'Failed to reset password';
+          const errorMessage = error.response?.data?.error || "No se pudo restablecer la contraseña";
           set({ isLoading: false, error: errorMessage });
           throw error;
         }

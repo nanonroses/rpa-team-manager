@@ -114,9 +114,10 @@ export class ProjectController {
                        (SELECT COUNT(*) FROM tasks t JOIN task_boards tb ON t.board_id = tb.id
                          WHERE tb.project_id = p.id) as total_tasks,
                        (SELECT COUNT(*) FROM tasks t JOIN task_boards tb ON t.board_id = tb.id
-                         WHERE tb.project_id = p.id AND t.status = 'done') as completed_tasks,
+                         WHERE tb.project_id = p.id AND EXISTS (SELECT 1 FROM task_columns tc WHERE tc.id = t.column_id
+                           AND (tc.is_done_column = 1 OR LOWER(TRIM(tc.name)) IN ('done', 'completed', 'finished')))) as completed_tasks,
                        (SELECT COALESCE(SUM(te.hours), 0) FROM time_entries te
-                         WHERE te.project_id = p.id AND te.approval_status = 'approved') as total_hours_logged
+                         WHERE te.project_id = p.id) as total_hours_logged
                 FROM projects p
                 LEFT JOIN users u1 ON p.created_by = u1.id
                 LEFT JOIN users u2 ON p.assigned_to = u2.id
@@ -169,7 +170,8 @@ export class ProjectController {
                        pf.budgeted_cost,
                        pf.actual_cost as budget_spent,
                        pf.budgeted_hours as hours_budgeted,
-                       0 as hours_spent,
+                       (SELECT COALESCE(SUM(te.hours), 0) FROM time_entries te WHERE te.project_id = p.id) as total_hours_logged,
+                       (SELECT COALESCE(SUM(te.hours), 0) FROM time_entries te WHERE te.project_id = p.id AND te.approval_status = 'approved') as hours_spent,
                        pf.delay_cost,
                        pf.penalty_cost,
                        pf.sale_price
@@ -198,14 +200,17 @@ export class ProjectController {
             // Get project tasks summary
             const tasksSummary = await db.query(`
                 SELECT 
-                    t.status,
+                    CASE WHEN tc.is_done_column = 1 OR LOWER(TRIM(tc.name)) IN ('done', 'completed', 'finished')
+                         THEN 'done' WHEN t.status = 'done' THEN 'todo' ELSE t.status END as status,
                     COUNT(*) as count,
                     SUM(t.estimated_hours) as estimated_hours,
                     SUM(t.actual_hours) as actual_hours
                 FROM task_boards tb
                 JOIN tasks t ON tb.id = t.board_id
+                JOIN task_columns tc ON tc.id = t.column_id
                 WHERE tb.project_id = ?
-                GROUP BY t.status
+                GROUP BY CASE WHEN tc.is_done_column = 1 OR LOWER(TRIM(tc.name)) IN ('done', 'completed', 'finished')
+                              THEN 'done' WHEN t.status = 'done' THEN 'todo' ELSE t.status END
             `, [id]);
 
             // Get recent activities
@@ -222,6 +227,8 @@ export class ProjectController {
 
             res.json({
                 ...this.stripFinancialFields(req.user, project),
+                total_tasks: tasksSummary.reduce((sum, row) => sum + row.count, 0),
+                completed_tasks: tasksSummary.filter(row => row.status === 'done').reduce((sum, row) => sum + row.count, 0),
                 tasks_summary: tasksSummary,
                 recent_activities: recentActivities.map(activity => this.stripFinancialFieldsFromActivity(req.user, activity))
             });
@@ -1038,7 +1045,7 @@ export class ProjectController {
     addProjectAssignments = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             const { id } = req.params;
-            const { user_assignments } = req.body;
+            const { user_assignments, responsible_user_id } = req.body;
             const userId = req.user?.id;
 
             if (!userId) {
@@ -1099,8 +1106,15 @@ export class ProjectController {
                 normalized.push({ user_id, role, allocation_percentage, start_date, end_date, budgeted_hours: budgeted_hours === null ? null : Number(budgeted_hours) });
             }
 
+            const responsibleId = responsible_user_id ?? normalized.find(a => a.role === 'lead')?.user_id ?? normalized[0].user_id;
+            if (!seen.has(responsibleId)) {
+                res.status(400).json({ error: 'El responsable debe pertenecer al equipo asignado' });
+                return;
+            }
+
             await db.beginTransaction();
             try {
+                await db.run('UPDATE projects SET assigned_to = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [responsibleId, id]);
                 await db.run('DELETE FROM project_assignments WHERE project_id = ?', [id]);
 
                 const newAssignments = [];

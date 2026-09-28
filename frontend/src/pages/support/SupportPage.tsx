@@ -350,7 +350,7 @@ const SupportPage: React.FC = () => {
   const handleCreateContact = async (values: any) => {
     try {
       if (!values.company_id) {
-        console.error('Company ID is required');
+        console.error("Selecciona una empresa");
         return;
       }
       await apiService.createCompanyContact(values.company_id, {
@@ -602,7 +602,7 @@ const SupportPage: React.FC = () => {
       render: (text, record) => (
         <div>
           <div style={{ fontWeight: 'bold' }}>{text}</div>
-          <div style={{ fontSize: '12px', color: '#666' }}>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
             {record.contact_person} • {record.email}
           </div>
         </div>
@@ -677,11 +677,11 @@ const SupportPage: React.FC = () => {
         return (
           <div>
             <div>
-              <Text strong style={{ color: '#52c41a' }}>
+              <Text strong style={{ color: 'var(--color-success)' }}>
                 CLP ${billing.total_to_invoice_clp.toLocaleString()}
               </Text>
             </div>
-            <div style={{ fontSize: '12px', color: '#666' }}>
+            <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
               Base: ${billing.base_hours_value_clp.toLocaleString()}
               {billing.extra_hours_value_clp > 0 && (
                 <span> + Extra: ${billing.extra_hours_value_clp.toLocaleString()}</span>
@@ -750,7 +750,7 @@ const SupportPage: React.FC = () => {
       render: (text, record) => (
         <div>
           <div style={{ fontWeight: 'bold' }}>{text}</div>
-          <div style={{ fontSize: '12px', color: '#666' }}>
+          <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
             {record.company_name}
           </div>
         </div>
@@ -861,7 +861,7 @@ const SupportPage: React.FC = () => {
               title="Empresas Activas"
               value={dashboardData?.summary.totalCompanies || 0}
               prefix={<CustomerServiceOutlined />}
-              valueStyle={{ color: '#1890ff' }}
+              valueStyle={{ color: 'var(--color-info)' }}
             />
           </Card>
         </Col>
@@ -871,7 +871,7 @@ const SupportPage: React.FC = () => {
               title="Tickets del Mes"
               value={dashboardData?.summary.thisMonthTickets || 0}
               prefix={<FileTextOutlined />}
-              valueStyle={{ color: '#faad14' }}
+              valueStyle={{ color: 'var(--color-warning)' }}
             />
           </Card>
         </Col>
@@ -881,7 +881,7 @@ const SupportPage: React.FC = () => {
               title="Tickets Resueltos"
               value={dashboardData?.summary.thisMonthResolved || 0}
               prefix={<CheckCircleOutlined />}
-              valueStyle={{ color: '#52c41a' }}
+              valueStyle={{ color: 'var(--color-success)' }}
             />
           </Card>
         </Col>
@@ -891,7 +891,7 @@ const SupportPage: React.FC = () => {
               title="Horas Facturadas"
               value={dashboardData?.billing?.totalToInvoice ? `$${(dashboardData.billing.totalToInvoice / 1000000).toFixed(1)}M` : '$0'}
               prefix={<DollarCircleOutlined />}
-              valueStyle={{ color: '#13c2c2' }}
+              valueStyle={{ color: 'var(--color-info)' }}
             />
           </Card>
         </Col>
@@ -935,7 +935,7 @@ const SupportPage: React.FC = () => {
                 value={dashboardData?.billing?.totalToInvoice || 0}
                 prefix="CLP $"
                 precision={0}
-                valueStyle={{ color: '#3f8600' }}
+                valueStyle={{ color: 'var(--color-success)' }}
               />
               <Divider />
               <Row gutter={16}>
@@ -1119,7 +1119,7 @@ const SupportPage: React.FC = () => {
             <Col span={12}>
               <Form.Item
                 name="email"
-                label="Email"
+                label="Correo electrónico"
                 rules={[{ type: 'email', message: 'Ingrese un email válido' }]}
               >
                 <Input />
@@ -1279,10 +1279,10 @@ const SupportPage: React.FC = () => {
               >
                 <Select>
                   <Option value="FreshDesk">FreshDesk</Option>
-                  <Option value="Remote">Remoto</Option>
-                  <Option value="Email">Email</Option>
-                  <Option value="Phone">Teléfono</Option>
-                  <Option value="On-site">Presencial</Option>
+                  <Option value="Remoto">Remoto</Option>
+                  <Option value="Correo electrónico">Correo electrónico</Option>
+                  <Option value="Teléfono">Teléfono</Option>
+                  <Option value="Presencial">Presencial</Option>
                   <Option value="Chat">Chat</Option>
                 </Select>
               </Form.Item>
@@ -1316,10 +1316,10 @@ const SupportPage: React.FC = () => {
                   mode="tags"
                   maxCount={1}
                   onSearch={handleRPAProcessSearch}
-                  dropdownRender={(menu) => (
+                  popupRender={(menu) => (
                     <>
                       {menu}
-                      <div style={{ padding: '8px', borderTop: '1px solid #d9d9d9' }}>
+                      <div style={{ padding: '8px', borderTop: '1px solid var(--color-border)' }}>
                         <Button
                           type="text"
                           icon={<PlusOutlined />}
@@ -1354,10 +1354,10 @@ const SupportPage: React.FC = () => {
                   mode="tags"
                   maxCount={1}
                   onSearch={handleContactSearch}
-                  dropdownRender={(menu) => (
+                  popupRender={(menu) => (
                     <>
                       {menu}
-                      <div style={{ padding: '8px', borderTop: '1px solid #d9d9d9' }}>
+                      <div style={{ padding: '8px', borderTop: '1px solid var(--color-border)' }}>
                         <Button
                           type="text"
                           icon={<PlusOutlined />}
@@ -1574,7 +1574,7 @@ const SupportPage: React.FC = () => {
             <Col span={12}>
               <Form.Item
                 name="contact_email"
-                label="Email"
+                label="Correo electrónico"
                 rules={[{ type: 'email', message: 'Ingrese un email válido' }]}
               >
                 <Input placeholder="maria@empresa.com" />

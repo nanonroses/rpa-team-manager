@@ -45,7 +45,7 @@ export const FileManager: React.FC<FileManagerProps> = ({
   defaultTab = 'files',
   multiple = true,
   maxFiles = 10,
-  association_type = 'attachment',
+  association_type,
   onFileUploaded,
   onFileSelected,
   style,

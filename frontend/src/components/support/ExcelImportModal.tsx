@@ -96,7 +96,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
 
   const previewFile = async () => {
     if (!uploadedFile) {
-      message.error('Please select a file first');
+      message.error("Primero selecciona un archivo");
       return;
     }
 
@@ -106,9 +106,9 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       setPreviewData(data);
       setFieldMappings(data.suggestedMappings);
       setCurrentStep(1);
-      message.success('File previewed successfully');
+      message.success("Previsualización lista");
     } catch (error: any) {
-      message.error(error.response?.data?.error || 'Failed to preview file');
+      message.error(error.response?.data?.error || "No se pudo previsualizar el archivo");
     } finally {
       setLoading(false);
     }
@@ -124,12 +124,12 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       setCurrentStep(2);
       
       if (result.errorCount === 0) {
-        message.success(`Successfully imported ${result.successCount} records`);
+        message.success(`Se importaron ${result.successCount} registros`);
       } else {
-        message.warning(`Imported ${result.successCount} records with ${result.errorCount} errors`);
+        message.warning(`Se importaron ${result.successCount} registros con ${result.errorCount} errores`);
       }
     } catch (error: any) {
-      message.error(error.response?.data?.error || 'Failed to import file');
+      message.error(error.response?.data?.error || "No se pudo importar el archivo");
     } finally {
       setLoading(false);
     }
@@ -153,13 +153,13 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
 
   const mappingColumns = [
     {
-      title: 'Excel Column',
+      title: "Columna de Excel",
       dataIndex: 'excelHeader',
       key: 'excelHeader',
       render: (text: string) => <Text strong>{text}</Text>
     },
     {
-      title: 'Sample Data',
+      title: "Datos de ejemplo",
       dataIndex: 'sampleData',
       key: 'sampleData',
       render: (data: any[]) => (
@@ -170,13 +170,13 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       )
     },
     {
-      title: 'Map to Field',
+      title: "Asignar al campo",
       dataIndex: 'mapping',
       key: 'mapping',
       render: (_: any, record: any) => (
         <Select
           style={{ width: '100%' }}
-          placeholder="Select field"
+          placeholder="Selecciona un campo"
           value={fieldMappings[record.excelHeader]}
           onChange={(value) => {
             setFieldMappings(prev => ({
@@ -190,7 +190,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
             <Select.Option key={field.key} value={field.key}>
               <Space>
                 {field.label}
-                {field.required && <Tag color="red">Required</Tag>}
+                {field.required && <Tag color="red">Obligatorio</Tag>}
               </Space>
             </Select.Option>
           ))}
@@ -226,42 +226,43 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
 
   return (
     <Modal
-      title="Import Excel File"
+      title="Importar archivo Excel"
       open={visible}
       onCancel={handleCancel}
       width={900}
       footer={null}
     >
       <Steps current={currentStep} style={{ marginBottom: '24px' }}>
-        <Step title="Upload File" icon={<UploadOutlined />} />
-        <Step title="Map Fields" icon={<FileExcelOutlined />} />
-        <Step title="Import Results" icon={<CheckCircleOutlined />} />
+        <Step title="Subir archivo" icon={<UploadOutlined />} />
+        <Step title="Asignar campos" icon={<FileExcelOutlined />} />
+        <Step title="Resultados de importación" icon={<CheckCircleOutlined />} />
       </Steps>
 
       {/* Step 1: File Upload */}
       {currentStep === 0 && (
         <div>
           <Alert
-            message="Supported File Formats"
-            description="You can upload Excel files (.xlsx, .xls) or CSV files. Maximum file size: 10MB."
+            message="Formatos admitidos"
+            description="Puedes subir archivos Excel (.xlsx, .xls) o CSV. Tamaño máximo: 10 MB."
             type="info"
             style={{ marginBottom: '16px' }}
           />
 
           <Upload.Dragger {...uploadProps}>
             <p className="ant-upload-drag-icon">
-              <FileExcelOutlined style={{ fontSize: '48px', color: '#1890ff' }} />
+              <FileExcelOutlined style={{ fontSize: '48px', color: 'var(--color-info)' }} />
             </p>
-            <p className="ant-upload-text">Click or drag Excel file to this area to upload</p>
+            <p className="ant-upload-text">Haz clic o arrastra un archivo Excel aquí</p>
             <p className="ant-upload-hint">
-              Support for Excel (.xlsx, .xls) and CSV files
+              
+              Se admiten archivos Excel (.xlsx, .xls) y CSV
             </p>
           </Upload.Dragger>
 
           {uploadedFile && (
             <Card style={{ marginTop: '16px' }}>
               <Space>
-                <FileExcelOutlined style={{ color: '#52c41a' }} />
+                <FileExcelOutlined style={{ color: 'var(--color-success)' }} />
                 <Text strong>{uploadedFile.name}</Text>
                 <Text type="secondary">({(uploadedFile.size / 1024 / 1024).toFixed(2)} MB)</Text>
               </Space>
@@ -270,14 +271,15 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
 
           <div style={{ marginTop: '24px', textAlign: 'right' }}>
             <Space>
-              <Button onClick={handleCancel}>Cancel</Button>
+              <Button onClick={handleCancel}>Cancelar</Button>
               <Button 
                 type="primary" 
                 onClick={previewFile}
                 disabled={!uploadedFile}
                 loading={loading}
               >
-                Preview File
+                
+                Previsualizar archivo
               </Button>
             </Space>
           </div>
@@ -288,18 +290,19 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
       {currentStep === 1 && previewData && (
         <div>
           <Alert
-            message="Map Excel Columns to Database Fields"
-            description={`Found ${previewData.totalRows} rows in the Excel file. Map each Excel column to the corresponding database field.`}
+            message="Relaciona las columnas de Excel con los campos de destino"
+            description={`Se encontraron ${previewData.totalRows} filas. Relaciona cada columna de Excel con su campo de destino.`}
             type="info"
             style={{ marginBottom: '16px' }}
           />
 
           {missingRequired.length > 0 && (
             <Alert
-              message="Missing Required Fields"
+              message="Faltan campos obligatorios"
               description={
                 <div>
-                  The following required fields are not mapped: {' '}
+                  
+                  Los siguientes campos obligatorios no están asignados: {' '}
                   {missingRequired.map(field => (
                     <Tag key={field.key} color="red">{field.label}</Tag>
                   ))}
@@ -318,25 +321,25 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
             style={{ marginBottom: '16px' }}
           />
 
-          <Divider>Import Options</Divider>
+          <Divider>Opciones de importación</Divider>
 
           <Space direction="vertical" style={{ width: '100%' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text>Create missing companies automatically</Text>
+              <Text>Crear automáticamente las empresas que falten</Text>
               <Switch 
                 checked={importOptions.createMissingCompanies}
                 onChange={(checked) => setImportOptions(prev => ({ ...prev, createMissingCompanies: checked }))}
               />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text>Create missing RPA processes automatically</Text>
+              <Text>Crear automáticamente los procesos RPA que falten</Text>
               <Switch 
                 checked={importOptions.createMissingProcesses}
                 onChange={(checked) => setImportOptions(prev => ({ ...prev, createMissingProcesses: checked }))}
               />
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Text>Skip empty rows</Text>
+              <Text>Omitir filas vacías</Text>
               <Switch 
                 checked={importOptions.skipEmptyRows}
                 onChange={(checked) => setImportOptions(prev => ({ ...prev, skipEmptyRows: checked }))}
@@ -346,14 +349,15 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
 
           <div style={{ marginTop: '24px', textAlign: 'right' }}>
             <Space>
-              <Button onClick={() => setCurrentStep(0)}>Back</Button>
+              <Button onClick={() => setCurrentStep(0)}>Volver</Button>
               <Button 
                 type="primary" 
                 onClick={executeImport}
                 disabled={missingRequired.length > 0}
                 loading={loading}
               >
-                Import Data ({previewData.totalRows} rows)
+                
+                Importar datos ({previewData.totalRows}  filas)
               </Button>
             </Space>
           </div>
@@ -367,30 +371,31 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
             <CheckCircleOutlined 
               style={{ 
                 fontSize: '48px', 
-                color: importResult.errorCount === 0 ? '#52c41a' : '#faad14' 
+                color: importResult.errorCount === 0 ? 'var(--color-success)' : 'var(--color-warning)' 
               }} 
             />
             <Title level={3} style={{ marginTop: '16px' }}>
-              Import {importResult.errorCount === 0 ? 'Completed' : 'Completed with Warnings'}
+              
+              Importación {importResult.errorCount === 0 ? "Completada" : "Completada con advertencias"}
             </Title>
           </div>
 
           <div style={{ marginBottom: '24px' }}>
             <Progress
               percent={Math.round((importResult.successCount / importResult.totalRows) * 100)}
-              strokeColor={importResult.errorCount === 0 ? '#52c41a' : '#faad14'}
+              strokeColor={importResult.errorCount === 0 ? 'var(--color-success)' : 'var(--color-warning)'}
               format={() => `${importResult.successCount}/${importResult.totalRows}`}
             />
           </div>
 
           <Alert
-            message="Import Summary"
+            message="Resumen de importación"
             description={
               <div>
-                <Text>Total rows processed: <Text strong>{importResult.totalRows}</Text></Text><br/>
-                <Text>Successfully imported: <Text strong style={{ color: '#52c41a' }}>{importResult.successCount}</Text></Text><br/>
-                <Text>Errors: <Text strong style={{ color: '#ff4d4f' }}>{importResult.errorCount}</Text></Text><br/>
-                <Text>Warnings: <Text strong style={{ color: '#faad14' }}>{importResult.warnings.length}</Text></Text>
+                <Text>Filas procesadas: <Text strong>{importResult.totalRows}</Text></Text><br/>
+                <Text>Importadas correctamente: <Text strong style={{ color: 'var(--color-success)' }}>{importResult.successCount}</Text></Text><br/>
+                <Text>Errores: <Text strong style={{ color: 'var(--color-error)' }}>{importResult.errorCount}</Text></Text><br/>
+                <Text>Advertencias: <Text strong style={{ color: 'var(--color-warning)' }}>{importResult.warnings.length}</Text></Text>
               </div>
             }
             type={importResult.errorCount === 0 ? 'success' : 'warning'}
@@ -398,42 +403,43 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
           />
 
           {importResult.warnings.length > 0 && (
-            <Card title={<><WarningOutlined style={{ color: '#faad14' }} /> Warnings</>} size="small" style={{ marginBottom: '16px' }}>
+            <Card title={<><WarningOutlined style={{ color: 'var(--color-warning)' }} />  Advertencias</>} size="small" style={{ marginBottom: '16px' }}>
               <List
                 size="small"
                 dataSource={importResult.warnings.slice(0, 10)}
                 renderItem={(warning) => (
                   <List.Item>
-                    <Text type="secondary">Row {warning.row}:</Text> {warning.warning}
+                    <Text type="secondary">Fila {warning.row}:</Text> {warning.warning}
                   </List.Item>
                 )}
               />
               {importResult.warnings.length > 10 && (
-                <Text type="secondary">... and {importResult.warnings.length - 10} more warnings</Text>
+                <Text type="secondary">... y {importResult.warnings.length - 10}  advertencias más</Text>
               )}
             </Card>
           )}
 
           {importResult.errors.length > 0 && (
-            <Card title={<><ExclamationCircleOutlined style={{ color: '#ff4d4f' }} /> Errors</>} size="small" style={{ marginBottom: '16px' }}>
+            <Card title={<><ExclamationCircleOutlined style={{ color: 'var(--color-error)' }} />  Errores</>} size="small" style={{ marginBottom: '16px' }}>
               <List
                 size="small"
                 dataSource={importResult.errors.slice(0, 10)}
                 renderItem={(error) => (
                   <List.Item>
-                    <Text type="secondary">Row {error.row}:</Text> <Text type="danger">{error.error}</Text>
+                    <Text type="secondary">Fila {error.row}:</Text> <Text type="danger">{error.error}</Text>
                   </List.Item>
                 )}
               />
               {importResult.errors.length > 10 && (
-                <Text type="secondary">... and {importResult.errors.length - 10} more errors</Text>
+                <Text type="secondary">... y {importResult.errors.length - 10}  errores más</Text>
               )}
             </Card>
           )}
 
           <div style={{ textAlign: 'right' }}>
             <Button type="primary" onClick={handleFinish}>
-              Finish
+              
+              Finalizar
             </Button>
           </div>
         </div>

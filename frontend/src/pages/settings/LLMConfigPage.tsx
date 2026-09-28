@@ -261,7 +261,7 @@ export const LLMConfigPage: React.FC = () => {
             <div>
               <Space direction="vertical" style={{ width: '100%' }}>
                 <div>
-                  <Text strong>API Key: </Text>
+                  <Text strong>Clave API: </Text>
                   <Text code>{savedKey.api_key_masked}</Text>
                 </div>
                 {savedKey.selected_model && (
@@ -293,7 +293,7 @@ export const LLMConfigPage: React.FC = () => {
             <div>
               <Form layout="vertical">
                 <Form.Item
-                  label="API Key"
+                  label="Clave API"
                   help={
                     <a href={docUrl} target="_blank" rel="noopener noreferrer">
                       Obtener API key →
@@ -310,9 +310,9 @@ export const LLMConfigPage: React.FC = () => {
                     prefix={<KeyOutlined />}
                     suffix={
                       validationResult === true ? (
-                        <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                        <CheckCircleOutlined style={{ color: 'var(--color-success)' }} />
                       ) : validationResult === false ? (
-                        <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+                        <CloseCircleOutlined style={{ color: 'var(--color-error)' }} />
                       ) : null
                     }
                   />

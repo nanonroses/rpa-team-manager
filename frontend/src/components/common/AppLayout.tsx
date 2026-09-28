@@ -27,6 +27,7 @@ import { useAuthStore } from '@/store/authStore';
 import { NotificationBell } from './NotificationBell';
 import { GlobalSearch } from './GlobalSearch';
 import { RoleLabels, RoleColors } from '@/types/auth';
+import { ThemeSelector, PaletteSelector } from './ThemeProvider';
 
 const { Header, Sider, Content } = Layout;
 const { Text } = Typography;
@@ -242,12 +243,14 @@ export const AppLayout: React.FC = () => {
             <Typography.Title level={4}>{page.title}</Typography.Title>
           </div>
           <div className="app-header-actions">
+            <PaletteSelector />
+            <ThemeSelector />
             <div className={`app-search-slot${mobileSearchOpen ? ' is-mobile-open' : ''}`}><GlobalSearch /></div>
             {isMobile && <Button type="text" aria-label={mobileSearchOpen ? 'Cerrar búsqueda' : 'Abrir búsqueda'} aria-expanded={mobileSearchOpen} icon={<SearchOutlined />} onClick={() => setMobileSearchOpen((open) => !open)} />}
             <NotificationBell />
             <Dropdown menu={{ items: userMenuItems }} trigger={['click']} placement="bottomRight">
               <Button type="text" className="app-user-button">
-                <Avatar size={36} style={{ backgroundColor: user ? RoleColors[user.role] : '#315d78' }}>{user?.full_name?.charAt(0)?.toUpperCase() || <UserOutlined />}</Avatar>
+                <Avatar size={36} style={{ backgroundColor: user ? RoleColors[user.role] : 'var(--color-info)' }}>{user?.full_name?.charAt(0)?.toUpperCase() || <UserOutlined />}</Avatar>
                 <span className="app-user-copy"><Text strong>{user?.full_name || 'Usuario'}</Text><Text type="secondary">{user ? RoleLabels[user.role] : 'Cargando…'}</Text></span>
               </Button>
             </Dropdown>

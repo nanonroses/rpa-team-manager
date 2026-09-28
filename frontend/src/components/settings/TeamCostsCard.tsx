@@ -8,9 +8,9 @@ import { TeamCostMember } from '@/types/teamCosts';
 const { Text } = Typography;
 
 const ROLE_LABELS: Record<string, string> = {
-  team_lead: 'Team Lead',
-  rpa_developer: 'RPA Developer',
-  rpa_operations: 'RPA Operations',
+  team_lead: "Líder de equipo",
+  rpa_developer: "Desarrollador RPA",
+  rpa_operations: "Operaciones RPA",
   it_support: 'Soporte TI'
 };
 
@@ -134,7 +134,7 @@ export const TeamCostsCard: React.FC = () => {
         type="warning"
         showIcon
         style={{ marginBottom: 16 }}
-        message="Solo visible para Team Lead"
+        message="Solo visible para el líder de equipo"
         description={`Ingresa el costo empresa mensual de cada persona (sueldo + leyes sociales + otros costos). Valor HH = costo empresa ÷ ${monthlyHours} horas del mes. Un cambio aplica desde hoy; las horas ya aprobadas conservan el valor con que se aprobaron.`}
       />
       <Table
