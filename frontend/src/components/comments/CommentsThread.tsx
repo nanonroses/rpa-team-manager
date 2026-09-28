@@ -36,7 +36,7 @@ export function renderContentWithMentions(content: string): React.ReactNode {
   const parts = content.split(/(@[a-zA-Z0-9_]+)/g);
   return parts.map((part, index) =>
     /^@[a-zA-Z0-9_]+$/.test(part)
-      ? <Text key={index} strong style={{ color: '#1677ff' }}>{part}</Text>
+      ? <Text key={index} strong style={{ color: 'var(--color-info)' }}>{part}</Text>
       : <React.Fragment key={index}>{part}</React.Fragment>
   );
 }

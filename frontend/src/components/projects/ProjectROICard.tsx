@@ -17,6 +17,9 @@ interface ProjectROIData {
   
   // BASIC PARAMETERS
   planned_hours: number;
+  financial_data_complete?: boolean;
+  missing_financial_data?: string[];
+  planned_hours_source?: 'budget' | 'tasks' | 'missing';
   real_hours: number;
   real_hours_source: 'approved' | 'projected';
   approved_hours: number;
@@ -121,15 +124,15 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
   };
 
   const getROIColor = (roi: number) => {
-    if (roi >= 30) return '#52c41a'; // Green
-    if (roi >= 15) return '#faad14'; // Orange  
-    return '#f5222d'; // Red
+    if (roi >= 30) return 'var(--color-success)'; // Green
+    if (roi >= 15) return 'var(--color-warning)'; // Orange  
+    return 'var(--color-error)'; // Red
   };
 
   const getROIStatus = (roi: number) => {
-    if (roi >= 30) return { text: 'Excelente', color: '#52c41a' };
-    if (roi >= 15) return { text: 'Bueno', color: '#faad14' };
-    return { text: 'Riesgo', color: '#f5222d' };
+    if (roi >= 30) return { text: 'Excelente', color: 'var(--color-success)' };
+    if (roi >= 15) return { text: 'Bueno', color: 'var(--color-warning)' };
+    return { text: 'Riesgo', color: 'var(--color-error)' };
   };
 
   if (!user || user.role !== 'team_lead') {
@@ -158,7 +161,8 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
   const displayValues = getDisplayValues();
   if (!displayValues) return null;
   
-  const status = getROIStatus(displayValues.roi);
+  const incomplete = roiData.financial_data_complete === false;
+  const status = incomplete ? { text: 'Sin configurar', color: 'default' } : getROIStatus(displayValues.roi);
 
   const projectedCost = roiData.projected_cost ?? (shouldShowReal ? roiData.real_cost : roiData.planned_cost);
   const projectedProfit = roiData.projected_profit ?? (shouldShowReal ? roiData.real_profit : roiData.planned_profit);
@@ -172,7 +176,7 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
     <Card 
       title={
         <Space wrap>
-          <DollarOutlined style={{ color: '#1890ff' }} />
+          <DollarOutlined style={{ color: 'var(--color-info)' }} />
           <span>💰 Rentabilidad - {projectName}</span>
           <Tag color={status.color}>{status.text}</Tag>
           {varianceImpact > 0 && (
@@ -184,6 +188,9 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
         </Space>
       }
     >
+      {incomplete && <Alert style={{ marginBottom: 16 }} type="warning" showIcon
+        message="Rentabilidad pendiente de configuración"
+        description={`Falta configurar: ${roiData.missing_financial_data?.join(', ') || 'horas y costos'}. El precio de venta no equivale a la ganancia.`} />}
       {/* Métricas Principales */}
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={8}>
@@ -191,8 +198,8 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
             title="Precio de Venta"
             value={roiData.sale_price}
             prefix="$"
-            formatter={(value) => `${Number(value).toLocaleString()}`}
-            valueStyle={{ color: '#1890ff' }}
+            formatter={(value) => `${Number(value).toLocaleString('es-CL')}`} 
+            valueStyle={{ color: 'var(--color-info)' }}
           />
         </Col>
         <Col span={8}>
@@ -200,8 +207,8 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
             title={displayValues.costLabel}
             value={displayValues.cost}
             prefix="$"
-            formatter={(value) => `${Number(value).toLocaleString()}`}
-            valueStyle={{ color: '#fa8c16' }}
+            formatter={(value) => incomplete ? 'Por definir' : Number(value).toLocaleString('es-CL')}
+            valueStyle={{ color: 'var(--color-warning)' }}
           />
         </Col>
         <Col span={8}>
@@ -209,9 +216,9 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
             title={displayValues.profitLabel}
             value={displayValues.profit}
             prefix="$"
-            formatter={(value) => `${Number(value).toLocaleString()}`}
+            formatter={(value) => incomplete ? 'Por definir' : Number(value).toLocaleString('es-CL')}
             valueStyle={{ 
-              color: displayValues.profit > 0 ? '#52c41a' : '#f5222d' 
+              color: displayValues.profit > 0 ? 'var(--color-success)' : 'var(--color-error)' 
             }}
           />
         </Col>
@@ -288,9 +295,9 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
               <Progress
                 type="circle"
                 size={80}
-                percent={Math.max(0, Math.min(100, displayValues.roi + 50))} // Normalize for display
-                format={() => `${displayValues.roi}%`}
-                strokeColor={getROIColor(displayValues.roi)}
+                percent={incomplete ? 0 : Math.max(0, Math.min(100, displayValues.roi))}
+                format={() => incomplete ? 'N/D' : `${displayValues.roi}%`}
+                strokeColor={incomplete ? 'var(--color-border)' : getROIColor(displayValues.roi)}
               />
             </Space>
           </Card>
@@ -301,11 +308,12 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
               <Text strong>{displayValues.hoursLabel}</Text>
               <Statistic
                 value={displayValues.hours}
-                suffix={`/ ${roiData.planned_hours}`}
+                formatter={(value) => roiData.planned_hours > 0 ? String(value) : 'Por definir'}
+                suffix={shouldShowReal && roiData.planned_hours > 0 ? `/ ${roiData.planned_hours} h` : roiData.planned_hours > 0 ? 'h' : undefined}
                 prefix={<ClockCircleOutlined />}
                 valueStyle={{ fontSize: 20 }}
               />
-              {roiData.planned_hours > 0 && (
+              {shouldShowReal && roiData.planned_hours > 0 && (
                 <Progress
                   percent={Math.round((displayValues.hours / roiData.planned_hours) * 100)}
                   size="small"
@@ -351,28 +359,30 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
       )}
 
       {/* Indicadores de Status */}
+      {!incomplete && <>
       <Divider>Indicadores</Divider>
       <Row gutter={16}>
         <Col span={8}>
           <Space>
-            {displayValues.roi >= 20 ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> : <ExclamationCircleOutlined style={{ color: '#f5222d' }} />}
+            {displayValues.roi >= 20 ? <CheckCircleOutlined style={{ color: 'var(--color-success)' }} /> : <ExclamationCircleOutlined style={{ color: 'var(--color-error)' }} />}
             <Text>Rentabilidad</Text>
           </Space>
         </Col>
         <Col span={8}>
           <Space>
-            {displayValues.hours <= roiData.planned_hours ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> : <ExclamationCircleOutlined style={{ color: '#f5222d' }} />}
+            {displayValues.hours <= roiData.planned_hours ? <CheckCircleOutlined style={{ color: 'var(--color-success)' }} /> : <ExclamationCircleOutlined style={{ color: 'var(--color-error)' }} />}
             <Text>Tiempo</Text>
           </Space>
         </Col>
         <Col span={8}>
           <Space>
-            {displayValues.profit > 0 ? <CheckCircleOutlined style={{ color: '#52c41a' }} /> : <ExclamationCircleOutlined style={{ color: '#f5222d' }} />}
+            {displayValues.profit > 0 ? <CheckCircleOutlined style={{ color: 'var(--color-success)' }} /> : <ExclamationCircleOutlined style={{ color: 'var(--color-error)' }} />}
             <Text>Margen</Text>
           </Space>
         </Col>
       </Row>
 
+      </>}
       {/* Info adicional */}
       {!shouldShowReal ? (
         <Alert
@@ -383,7 +393,7 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
           showIcon
           closable
         />
-      ) : (
+      ) : hasClientDelays ? (
         <Alert
           style={{ marginTop: 16 }}
           message="Impacto de Demoras del Cliente"
@@ -392,7 +402,7 @@ export const ProjectROICard: React.FC<ProjectROICardProps> = ({
           showIcon
           closable
         />
-      )}
+      ) : <Alert style={{ marginTop: 16 }} type="info" showIcon message="Costo de horas aprobadas" description="El costo real corresponde a las horas aprobadas hasta la fecha; puede ser parcial mientras el proyecto está en ejecución." />}
     </Card>
   );
 };

@@ -381,7 +381,7 @@ export const TimeTrackingPage: React.FC = () => {
       setActiveTimer(response);
       setGridRefreshSignal(s => s + 1);
     } catch (error: any) {
-      message.error(error.response?.data?.error || 'Error al iniciar timer');
+      message.error(error.response?.data?.error || "Error al iniciar el cronómetro");
     } finally {
       setTimerLoading(false);
     }
@@ -393,9 +393,9 @@ export const TimeTrackingPage: React.FC = () => {
       await apiService.post('/time-entries/stop-timer');
       setActiveTimer(null);
       setGridRefreshSignal(s => s + 1);
-      message.success('Timer detenido');
+      message.success("Cronómetro detenido");
     } catch (error: any) {
-      message.error(error.response?.data?.error || 'Error al detener timer');
+      message.error(error.response?.data?.error || "Error al detener el cronómetro");
     } finally {
       setTimerLoading(false);
     }
@@ -441,7 +441,7 @@ export const TimeTrackingPage: React.FC = () => {
         title={
           <Space>
             <ClockCircleOutlined />
-            Timer de trabajo
+            Cronómetro de trabajo
           </Space>
         }
         style={{ marginBottom: 24 }}
@@ -456,7 +456,7 @@ export const TimeTrackingPage: React.FC = () => {
             </Col>
             <Col>
               <Button type="primary" danger icon={<PauseCircleOutlined />} loading={timerLoading} onClick={handleStopTimer}>
-                Detener timer
+                Detener cronómetro
               </Button>
             </Col>
           </Row>

@@ -1,7 +1,5 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { ConfigProvider, App as AntdApp } from 'antd';
-import esES from 'antd/locale/es_ES';
-import { antdTheme } from '@/components/common/designTokens';
+import { ThemeProvider } from '@/components/common/ThemeProvider';
 import { QueryClient, QueryClientProvider } from 'react-query';
 
 // Components
@@ -41,8 +39,7 @@ const queryClient = new QueryClient({
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <ConfigProvider theme={antdTheme} locale={esES}>
-        <AntdApp>
+      <ThemeProvider>
           <Router
             future={{
               v7_startTransition: true,
@@ -152,10 +149,11 @@ function App() {
                 padding: '20px',
                 textAlign: 'center'
               }}>
-                <h1>Access Denied</h1>
-                <p>You don't have permission to access this page.</p>
+                <h1>Acceso denegado</h1>
+                <p>No tienes permiso para acceder a esta página.</p>
                 <button onClick={() => window.history.back()}>
-                  Go Back
+                  
+                  Volver
                 </button>
               </div>
             } />
@@ -171,17 +169,17 @@ function App() {
                 padding: '20px',
                 textAlign: 'center'
               }}>
-                <h1>Page Not Found</h1>
-                <p>The page you're looking for doesn't exist.</p>
+                <h1>Página no encontrada</h1>
+                <p>La página que buscas no existe.</p>
                 <button onClick={() => window.location.href = '/dashboard'}>
-                  Go to Dashboard
+                  
+                  Ir al inicio
                 </button>
               </div>
             } />
             </Routes>
           </Router>
-        </AntdApp>
-      </ConfigProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

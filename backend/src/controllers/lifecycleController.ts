@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { AuthenticatedRequest } from '../middleware/auth';
 import { db } from '../database/database';
 import { logger } from '../utils/logger';
 import { financeService } from '../services/financeService';
@@ -305,14 +306,27 @@ export const getPhaseActivities = async (req: Request, res: Response) => {
   }
 };
 
-export const createPhaseActivity = async (req: Request, res: Response) => {
+export const createPhaseActivity = async (req: AuthenticatedRequest, res: Response) => {
   try {
     const { phaseId } = req.params;
     const {
       activity_type, description, start_datetime, end_datetime, duration_minutes,
-      user_id, is_productive, is_billable, is_internal, responsibility, notes, tags,
-      has_evidence, evidence_description, project_id
+      is_productive, is_billable, is_internal, responsibility, notes, tags,
+      has_evidence, evidence_description
     } = req.body;
+
+    // The phase and authenticated session are the source of truth for these
+    // required foreign keys; the activity form does not submit either value.
+    const phase = await db.get(
+      'SELECT project_id FROM project_phases WHERE id = ?',
+      [phaseId]
+    );
+    if (!phase) {
+      return res.status(404).json({ error: 'Project phase not found' });
+    }
+    if (!req.user) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
 
     const result = await db.run(`
       INSERT INTO phase_activities
@@ -321,8 +335,8 @@ export const createPhaseActivity = async (req: Request, res: Response) => {
        notes, tags, has_evidence, evidence_description)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      phaseId, project_id, activity_type, description, start_datetime, end_datetime,
-      duration_minutes, user_id, is_productive ? 1 : 0, is_billable ? 1 : 0,
+      phaseId, phase.project_id, activity_type, description, start_datetime, end_datetime,
+      duration_minutes, req.user.id, is_productive ? 1 : 0, is_billable ? 1 : 0,
       is_internal ? 1 : 0, responsibility, notes, tags, has_evidence ? 1 : 0,
       evidence_description
     ]);

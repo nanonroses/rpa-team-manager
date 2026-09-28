@@ -30,7 +30,7 @@ import {
   TeamOutlined,
   LinkOutlined
 } from '@ant-design/icons';
-import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiService } from '@/services/api';
 import { TaskSubtasksChecklist } from '@/components/tasks/TaskSubtasksChecklist';
@@ -137,8 +137,6 @@ function savePersistedFilters(filters: PersistedTaskFilters): void {
 }
 
 export const TasksPage: React.FC = () => {
-  console.log('🚀 TasksPage component loaded - VERSION 2.0 - INTERACTIVE BUTTONS ENABLED');
-
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [boards, setBoards] = useState<Board[]>([]);
@@ -241,8 +239,6 @@ export const TasksPage: React.FC = () => {
   const loadInitialData = async () => {
     try {
       setLoading(true);
-      console.log('📊 TasksPage: Loading initial data...');
-      
       const [projectsData, usersData] = await Promise.all([
         apiService.getProjects().catch(err => {
           console.error('🔴 TasksPage: Failed to load projects:', err);
@@ -253,19 +249,12 @@ export const TasksPage: React.FC = () => {
           return [];
         })
       ]);
-      
-      console.log('✅ TasksPage: Projects loaded:', projectsData?.length || 0);
-      console.log('✅ TasksPage: Users loaded:', usersData?.length || 0);
-      
       setProjects(projectsData || []);
       setUsers(usersData || []);
       
       // Auto-select first project if available
       if (projectsData && projectsData.length > 0) {
         setSelectedProject(projectsData[0].id);
-        console.log('🎯 TasksPage: Auto-selected project:', projectsData[0].name);
-      } else {
-        console.log('⚠️ TasksPage: No projects available to auto-select');
       }
     } catch (error) {
       console.error('🔴 TasksPage: Error loading initial data:', error);
@@ -291,32 +280,24 @@ export const TasksPage: React.FC = () => {
     
     try {
       setBoardLoading(true);
-      console.log('📋 TasksPage: Loading boards for project:', selectedProject);
-      
       const boardsData = await apiService.get(`/tasks/boards?project_id=${selectedProject}`);
-      console.log('✅ TasksPage: Boards loaded:', boardsData?.length || 0);
-      
       setBoards(boardsData || []);
       
       // Auto-select first board if available
       if (boardsData && boardsData.length > 0) {
         if (!pendingBoardId) {
-          console.log('🎯 TasksPage: Auto-selecting first board:', boardsData[0].name);
           loadBoard(boardsData[0].id);
-        } else {
-          console.log('⏳ TasksPage: Auto-select de primer board omitido, hay un pendingBoardId de deep-link:', pendingBoardId);
         }
       } else {
-        console.log('⚠️ TasksPage: No boards available for project');
         setSelectedBoard(null);
       }
     } catch (error) {
       console.error('🔴 TasksPage: Error loading boards:', error);
       const axiosError = error as any;
       
-      let errorMessage = 'Error al cargar boards';
+      let errorMessage = "Error al cargar los tableros";
       if (axiosError?.response?.status === 404) {
-        errorMessage = 'No se encontraron boards para este proyecto';
+        errorMessage = "No se encontraron tableros para este proyecto";
       } else if (axiosError?.response?.status === 429) {
         errorMessage = 'Demasiadas solicitudes. Por favor, espera un momento e intenta de nuevo.';
       }
@@ -332,21 +313,15 @@ export const TasksPage: React.FC = () => {
   const loadBoard = async (boardId: number) => {
     try {
       setBoardLoading(true);
-      console.log('🔧 TasksPage: Loading board details for ID:', boardId);
-      
       const board = await apiService.get(`/tasks/boards/${boardId}`);
-      console.log('✅ TasksPage: Board details loaded:', board?.name, 'with', board?.tasks?.length || 0, 'tasks');
-      console.log('📋 TasksPage: Board has', board?.columns?.length || 0, 'columns');
-      console.log('📝 TasksPage: Task IDs received:', board?.tasks?.map((t: any) => t.id) || []);
-
       setSelectedBoard(board);
     } catch (error) {
       console.error('🔴 TasksPage: Error loading board:', error);
       const axiosError = error as any;
       
-      let errorMessage = 'Error al cargar board';
+      let errorMessage = "Error al cargar el tablero";
       if (axiosError?.response?.status === 404) {
-        errorMessage = 'Board no encontrado';
+        errorMessage = "Tablero no encontrado";
       } else if (axiosError?.response?.status === 429) {
         errorMessage = 'Demasiadas solicitudes. Por favor, espera un momento.';
       }
@@ -365,13 +340,13 @@ export const TasksPage: React.FC = () => {
         project_id: selectedProject
       });
       
-      message.success('Board creado exitosamente');
+      message.success("Tablero creado correctamente");
       setIsCreateBoardModalOpen(false);
       boardForm.resetFields();
       loadBoards();
     } catch (error: any) {
       console.error('Error creating board:', error);
-      message.error(error.response?.data?.error || 'Error al crear board');
+      message.error(error.response?.data?.error || "Error al crear el tablero");
     }
   };
 
@@ -566,8 +541,6 @@ export const TasksPage: React.FC = () => {
   };
 
   const openEditTaskModal = (task: Task) => {
-    console.log('📝 Opening edit modal for task:', task.id, task.title);
-    console.log('📋 Task data:', task);
     setEditingTask(task);
     form.setFieldsValue({
       title: task.title,
@@ -580,7 +553,6 @@ export const TasksPage: React.FC = () => {
       due_date: task.due_date ? dayjs(task.due_date) : null,
       column_id: task.column_id
     });
-    console.log('✅ Edit modal opened, form populated');
   };
 
 
@@ -595,8 +567,6 @@ export const TasksPage: React.FC = () => {
   };
 
   const renderTaskCard = (task: Task, index: number) => {
-    console.log(`🎨 Rendering task card: ID=${task.id}, Title="${task.title}"`);
-
     return (
       <Draggable key={task.id} draggableId={task.id.toString()} index={index}>
         {(provided, snapshot) => (
@@ -611,7 +581,7 @@ export const TasksPage: React.FC = () => {
             <Card
               size="small"
               style={{
-                backgroundColor: snapshot.isDragging ? '#f0f0f0' : 'white',
+                backgroundColor: snapshot.isDragging ? 'var(--color-hover)' : 'var(--surface)',
                 boxShadow: snapshot.isDragging ? '0 4px 8px rgba(0,0,0,0.2)' : undefined,
                 cursor: snapshot.isDragging ? 'grabbing' : 'default',
                 position: 'relative'
@@ -733,7 +703,7 @@ export const TasksPage: React.FC = () => {
                 style={{
                   marginTop: 8,
                   paddingTop: 8,
-                  borderTop: '1px solid #f0f0f0',
+                  borderTop: '1px solid var(--color-border)',
                   display: 'flex',
                   justifyContent: 'flex-end',
                   gap: 4,
@@ -743,7 +713,6 @@ export const TasksPage: React.FC = () => {
                   cursor: 'default'
                 }}
                 onClick={(e) => {
-                  console.log('🖱️ Action buttons container clicked');
                   e.stopPropagation();
                 }}
               >
@@ -754,7 +723,6 @@ export const TasksPage: React.FC = () => {
                     icon={<EditOutlined />}
                     aria-label="Editar tarea"
                     onClick={(e) => {
-                      console.log('✏️ Edit button clicked for task:', task.id);
                       e.stopPropagation();
                       e.preventDefault();
                       openEditTaskModal(task);
@@ -772,7 +740,6 @@ export const TasksPage: React.FC = () => {
                     danger
                     icon={<DeleteOutlined />}
                     onClick={(e) => {
-                      console.log('🗑️ Delete button clicked for task:', task.id);
                       e.stopPropagation();
                       e.preventDefault();
                       Modal.confirm({
@@ -811,11 +778,6 @@ export const TasksPage: React.FC = () => {
         return assigneeIds.includes(filterAssigneeId);
       });
 
-    // Debug log
-    if (selectedBoard) {
-      console.log(`📊 Renderizando columna "${column.name}" (ID: ${column.id}) con ${columnTasks.length} tareas`);
-    }
-
     return (
       <Col key={column.id} xs={24} sm={12} lg={6} style={{ marginBottom: 16 }}>
         <Card
@@ -847,7 +809,7 @@ export const TasksPage: React.FC = () => {
                 {...provided.droppableProps}
                 style={{
                   minHeight: 500,
-                  backgroundColor: snapshot.isDraggingOver ? '#f0f9ff' : 'transparent',
+                  backgroundColor: snapshot.isDraggingOver ? 'var(--color-info-bg)' : 'transparent',
                   padding: 4,
                   borderRadius: 4
                 }}
@@ -881,82 +843,76 @@ export const TasksPage: React.FC = () => {
 
       {/* Project and Board Selection */}
       <Card style={{ marginBottom: 24 }}>
-        <Row gutter={16} align="middle">
-          <Col xs={24} sm={8}>
-            <Space>
-              <Text strong>Proyecto:</Text>
-              <Select
-                style={{ minWidth: 200 }}
-                value={selectedProject}
-                onChange={(value) => {
-                  clearFilters();
-                  exitSelectionMode();
-                  setSelectedProject(value);
-                }}
-                placeholder="Seleccionar proyecto"
-              >
-                {projects.map(project => (
-                  <Option key={project.id} value={project.id}>
-                    {project.name}
-                  </Option>
-                ))}
-              </Select>
-            </Space>
-          </Col>
+        <div className="tasks-toolbar">
+          <div className="tasks-toolbar-field">
+            <Text strong>Proyecto:</Text>
+            <Select
+              className="tasks-toolbar-select"
+              value={selectedProject}
+              onChange={(value) => {
+                clearFilters();
+                exitSelectionMode();
+                setSelectedProject(value);
+              }}
+              placeholder="Seleccionar proyecto"
+            >
+              {projects.map(project => (
+                <Option key={project.id} value={project.id}>
+                  {project.name}
+                </Option>
+              ))}
+            </Select>
+          </div>
           
-          <Col xs={24} sm={8}>
-            <Space>
-              <Text strong>Board:</Text>
-              <Select
-                aria-label="Board"
-                style={{ minWidth: 200 }}
-                value={selectedBoard?.id}
-                onChange={(value) => {
-                  clearFilters();
-                  exitSelectionMode();
-                  loadBoard(value);
-                }}
-                placeholder="Seleccionar board"
-                loading={boardLoading}
-              >
-                {boards.map(board => (
-                  <Option key={board.id} value={board.id}>
-                    {board.name}
-                  </Option>
-                ))}
-              </Select>
-            </Space>
-          </Col>
+          <div className="tasks-toolbar-field">
+            <Text strong>Tablero:</Text>
+            <Select
+              aria-label="Tablero"
+              className="tasks-toolbar-select"
+              value={selectedBoard?.id}
+              onChange={(value) => {
+                clearFilters();
+                exitSelectionMode();
+                loadBoard(value);
+              }}
+              placeholder="Seleccionar tablero"
+              loading={boardLoading}
+            >
+              {boards.map(board => (
+                <Option key={board.id} value={board.id}>
+                  {board.name}
+                </Option>
+              ))}
+            </Select>
+          </div>
           
-          <Col xs={24} sm={8}>
-            <Space>
-              <Button
-                type="primary"
-                icon={<PlusOutlined />}
-                onClick={() => setIsCreateBoardModalOpen(true)}
-                disabled={!selectedProject}
-              >
-                Nuevo Board
-              </Button>
+          <div className="tasks-toolbar-actions">
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setIsCreateBoardModalOpen(true)}
+              disabled={!selectedProject}
+            >
+              Nuevo tablero
+            </Button>
               
-              <Button
-                icon={<PlusOutlined />}
-                onClick={() => openCreateTaskModal()}
-                disabled={!selectedBoard}
-              >
-                Nueva Tarea
-              </Button>
+            <Button
+              icon={<PlusOutlined />}
+              onClick={() => openCreateTaskModal()}
+              disabled={!selectedBoard}
+            >
+              Nueva Tarea
+            </Button>
 
-              <Button
-                type={selectionMode ? 'primary' : 'default'}
-                onClick={toggleSelectionMode}
-                disabled={!selectedBoard}
-              >
-                {selectionMode ? 'Salir de selección' : 'Selección múltiple'}
-              </Button>
-            </Space>
-          </Col>
-        </Row>
+            <Button
+              type={selectionMode ? 'primary' : 'default'}
+              onClick={toggleSelectionMode}
+              disabled={!selectedBoard}
+            >
+              {selectionMode ? 'Salir de selección' : 'Selección múltiple'}
+            </Button>
+          </div>
+        </div>
       </Card>
 
       {selectedProject && (
@@ -1032,7 +988,7 @@ export const TasksPage: React.FC = () => {
 
       {/* Edición masiva */}
       {selectionMode && selectedTaskIds.length > 0 && (
-        <Card size="small" style={{ marginBottom: 16, backgroundColor: '#e6f4ff' }}>
+        <Card size="small" style={{ marginBottom: 16, backgroundColor: 'var(--color-info-bg)' }}>
           <Row gutter={16} align="middle">
             <Col>
               <Text strong>{selectedTaskIds.length} tarea(s) seleccionada(s)</Text>
@@ -1106,8 +1062,8 @@ export const TasksPage: React.FC = () => {
           <EmptyState
             description={
               selectedProject 
-                ? "No hay boards disponibles. Crea uno para comenzar."
-                : "Selecciona un proyecto para ver los boards"
+                ? "No hay tableros disponibles. Crea uno para comenzar."
+                : "Selecciona un proyecto para ver sus tableros"
             }
             action={selectedProject && <Button
               type="primary"
@@ -1123,7 +1079,7 @@ export const TasksPage: React.FC = () => {
 
       {/* Create Board Modal */}
       <Modal
-        title="Crear Nuevo Board"
+        title="Crear tablero"
         open={isCreateBoardModalOpen}
         onCancel={() => {
           setIsCreateBoardModalOpen(false);
@@ -1138,7 +1094,7 @@ export const TasksPage: React.FC = () => {
         >
           <Form.Item
             name="name"
-            label="Nombre del Board"
+            label="Nombre del tablero"
             rules={[{ required: true, message: 'Ingrese el nombre del board' }]}
           >
             <Input placeholder="Ej: Sprint 1, Desarrollo, Testing..." />
@@ -1148,7 +1104,7 @@ export const TasksPage: React.FC = () => {
             <TextArea rows={3} placeholder="Descripción opcional del board..." />
           </Form.Item>
           
-          <Form.Item name="board_type" label="Tipo de Board" initialValue="kanban">
+          <Form.Item name="board_type" label="Tipo de tablero" initialValue="kanban">
             <Select>
               <Option value="kanban">Kanban</Option>
               <Option value="scrum">Scrum</Option>
@@ -1159,7 +1115,7 @@ export const TasksPage: React.FC = () => {
           <Form.Item>
             <Space>
               <Button type="primary" htmlType="submit">
-                Crear Board
+                Crear tablero
               </Button>
               <Button onClick={() => {
                 setIsCreateBoardModalOpen(false);
@@ -1273,7 +1229,7 @@ export const TasksPage: React.FC = () => {
             </Col>
             
             <Col span={12}>
-              <Form.Item name="story_points" label="Story Points">
+              <Form.Item name="story_points" label="Puntos de esfuerzo">
                 <Input type="number" placeholder="Ej: 5" />
               </Form.Item>
             </Col>

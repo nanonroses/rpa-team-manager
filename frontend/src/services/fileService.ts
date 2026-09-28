@@ -1,4 +1,5 @@
 import { apiService } from './api';
+import { displayLabel } from '@/utils/displayLabels';
 
 export interface FileCategory {
   id: number;
@@ -130,7 +131,7 @@ export class FileService {
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error || 'Upload failed');
+      throw new Error(errorData.error || "No se pudo subir el archivo");
     }
 
     return response.json();
@@ -183,9 +184,18 @@ export class FileService {
 
     if (!response.ok) {
       const errorData = await response.json();
-      throw new Error(errorData.error || 'Download failed');
+      throw new Error(errorData.error || "No se pudo descargar el archivo");
     }
 
+    return response.blob();
+  }
+
+  // Get download URL for file
+  async previewFile(fileId: number, signal?: AbortSignal): Promise<Blob> {
+    const response = await fetch(`${apiService.getBaseURL()}/api/files/${fileId}/preview`, {
+      headers: { Authorization: `Bearer ${apiService.getToken()}` }, signal,
+    });
+    if (!response.ok) throw new Error('No se pudo abrir el archivo. Verifica tus permisos e inténtalo nuevamente.');
     return response.blob();
   }
 
@@ -246,12 +256,12 @@ export class FileService {
     );
 
     if (!category) {
-      return { valid: false, error: `File type .${extension} is not allowed` };
+      return { valid: false, error: `El tipo de archivo .${extension} no está permitido` };
     }
 
     if (category.max_file_size && file.size > category.max_file_size) {
       const maxSizeMB = (category.max_file_size / 1024 / 1024).toFixed(1);
-      return { valid: false, error: `File size exceeds ${maxSizeMB}MB limit for ${category.name}` };
+      return { valid: false, error: `El archivo supera el límite de ${maxSizeMB} MB para ${displayLabel(category.name)}` };
     }
 
     return { valid: true };

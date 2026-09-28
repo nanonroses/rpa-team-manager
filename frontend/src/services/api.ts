@@ -83,7 +83,7 @@ class ApiService {
           }
           
           // Create a more user-friendly error
-          const rateLimitError = new Error('Too many requests. Please wait before trying again.');
+          const rateLimitError = new Error("Hay demasiadas solicitudes. Espera antes de volver a intentarlo.");
           (rateLimitError as any).code = 'RATE_LIMIT_EXCEEDED';
           (rateLimitError as any).retryAfter = retryAfter;
           (rateLimitError as any).originalError = error;
@@ -202,7 +202,7 @@ class ApiService {
     } else if (error.message) {
       enhanced.message = error.message;
     } else {
-      enhanced.message = 'An unexpected error occurred';
+      enhanced.message = "Ocurrió un error inesperado";
     }
 
     // Add structured properties
@@ -230,7 +230,7 @@ class ApiService {
     if (this.isRateLimited(endpoint)) {
       const state = this.rateLimitState[endpoint];
       const waitTime = Math.ceil((state.resetTime - Date.now()) / 1000);
-      throw new Error(`Rate limit exceeded. Please wait ${waitTime} seconds before trying again.`);
+      throw new Error(`Demasiadas solicitudes. Espera ${waitTime} segundos antes de volver a intentarlo.`);
     }
 
     // Check request cache for deduplication (only for GET requests or if explicitly enabled)

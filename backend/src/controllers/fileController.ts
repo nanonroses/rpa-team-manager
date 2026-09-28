@@ -406,6 +406,14 @@ export class FileController {
 
   // GET /api/files/:id/download - Download file
   downloadFile = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    return this.sendFile(req, res, false);
+  };
+
+  previewFile = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    return this.sendFile(req, res, true);
+  };
+
+  private sendFile = async (req: AuthenticatedRequest, res: Response, preview: boolean): Promise<void> => {
     try {
       const { id } = req.params;
       const userId = req.user?.id;
@@ -439,7 +447,7 @@ export class FileController {
       `, [id, userId, userId, userId, userId, userId, userId]);
 
       if (!file) {
-        res.status(404).json({ error: 'File not found or access denied' });
+        res.status(404).json({ error: 'Archivo no encontrado o acceso denegado' });
         return;
       }
 
@@ -447,28 +455,42 @@ export class FileController {
       try {
         await fs.access(file.file_path);
       } catch {
-        res.status(404).json({ error: 'File not found on disk' });
+        res.status(404).json({ error: 'El archivo ya no está disponible' });
         return;
       }
 
       // Log file access
       await db.run(`
         INSERT INTO file_access_log (file_id, user_id, access_type, ip_address, user_agent)
-        VALUES (?, ?, 'download', ?, ?)
-      `, [id, userId, req.ip, req.get('User-Agent')]);
+        VALUES (?, ?, ?, ?, ?)
+      `, [id, userId, preview ? 'preview' : 'download', req.ip, req.get('User-Agent')]);
 
       // Set appropriate headers
-      res.setHeader('Content-Type', file.mime_type);
-      res.setHeader('Content-Disposition', `attachment; filename="${file.original_filename}"`);
+      // Never serve executable uploads as HTML on the application's origin.
+      const safeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/avif', 'image/svg+xml', 'video/mp4', 'video/webm', 'audio/mpeg', 'audio/wav', 'audio/ogg'];
+      const contentType = safeTypes.includes(file.mime_type) ? file.mime_type
+        : file.mime_type.startsWith('text/') || file.mime_type === 'application/json' ? 'text/plain; charset=utf-8' : 'application/octet-stream';
+      res.setHeader('Content-Type', preview ? contentType : file.mime_type);
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cache-Control', 'private, no-store');
+      if (preview) res.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
+      const encodedName = encodeURIComponent(file.original_filename).replace(/['()*]/g, (char) => `%${char.charCodeAt(0).toString(16)}`);
+      res.setHeader('Content-Disposition', `${preview ? 'inline' : 'attachment'}; filename="archivo"; filename*=UTF-8''${encodedName}`);
       res.setHeader('Content-Length', file.file_size);
 
       // Stream file
       const fileStream = createReadStream(file.file_path);
+      fileStream.on('error', (error) => {
+        logger.error('File stream error:', error);
+        if (!res.headersSent) res.status(500).json({ error: 'No se pudo leer el archivo' });
+        else res.destroy();
+      });
+      res.on('close', () => fileStream.destroy());
       fileStream.pipe(res);
 
     } catch (error) {
       logger.error('Download file error:', error);
-      res.status(500).json({ error: 'Failed to download file' });
+      res.status(500).json({ error: 'No se pudo abrir el archivo' });
     }
   };
 

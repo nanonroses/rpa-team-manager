@@ -117,7 +117,7 @@ export const useGanttData = (selectedProjectId: number | null): UseGanttDataRetu
 
       // Validate data structure
       if (!data || typeof data !== 'object') {
-        throw new Error('Invalid data structure received from API');
+        throw new Error("Los datos recibidos no tienen un formato válido");
       }
 
       setGanttData(data);
@@ -130,11 +130,11 @@ export const useGanttData = (selectedProjectId: number | null): UseGanttDataRetu
 
       console.error('❌ Error loading Gantt data:', err);
       
-      let errorMessage = 'Failed to load project timeline';
+      let errorMessage = "No se pudo cargar el cronograma del proyecto";
       
       // Handle specific error types
       if (err.code === 'RATE_LIMIT_EXCEEDED') {
-        errorMessage = `Too many requests. Please wait ${err.retryAfter || 60} seconds and try again.`;
+        errorMessage = `Demasiadas solicitudes. Espera ${err.retryAfter || 60} segundos y vuelve a intentarlo.`;
         console.log('🚦 Rate limit exceeded, scheduling retry...');
         
         // Schedule automatic retry after rate limit period
@@ -147,9 +147,9 @@ export const useGanttData = (selectedProjectId: number | null): UseGanttDataRetu
         }, retryDelay);
         
       } else if (err.status === 404) {
-        errorMessage = 'Project not found or you do not have access to it.';
+        errorMessage = "Proyecto no encontrado o sin acceso.";
       } else if (err.status >= 500) {
-        errorMessage = 'Server error. Please try again in a few moments.';
+        errorMessage = "Error del servidor. Inténtalo en unos momentos.";
       } else if (err.message) {
         errorMessage = err.message;
       }

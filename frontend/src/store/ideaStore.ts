@@ -42,7 +42,7 @@ export const useIdeaStore = create<IdeaState>((set, get) => ({
       const ideas = await apiService.getIdeas(filters);
       set({ ideas, isLoading: false });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to fetch ideas';
+      const errorMessage = error.response?.data?.error || "No se pudieron cargar las ideas";
       set({ error: errorMessage, isLoading: false });
       throw error;
     }
@@ -54,7 +54,7 @@ export const useIdeaStore = create<IdeaState>((set, get) => ({
       const idea = await apiService.getIdea(id);
       set({ selectedIdea: idea, isLoading: false });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to fetch idea';
+      const errorMessage = error.response?.data?.error || "No se pudo cargar la idea";
       set({ error: errorMessage, isLoading: false });
       throw error;
     }
@@ -74,7 +74,7 @@ export const useIdeaStore = create<IdeaState>((set, get) => ({
       
       return newIdea;
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to create idea';
+      const errorMessage = error.response?.data?.error || "No se pudo crear la idea";
       set({ error: errorMessage, isLoading: false });
       throw error;
     }
@@ -99,7 +99,7 @@ export const useIdeaStore = create<IdeaState>((set, get) => ({
       
       return updatedIdea;
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to update idea';
+      const errorMessage = error.response?.data?.error || "No se pudo actualizar la idea";
       set({ error: errorMessage, isLoading: false });
       throw error;
     }
@@ -120,7 +120,7 @@ export const useIdeaStore = create<IdeaState>((set, get) => ({
         isLoading: false 
       });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to delete idea';
+      const errorMessage = error.response?.data?.error || "No se pudo eliminar la idea";
       set({ error: errorMessage, isLoading: false });
       throw error;
     }
@@ -148,7 +148,7 @@ export const useIdeaStore = create<IdeaState>((set, get) => ({
         selectedIdea: selectedIdea?.id === id ? updatedIdeas.find(i => i.id === id) || selectedIdea : selectedIdea
       });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to vote on idea';
+      const errorMessage = error.response?.data?.error || "No se pudo registrar el voto";
       set({ error: errorMessage });
       throw error;
     }
@@ -160,7 +160,7 @@ export const useIdeaStore = create<IdeaState>((set, get) => ({
       const comments = await apiService.getIdeaComments(id);
       set({ comments });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to fetch comments';
+      const errorMessage = error.response?.data?.error || "No se pudieron cargar los comentarios";
       set({ error: errorMessage });
       throw error;
     }
@@ -188,7 +188,7 @@ export const useIdeaStore = create<IdeaState>((set, get) => ({
           selectedIdea
       });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to create comment';
+      const errorMessage = error.response?.data?.error || "No se pudo crear el comentario";
       set({ error: errorMessage });
       throw error;
     }
@@ -200,7 +200,7 @@ export const useIdeaStore = create<IdeaState>((set, get) => ({
       const stats = await apiService.getIdeaStats();
       set({ stats });
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || 'Failed to fetch idea statistics';
+      const errorMessage = error.response?.data?.error || "No se pudieron cargar las estadísticas de ideas";
       set({ error: errorMessage });
       throw error;
     }

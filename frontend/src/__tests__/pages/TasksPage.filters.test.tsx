@@ -103,7 +103,7 @@ describe('TasksPage - filtros', () => {
 
     expect(screen.queryByText('Tarea Media')).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('combobox', { name: /^board$/i }));
+    await userEvent.click(screen.getByRole('combobox', { name: /^tablero$/i }));
     await userEvent.click(await screen.findByText('Board 2'));
 
     await waitFor(() => {
