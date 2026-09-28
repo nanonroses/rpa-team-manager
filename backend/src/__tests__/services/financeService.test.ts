@@ -238,5 +238,115 @@ describe('FinanceService', () => {
 
             expect(result.sale_price).toBe(3800000);
         });
+
+        it('usa monto y horas de la cotización aprobada como fallback cuando project_financials no tiene sale_price ni horas', async () => {
+            (db.get as jest.Mock).mockImplementation((sql: string) => {
+                if (sql.includes('FROM projects WHERE id')) return Promise.resolve({ id: 1, name: 'P', assigned_to: null });
+                if (sql.includes('FROM project_financials')) return Promise.resolve({ budgeted_hours: 0, sale_price: null, hourly_rate: null });
+                if (sql.includes('FROM project_quotes')) return Promise.resolve({ amount: 4500000, currency: 'CLP', hours: 90 });
+                if (sql.includes('FROM exchange_rates')) return Promise.resolve({ rate_to_clp: 38000 });
+                if (sql.includes('FROM user_cost_rates')) return Promise.resolve({ hourly_rate: 15000, hourly_rate_currency: 'CLP' });
+                if (sql.includes('FROM project_milestones')) return Promise.resolve({ total_delay_hours: 0 });
+                if (sql.includes('FROM time_entries')) return Promise.resolve({ hours: 0, cost: 0 });
+                return Promise.resolve(undefined);
+            });
+            (db.query as jest.Mock).mockResolvedValue([
+                { user_id: 1, allocation_percentage: 100, full_name: 'Dev', role: 'rpa_developer' }
+            ]);
+
+            const result = await financeService.calculateProjectFinancials(1);
+
+            expect(result.sale_price).toBe(4500000);
+            expect(result.planned_hours).toBe(90);
+            expect(result.planned_cost).toBe(90 * 15000);
+            expect(result.planned_profit).toBe(4500000 - 90 * 15000);
+        });
+    });
+
+    describe('calculateProjectFinancials - Fase 6C proyecciones, margen % y desvío', () => {
+        it('calcula márgenes % sobre venta y proyección al término con horas aprobadas parciales', async () => {
+            (db.get as jest.Mock).mockImplementation((sql: string) => {
+                if (sql.includes('FROM projects WHERE id')) return Promise.resolve({ id: 1, name: 'P', assigned_to: null });
+                if (sql.includes('FROM project_financials')) return Promise.resolve({ budgeted_hours: 100, sale_price: 5000000, sale_price_currency: 'CLP', hourly_rate: null });
+                if (sql.includes('FROM project_quotes')) return Promise.resolve(undefined);
+                if (sql.includes('FROM exchange_rates')) return Promise.resolve({ rate_to_clp: 38000 });
+                if (sql.includes('FROM user_cost_rates')) return Promise.resolve({ hourly_rate: 20000, hourly_rate_currency: 'CLP' });
+                if (sql.includes('FROM project_milestones')) return Promise.resolve({ total_delay_hours: 5 }); // 5h atraso cliente
+                if (sql.includes('FROM time_entries')) {
+                    // 40h aprobadas a costo snapshot 20.000 = 800.000
+                    return Promise.resolve({ hours: 40, cost: 40 * 20000 });
+                }
+                return Promise.resolve(undefined);
+            });
+            (db.query as jest.Mock).mockResolvedValue([
+                { user_id: 1, allocation_percentage: 100, full_name: 'Dev', role: 'rpa_developer' }
+            ]);
+
+            const result = await financeService.calculateProjectFinancials(1);
+
+            // Planificado: 100h a 20.000 = 2.000.000 CLP. Venta = 5.000.000 CLP.
+            expect(result.planned_cost).toBe(2000000);
+            expect(result.planned_profit).toBe(3000000);
+            // Margen planificado: 3.000.000 / 5.000.000 = 60%
+            expect(result.planned_margin_percentage).toBe(60);
+            // ROI planificado: 3.000.000 / 2.000.000 = 150%
+            expect(result.planned_roi).toBe(150);
+
+            // Reales actuales: 40h aprobadas + 5h atraso cliente = 45h.
+            // Costo real: 800.000 (aprobado) + 5h * 20.000 (atraso) = 900.000 CLP.
+            expect(result.real_hours).toBe(45);
+            expect(result.real_cost).toBe(900000);
+            expect(result.real_profit).toBe(4100000);
+
+            // Proyectadas: remaining = max(0, 100 - 40) = 60h.
+            // Horas proyectadas: 40h (aprobadas) + 60h (restantes) + 5h (atraso cliente) = 105h.
+            expect(result.projected_hours).toBe(105);
+            // Costo proyectado: 800.000 (aprobadas) + 60 * 20.000 (restantes) + 5 * 20.000 (atraso) = 2.100.000 CLP.
+            expect(result.projected_cost).toBe(2100000);
+            // Utilidad proyectada: 5.000.000 - 2.100.000 = 2.900.000 CLP.
+            expect(result.projected_profit).toBe(2900000);
+            // Margen proyectado: (2.900.000 / 5.000.000) * 100 = 58%
+            expect(result.projected_margin_percentage).toBe(58);
+            // ROI proyectado: (2.900.000 / 2.100.000) * 100 = 138.1%
+            expect(result.projected_roi).toBe(138.1);
+            // Desvío económico: planned_profit (3.000.000) - projected_profit (2.900.000) = 100.000 CLP
+            expect(result.variance_impact).toBe(100000);
+        });
+
+        it('calcula desvío económico mayor cuando las horas aprobadas superan las planificadas (sobrecosto de horas)', async () => {
+            (db.get as jest.Mock).mockImplementation((sql: string) => {
+                if (sql.includes('FROM projects WHERE id')) return Promise.resolve({ id: 1, name: 'P', assigned_to: null });
+                if (sql.includes('FROM project_financials')) return Promise.resolve({ budgeted_hours: 50, sale_price: 2000000, sale_price_currency: 'CLP', hourly_rate: null });
+                if (sql.includes('FROM project_quotes')) return Promise.resolve(undefined);
+                if (sql.includes('FROM exchange_rates')) return Promise.resolve({ rate_to_clp: 38000 });
+                if (sql.includes('FROM user_cost_rates')) return Promise.resolve({ hourly_rate: 20000, hourly_rate_currency: 'CLP' });
+                if (sql.includes('FROM project_milestones')) return Promise.resolve({ total_delay_hours: 0 });
+                if (sql.includes('FROM time_entries')) {
+                    // 70h aprobadas (20h por encima del presupuesto de 50h)
+                    return Promise.resolve({ hours: 70, cost: 70 * 20000 });
+                }
+                return Promise.resolve(undefined);
+            });
+            (db.query as jest.Mock).mockResolvedValue([
+                { user_id: 1, allocation_percentage: 100, full_name: 'Dev', role: 'rpa_developer' }
+            ]);
+
+            const result = await financeService.calculateProjectFinancials(1);
+
+            // Planificado: 50h * 20.000 = 1.000.000 CLP. Venta = 2.000.000. Ganancia = 1.000.000 CLP.
+            expect(result.planned_cost).toBe(1000000);
+            expect(result.planned_profit).toBe(1000000);
+            expect(result.planned_margin_percentage).toBe(50);
+
+            // Proyectado: remaining = max(0, 50 - 70) = 0.
+            // Horas proyectadas: 70h.
+            expect(result.projected_hours).toBe(70);
+            expect(result.projected_cost).toBe(1400000);
+            expect(result.projected_profit).toBe(600000);
+            // Margen proyectado: (600.000 / 2.000.000) * 100 = 30%
+            expect(result.projected_margin_percentage).toBe(30);
+            // Desvío económico: 1.000.000 - 600.000 = 400.000 CLP de pérdida por desvío
+            expect(result.variance_impact).toBe(400000);
+        });
     });
 });

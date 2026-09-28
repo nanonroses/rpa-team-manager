@@ -28,12 +28,20 @@ export interface ProjectFinancials {
     sale_price: number;
     planned_cost: number;
     real_cost: number;
+    projected_cost: number;
+    projected_hours: number;
     planned_profit: number;
     real_profit: number;
+    projected_profit: number;
+    planned_margin_percentage: number;
+    real_margin_percentage: number;
+    projected_margin_percentage: number;
     planned_roi: number;
     real_roi: number;
+    projected_roi: number;
     delay_impact: number;
     lost_profit: number;
+    variance_impact: number;
 }
 
 /**
@@ -180,17 +188,32 @@ export class FinanceService {
             [projectId]
         );
 
-        const plannedHours = financials?.budgeted_hours || 0;
+        // Fallback a cotización aprobada más reciente si existen datos en project_quotes
+        const approvedQuote = await db.get(
+            `SELECT amount, currency, hours FROM project_quotes WHERE project_id = ? AND status = 'approved' ORDER BY version DESC LIMIT 1`,
+            [projectId]
+        );
+
+        let plannedHours = financials?.budgeted_hours || 0;
+        if (plannedHours === 0 && approvedQuote?.hours > 0) {
+            plannedHours = approvedQuote.hours;
+        }
+
         const hourlyRateUF = financials?.hourly_rate || 0;
         const ufValueCLP = await this.getExchangeRate('UF');
 
-        // Precio guardado en el proyecto (alta/edición); si no hay, se mantiene el cálculo histórico horas × tarifa.
-        const salePrice = financials?.sale_price > 0
-            ? await this.toCLP(financials.sale_price, (financials.sale_price_currency as Currency) || 'CLP')
-            : await this.toCLP(
+        // Precio guardado en el proyecto (alta/edición); si no hay, fallback a cotización aprobada, y si no hay, horas × tarifa.
+        let salePrice = 0;
+        if (financials?.sale_price > 0) {
+            salePrice = await this.toCLP(financials.sale_price, (financials.sale_price_currency as Currency) || 'CLP');
+        } else if (approvedQuote && approvedQuote.amount > 0) {
+            salePrice = await this.toCLP(approvedQuote.amount, (approvedQuote.currency as Currency) || 'CLP');
+        } else {
+            salePrice = await this.toCLP(
                 plannedHours * hourlyRateUF,
                 (financials?.hourly_rate_currency as Currency) || 'UF'
             );
+        }
 
         const { hourlyCostCLP: engineerHourlyCost, breakdown: userCostBreakdown } =
             await this.getBlendedHourlyCostCLP(projectId);
@@ -214,14 +237,34 @@ export class FinanceService {
             ? approvedTime.costCLP + (clientDelayHours * engineerHourlyCost)
             : realHours * engineerHourlyCost;
 
+        // Fase 6C: Proyección al término del proyecto
+        // Si hay horas aprobadas, las horas restantes presupuestadas se estiman como max(0, plannedHours - approvedTime.hours)
+        const remainingHours = hasApprovedTime ? Math.max(0, plannedHours - approvedTime.hours) : plannedHours;
+        const projectedHours = hasApprovedTime
+            ? approvedTime.hours + remainingHours + clientDelayHours
+            : plannedHours + clientDelayHours;
+        const projectedCost = hasApprovedTime
+            ? approvedTime.costCLP + (remainingHours * engineerHourlyCost) + (clientDelayHours * engineerHourlyCost)
+            : plannedCost + (clientDelayHours * engineerHourlyCost);
+
         const plannedProfit = salePrice - plannedCost;
         const realProfit = salePrice - realCost;
+        const projectedProfit = salePrice - projectedCost;
 
+        // Margen % sobre precio de venta: (Ganancia / Precio Venta) * 100
+        const plannedMarginPct = salePrice > 0 ? (plannedProfit / salePrice) * 100 : 0;
+        const realMarginPct = salePrice > 0 ? (realProfit / salePrice) * 100 : 0;
+        const projectedMarginPct = salePrice > 0 ? (projectedProfit / salePrice) * 100 : 0;
+
+        // ROI %: (Ganancia / Costo) * 100
         const plannedROI = plannedCost > 0 ? (plannedProfit / plannedCost) * 100 : 0;
         const realROI = realCost > 0 ? (realProfit / realCost) * 100 : 0;
+        const projectedROI = projectedCost > 0 ? (projectedProfit / projectedCost) * 100 : 0;
 
         const delayImpact = realCost - plannedCost;
         const lostProfit = plannedProfit - realProfit;
+        // Impacto económico del desvío en dinero ($): plannedProfit - projectedProfit (= projectedCost - plannedCost)
+        const varianceImpact = plannedProfit - projectedProfit;
 
         return {
             project_id: projectId,
@@ -239,12 +282,20 @@ export class FinanceService {
             sale_price: Math.round(salePrice),
             planned_cost: Math.round(plannedCost),
             real_cost: Math.round(realCost),
+            projected_cost: Math.round(projectedCost),
+            projected_hours: Math.round(projectedHours * 100) / 100,
             planned_profit: Math.round(plannedProfit),
             real_profit: Math.round(realProfit),
+            projected_profit: Math.round(projectedProfit),
+            planned_margin_percentage: Math.round(plannedMarginPct * 100) / 100,
+            real_margin_percentage: Math.round(realMarginPct * 100) / 100,
+            projected_margin_percentage: Math.round(projectedMarginPct * 100) / 100,
             planned_roi: Math.round(plannedROI * 100) / 100,
             real_roi: Math.round(realROI * 100) / 100,
+            projected_roi: Math.round(projectedROI * 100) / 100,
             delay_impact: Math.round(delayImpact),
-            lost_profit: Math.round(lostProfit)
+            lost_profit: Math.round(lostProfit),
+            variance_impact: Math.round(varianceImpact)
         };
     }
 
@@ -253,32 +304,29 @@ export class FinanceService {
      * Idempotente: si la condición ya no aplica, resuelve la alerta activa en vez de dejarla huérfana.
      * Se llama de forma perezosa (no hay scheduler): desde el dashboard de cobranza y desde
      * getProjectROI/getROIDashboard en financialController.
-     * Mientras las horas aprobadas cubran solo parte de lo planificado, las alertas de costo no se
-     * evalúan: resolverlas o recrearlas con un costo real incompleto sería peor que no tocarlas.
+     * Fase 6C: Se evalúan alertas usando métricas proyectadas al término (projected_cost y projected_roi),
+     * permitiendo alertar preventivamente durante la ejecución sin omitir por horas parciales.
      */
     async syncROIAlerts(projectId: number): Promise<void> {
         const financials = await this.calculateProjectFinancials(projectId);
 
-        const partialApprovedData = financials.real_hours_source === 'approved' && financials.approved_hours < financials.planned_hours;
-        if (partialApprovedData) {
-            logger.info(`Proyecto ${projectId}: horas aprobadas parciales (${financials.approved_hours}/${financials.planned_hours}h) - se omite evaluación de alertas de costo hasta acumular más horas reales`);
-            return;
-        }
+        const costToEvaluate = financials.projected_cost !== undefined ? financials.projected_cost : financials.real_cost;
+        const roiToEvaluate = financials.projected_roi !== undefined ? financials.projected_roi : financials.real_roi;
 
         await this.upsertAlert(projectId, 'cost_overrun',
-            financials.sale_price > 0 && financials.real_cost > financials.sale_price * 0.8,
+            financials.sale_price > 0 && costToEvaluate > financials.sale_price * 0.8,
             financials.sale_price * 0.8,
-            financials.real_cost,
-            `Costo real (${financials.real_cost.toLocaleString('es-CL')}) supera el 80% del precio de venta`,
-            financials.real_cost > financials.sale_price ? 'critical' : 'warning'
+            costToEvaluate,
+            `Costo proyectado (${costToEvaluate.toLocaleString('es-CL')}) supera el 80% del precio de venta`,
+            costToEvaluate > financials.sale_price ? 'critical' : 'warning'
         );
 
         await this.upsertAlert(projectId, 'low_margin',
-            financials.real_roi < 20,
+            roiToEvaluate < 20,
             20,
-            financials.real_roi,
-            `ROI real de ${financials.real_roi.toFixed(1)}% por debajo del objetivo de 20%`,
-            financials.real_roi < 0 ? 'critical' : 'warning'
+            roiToEvaluate,
+            `ROI proyectado de ${roiToEvaluate.toFixed(1)}% por debajo del objetivo de 20%`,
+            roiToEvaluate < 0 ? 'critical' : 'warning'
         );
     }
 

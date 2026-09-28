@@ -44,4 +44,47 @@ describe('ProjectROICard', () => {
 
     await waitFor(() => expect(screen.getByText('Costo Planificado')).toBeInTheDocument());
   });
+
+  it('muestra sección de proyección al término con margen proyectado y desvío económico', async () => {
+    (apiService.getProjectROI as any).mockResolvedValue({
+      ...base,
+      real_hours_source: 'approved',
+      projected_cost: 1500000,
+      projected_hours: 130,
+      projected_profit: 1500000,
+      planned_margin_percentage: 66.7,
+      real_margin_percentage: 60,
+      projected_margin_percentage: 50,
+      projected_roi: 100,
+      variance_impact: 500000
+    });
+
+    render(<ProjectROICard projectId={1} projectName="P" />);
+
+    await waitFor(() => expect(screen.getByText('Costo Proyectado')).toBeInTheDocument());
+    expect(screen.getByText('Margen % Proyectado')).toBeInTheDocument();
+    expect(screen.getByText('Impacto del Desvío')).toBeInTheDocument();
+    expect(screen.getByText('Sobrecosto de $500.000')).toBeInTheDocument();
+    expect(screen.getByText('Desvío: -$500.000')).toBeInTheDocument();
+  });
+
+  it('muestra tag de ahorro cuando el desvío económico es favorable (ahorro presupuestario)', async () => {
+    (apiService.getProjectROI as any).mockResolvedValue({
+      ...base,
+      real_hours_source: 'approved',
+      projected_cost: 900000,
+      projected_hours: 90,
+      projected_profit: 2100000,
+      planned_margin_percentage: 66.7,
+      real_margin_percentage: 70,
+      projected_margin_percentage: 70,
+      projected_roi: 233.3,
+      variance_impact: -100000
+    });
+
+    render(<ProjectROICard projectId={1} projectName="P" />);
+
+    await waitFor(() => expect(screen.getByText('Ahorro de $100.000')).toBeInTheDocument());
+    expect(screen.getByText('Ahorro: +$100.000')).toBeInTheDocument();
+  });
 });
