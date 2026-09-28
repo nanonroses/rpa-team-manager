@@ -462,6 +462,11 @@ class ApiService {
     await this.api.delete(`/billing/payment-milestones/${id}`);
   }
 
+  async completePaymentMilestone(id: number, notes?: string): Promise<any> {
+    const response = await this.api.post(`/billing/payment-milestones/${id}/complete`, { notes });
+    return response.data;
+  }
+
   async getInvoices(projectId?: number): Promise<any[]> {
     const url = projectId ? `/billing/invoices?project_id=${projectId}` : '/billing/invoices';
     const response = await this.api.get(url);

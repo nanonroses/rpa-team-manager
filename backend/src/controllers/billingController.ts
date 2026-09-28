@@ -104,6 +104,28 @@ export class BillingController {
         }
     };
 
+    completePaymentMilestone = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const { id } = req.params;
+            const { notes } = req.body || {};
+            const existing = await db.get(`SELECT * FROM payment_milestones WHERE id = ?`, [id]);
+            if (!existing) {
+                res.status(404).json({ error: 'Payment milestone not found' });
+                return;
+            }
+            if (existing.status === 'paid' || existing.status === 'invoiced') {
+                res.status(400).json({ error: `Cannot complete milestone already in status '${existing.status}'` });
+                return;
+            }
+
+            const updated = await billingService.completePaymentMilestone(Number(id), req.user?.id, notes);
+            res.json(updated);
+        } catch (error: any) {
+            logger.error('Complete payment milestone error:', error);
+            res.status(500).json({ error: error.message || 'Failed to complete payment milestone' });
+        }
+    };
+
     deletePaymentMilestone = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             const { id } = req.params;

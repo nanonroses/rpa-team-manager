@@ -270,6 +270,9 @@ export class AuthService {
             it_support: [
                 'users:read', 'users:update:support', 'projects:read', 'tasks:read',
                 'time:read', 'issues:technical:*', 'system:maintenance', 'files:read'
+            ],
+            billing: [
+                'users:read:basic', 'projects:read', 'billing:*', 'invoices:*', 'payments:*', 'reports:billing'
             ]
         };
 

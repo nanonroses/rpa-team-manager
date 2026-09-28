@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(50) UNIQUE NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('team_lead', 'rpa_developer', 'rpa_operations', 'it_support')),
+    role VARCHAR(20) NOT NULL CHECK (role IN ('team_lead', 'rpa_developer', 'rpa_operations', 'it_support', 'billing')),
     full_name VARCHAR(100) NOT NULL,
     avatar_url VARCHAR(255),
     is_active BOOLEAN DEFAULT 1,

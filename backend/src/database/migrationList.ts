@@ -1956,5 +1956,38 @@ export const migrations: Migration[] = [
       )`,
       `CREATE INDEX IF NOT EXISTS idx_project_log_entries_project ON project_log_entries(project_id)`
     ]
+  },
+  {
+    version: 43,
+    description: 'Agregar rol billing al CHECK de usuarios - Fase 6D',
+    disableForeignKeys: true,
+    up: [
+      `CREATE TABLE IF NOT EXISTS users_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        email VARCHAR(100) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        role VARCHAR(20) NOT NULL CHECK (role IN ('team_lead', 'rpa_developer', 'rpa_operations', 'it_support', 'billing')),
+        full_name VARCHAR(100) NOT NULL,
+        avatar_url VARCHAR(255),
+        is_active BOOLEAN DEFAULT 1,
+        last_login DATETIME,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        area_id INTEGER REFERENCES business_areas(id)
+      )`,
+      `INSERT INTO users_new (id, username, email, password_hash, role, full_name, avatar_url, is_active, last_login, created_at, updated_at, area_id)
+       SELECT id, username, email, password_hash, role, full_name, avatar_url, is_active, last_login, created_at, updated_at, area_id
+       FROM users`,
+      `DROP TABLE users`,
+      `ALTER TABLE users_new RENAME TO users`,
+      `CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)`,
+      `CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)`,
+      `CREATE TRIGGER IF NOT EXISTS update_users_timestamp 
+        AFTER UPDATE ON users
+        BEGIN
+          UPDATE users SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        END`
+    ]
   }
 ];

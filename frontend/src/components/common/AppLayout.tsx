@@ -111,7 +111,25 @@ export const AppLayout: React.FC = () => {
     { key: 'logout', icon: <LogoutOutlined />, label: 'Cerrar sesión', onClick: handleLogout }
   ];
 
+  useEffect(() => {
+    if (user?.role === 'billing' && (location.pathname === '/' || location.pathname === '/dashboard')) {
+      navigate('/billing', { replace: true });
+    }
+  }, [user?.role, location.pathname, navigate]);
+
   const items = useMemo<MenuProps['items']>(() => {
+    if (user?.role === 'billing') {
+      return [
+        {
+          type: 'group',
+          label: 'FACTURACIÓN Y COBRANZA',
+          children: [
+            { key: '/billing', icon: <DollarOutlined />, label: 'Cobranza y Facturación' }
+          ]
+        }
+      ];
+    }
+
     const roleCanSeePMO = user?.role === 'team_lead' || user?.role === 'rpa_operations';
     const main: NonNullable<MenuProps['items']> = [
       { type: 'group', label: 'ESPACIO DE TRABAJO', children: [

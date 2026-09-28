@@ -153,4 +153,43 @@ describe('BillingService', () => {
             );
         });
     });
+
+    describe('completePaymentMilestone', () => {
+        it('marca un hito como billable, notifica al rol billing y registra actividad', async () => {
+            const mockMilestone = {
+                id: 10,
+                project_id: 2,
+                project_name: 'Proyecto Automatización',
+                name: 'Hito UAT Aprobado',
+                amount: 5000000,
+                currency: 'CLP',
+                status: 'pending'
+            };
+
+            const updatedMilestone = { ...mockMilestone, status: 'billable', billable_at: '2026-09-16 12:00:00' };
+
+            (db.get as jest.Mock)
+                .mockResolvedValueOnce(mockMilestone)
+                .mockResolvedValueOnce(updatedMilestone);
+            (db.run as jest.Mock).mockResolvedValue({ id: 10, changes: 1 });
+            (db.query as jest.Mock).mockResolvedValue([
+                { id: 99, email: 'billing@empresa.com', full_name: 'Billing Officer', role: 'billing' }
+            ]);
+
+            const result = await billingService.completePaymentMilestone(10, 1, 'Aprobado por el cliente según acta');
+
+            expect(result.status).toBe('billable');
+            expect(db.run).toHaveBeenCalledWith(
+                expect.stringContaining("UPDATE payment_milestones"),
+                expect.arrayContaining([10])
+            );
+        });
+
+        it('lanza error si el hito no existe', async () => {
+            (db.get as jest.Mock).mockResolvedValue(null);
+
+            await expect(billingService.completePaymentMilestone(999, 1))
+                .rejects.toThrow('Payment milestone not found');
+        });
+    });
 });

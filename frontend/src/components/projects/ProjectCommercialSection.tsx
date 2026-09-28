@@ -33,8 +33,12 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
   const [documentType, setDocumentType] = useState<string | null>(null);
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [scopeQuoteId, setScopeQuoteId] = useState<number | null>(null);
+  const [completeMilestoneTarget, setCompleteMilestoneTarget] = useState<Row | null>(null);
+  const [completeNotes, setCompleteNotes] = useState('');
+  const [completing, setCompleting] = useState(false);
   const isLead = user?.role === 'team_lead';
   const canManage = isLead || user?.role === 'rpa_operations';
+  const canViewBilling = isLead || canManage || user?.role === 'billing';
   const hasClientAcceptanceEvidence = documents.some((row) => row.document_type === 'client_approval');
   const base = `/commercial/projects/${project.id}`;
 
@@ -46,8 +50,8 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
         canManage ? apiService.request({ url: `${base}/quotes` }) : Promise.resolve({ data: { data: [] } }),
         apiService.request({ url: `${base}/documents` }),
         canManage ? apiService.request({ url: `${base}/capacity` }) : Promise.resolve({ data: { data: [] } }),
-        isLead ? apiService.request({ url: `/billing/payment-milestones?project_id=${project.id}` }) : Promise.resolve({ data: [] }),
-        isLead ? apiService.request({ url: `/billing/invoices?project_id=${project.id}` }) : Promise.resolve({ data: [] }),
+        canViewBilling ? apiService.getPaymentMilestones(project.id) : Promise.resolve([]),
+        canViewBilling ? apiService.getInvoices(project.id) : Promise.resolve([]),
         apiService.request({ url: `/lifecycle/projects/${project.id}/scope-changes` })
       ]);
       if (results[0].status === 'fulfilled') setMeetings(rowsFrom(results[0].value));
@@ -62,7 +66,7 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
     } catch {
       message.error('No se pudo cargar el seguimiento comercial');
     } finally { setLoading(false); }
-  }, [base, isLead, canManage, message, project.id]);
+  }, [base, canManage, canViewBilling, message, project.id]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -228,6 +232,23 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
     </div>
   </div>;
 
+  const handleConfirmCompleteMilestone = async () => {
+    if (!completeMilestoneTarget) return;
+    setCompleting(true);
+    try {
+      await apiService.completePaymentMilestone(completeMilestoneTarget.id, completeNotes.trim() || undefined);
+      message.success('Hito marcado como cumplido y notificado a Facturación');
+      setCompleteMilestoneTarget(null);
+      setCompleteNotes('');
+      await load();
+      onRefresh?.();
+    } catch (error: any) {
+      message.error(error?.response?.data?.error || 'No se pudo marcar el hito como cumplido');
+    } finally {
+      setCompleting(false);
+    }
+  };
+
   const billingContent = <div className="commercial-workspace">
     <div className="commercial-kpis">
       <Statistic title="Hitos cobrables" value={paymentMilestones.filter((m) => m.status === 'billable').length} />
@@ -236,18 +257,74 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
       <Statistic title="Hitos pagados" value={paymentMilestones.filter((m) => m.status === 'paid').length} />
     </div>
     <div className="commercial-columns">
-      <Card title="Hitos de pago">
+      <Card
+        title="Hitos de pago"
+        extra={<Button type="link" onClick={() => window.open(`/billing?tab=milestones&project_id=${project.id}`, '_self')}>Ver en Facturación</Button>}
+      >
         {paymentMilestones.length ? <Table size="small" rowKey="id" pagination={false} dataSource={paymentMilestones} columns={[
-          { title: 'Hito', dataIndex: 'name' }, { title: 'Fecha prevista', dataIndex: 'planned_date', render: (v: string) => v ? dayjs(v).format('DD MMM YYYY') : 'Por definir' },
-          { title: 'Estado', dataIndex: 'status', render: (v: string) => <Tag color={v === 'paid' ? 'green' : v === 'overdue' ? 'red' : 'blue'}>{v}</Tag> },
-          ...(isLead ? [{ title: 'Monto', dataIndex: 'amount', render: (v: number, r: Row) => `${r.currency} ${Number(v).toLocaleString('es-CL')}` }] : [])
+          { title: 'Hito', dataIndex: 'name' },
+          { title: 'Fecha prevista', dataIndex: 'planned_date', render: (v: string) => v ? dayjs(v).format('DD MMM YYYY') : 'Por definir' },
+          {
+            title: 'Estado',
+            dataIndex: 'status',
+            render: (v: string) => {
+              const statusMap: Record<string, { label: string; color: string }> = {
+                pending: { label: 'Pendiente', color: 'default' },
+                billable: { label: 'Listo para facturar', color: 'cyan' },
+                invoiced: { label: 'Facturado', color: 'blue' },
+                paid: { label: 'Pagado', color: 'green' },
+                overdue: { label: 'Vencido', color: 'red' }
+              };
+              const item = statusMap[v] || { label: v, color: 'default' };
+              return <Tag color={item.color}>{item.label}</Tag>;
+            }
+          },
+          ...(canViewBilling ? [{
+            title: 'Monto',
+            dataIndex: 'amount',
+            render: (v: number, r: Row) => `${r.currency || 'CLP'} ${Number(v).toLocaleString('es-CL')}`
+          }] : []),
+          ...(canManage ? [{
+            title: 'Acciones',
+            key: 'actions',
+            render: (_: any, r: Row) => (
+              r.status === 'pending' || (r.status === 'overdue' && !r.invoiced_at) ? (
+                <Button
+                  size="small"
+                  type="primary"
+                  ghost
+                  icon={<CheckCircleOutlined />}
+                  onClick={() => setCompleteMilestoneTarget(r)}
+                >
+                  Marcar cumplido
+                </Button>
+              ) : null
+            )
+          }] : [])
         ]} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No hay hitos de pago registrados" />}
       </Card>
       <Card title="Facturas y pagos">
         {invoices.length ? <Table size="small" rowKey="id" pagination={false} dataSource={invoices} columns={[
-          { title: 'Factura', dataIndex: 'invoice_number' }, { title: 'Vencimiento', dataIndex: 'due_date', render: (v: string) => dayjs(v).format('DD MMM YYYY') },
-          { title: 'Estado', dataIndex: 'status', render: (v: string) => <Tag color={v === 'paid' ? 'green' : v === 'overdue' ? 'red' : 'gold'}>{v}</Tag> },
-          ...(isLead ? [{ title: 'Pagos', dataIndex: 'payments', render: (v: Row[]) => v?.length || 0 }] : [])
+          { title: 'Factura', dataIndex: 'invoice_number' },
+          { title: 'Vencimiento', dataIndex: 'due_date', render: (v: string) => dayjs(v).format('DD MMM YYYY') },
+          {
+            title: 'Estado',
+            dataIndex: 'status',
+            render: (v: string) => {
+              const invStatusMap: Record<string, { label: string; color: string }> = {
+                draft: { label: 'Borrador', color: 'default' },
+                issued: { label: 'Emitida', color: 'gold' },
+                partially_paid: { label: 'Pago parcial', color: 'orange' },
+                paid: { label: 'Pagada', color: 'green' },
+                overdue: { label: 'Vencida', color: 'red' },
+                cancelled: { label: 'Anulada', color: 'default' }
+              };
+              const item = invStatusMap[v] || { label: v, color: 'gold' };
+              return <Tag color={item.color}>{item.label}</Tag>;
+            }
+          },
+          ...(canViewBilling ? [{ title: 'Total', dataIndex: 'total_amount', render: (v: number, r: Row) => `${r.currency || 'CLP'} ${Number(v).toLocaleString('es-CL')}` }] : []),
+          ...(canViewBilling ? [{ title: 'Pagos', dataIndex: 'payments', render: (v: Row[]) => v?.length || 0 }] : [])
         ]} /> : <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="Todavía no hay facturas asociadas" />}
       </Card>
     </div>
@@ -328,6 +405,38 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
         <FileManager entity_type="project" entity_id={project.id} title="Adjuntar evidencia" association_type={documentType || 'commercial_evidence'} showUploadTab multiple={false} maxFiles={1} />
         <Button type="primary" htmlType="submit" block>Guardar documento</Button>
       </Form>
+    </Modal>
+    <Modal
+      title="Marcar hito de pago como cumplido"
+      open={Boolean(completeMilestoneTarget)}
+      onCancel={() => { setCompleteMilestoneTarget(null); setCompleteNotes(''); }}
+      onOk={handleConfirmCompleteMilestone}
+      confirmLoading={completing}
+      okText="Confirmar y pasar a facturable"
+      cancelText="Cancelar"
+      destroyOnClose
+    >
+      <div style={{ marginBottom: 16 }}>
+        <p><strong>Hito:</strong> {completeMilestoneTarget?.name}</p>
+        <p><strong>Monto:</strong> {completeMilestoneTarget?.currency || 'CLP'} {Number(completeMilestoneTarget?.amount || 0).toLocaleString('es-CL')}</p>
+        <Alert
+          type="info"
+          showIcon
+          message="Pase a facturación"
+          description="Al confirmar, este hito cambiará su estado a 'Listo para facturar'. Se notificará automáticamente in-app y por correo electrónico al equipo de Facturación y Cobranza para que puedan proceder a emitir la factura correspondiente."
+          style={{ marginTop: 12 }}
+        />
+      </div>
+      <div>
+        <Text strong>Observaciones o notas de entrega (opcional):</Text>
+        <Input.TextArea
+          rows={3}
+          value={completeNotes}
+          onChange={(e) => setCompleteNotes(e.target.value)}
+          placeholder="Ej: Entrega aprobada por el cliente vía correo / Acta UAT firmada..."
+          style={{ marginTop: 8 }}
+        />
+      </div>
     </Modal>
   </>;
 };

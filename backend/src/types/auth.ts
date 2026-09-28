@@ -12,7 +12,7 @@ export interface User {
     updated_at: Date;
 }
 
-export type UserRole = 'team_lead' | 'rpa_developer' | 'rpa_operations' | 'it_support';
+export type UserRole = 'team_lead' | 'rpa_developer' | 'rpa_operations' | 'it_support' | 'billing';
 
 export interface AuthRequest extends Request {
     user?: User;
@@ -92,6 +92,15 @@ export const RolePermissions: Record<UserRole, string[]> = {
         'issues:read', 'issues:create', 'issues:update:technical',
         'system:backup', 'system:health', 'system:logs',
         'files:read'
+    ],
+    billing: [
+        // Billing and collections management
+        'users:read:basic',
+        'projects:read',
+        'billing:*',
+        'invoices:*',
+        'payments:*',
+        'reports:billing'
     ]
 };
 
