@@ -12,24 +12,25 @@ const billingController = new BillingController();
 
 router.use(authenticate);
 
-// Lectura de dashboard y listas: mismo nivel que PMO
-const billingReadRoles = authorize(['team_lead']);
+// Lectura de dashboard y listas: team_lead y billing
+const billingReadRoles = authorize(['team_lead', 'billing']);
 // Gestión de hitos y facturas
-const billingWriteRoles = authorize(['team_lead']);
-// Registrar cobros: acción financiera irreversible, solo team_lead
-const billingPaymentRoles = authorize(['team_lead']);
+const billingWriteRoles = authorize(['team_lead', 'billing']);
+// Registrar cobros: acción financiera autorizada para team_lead y billing
+const billingPaymentRoles = authorize(['team_lead', 'billing']);
 
 // ========================================
 // DASHBOARD DE COBRANZA
 // ========================================
 router.get('/dashboard', billingReadRoles, billingController.getDashboard);
-router.post('/evaluate', authorize(['team_lead']), billingController.evaluate);
+router.post('/evaluate', authorize(['team_lead', 'billing']), billingController.evaluate);
 
 // ========================================
 // HITOS DE PAGO
 // ========================================
 router.get('/payment-milestones', billingReadRoles, billingController.getPaymentMilestones);
 router.post('/payment-milestones', billingWriteRoles, validate({ body: createPaymentMilestoneSchema }), billingController.createPaymentMilestone);
+router.post('/payment-milestones/:id/complete', authorize(['team_lead', 'rpa_operations', 'billing']), billingController.completePaymentMilestone);
 router.put('/payment-milestones/:id', billingWriteRoles, validate({ body: updatePaymentMilestoneSchema }), billingController.updatePaymentMilestone);
 router.delete('/payment-milestones/:id', billingWriteRoles, billingController.deletePaymentMilestone);
 

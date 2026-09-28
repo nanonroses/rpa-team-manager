@@ -11,7 +11,7 @@ export interface User {
   updated_at: string;
 }
 
-export type UserRole = 'team_lead' | 'rpa_developer' | 'rpa_operations' | 'it_support';
+export type UserRole = 'team_lead' | 'rpa_developer' | 'rpa_operations' | 'it_support' | 'billing';
 
 export interface LoginCredentials {
   email: string;
@@ -37,12 +37,14 @@ export const RoleLabels: Record<UserRole, string> = {
   team_lead: 'Team Lead',
   rpa_developer: 'RPA Developer',
   rpa_operations: 'RPA Operations',
-  it_support: 'IT Support'
+  it_support: 'IT Support',
+  billing: 'Facturación y Cobranza'
 };
 
 export const RoleColors: Record<UserRole, string> = {
   team_lead: '#ff4d4f',
   rpa_developer: '#1890ff',
   rpa_operations: '#52c41a',
-  it_support: '#faad14'
+  it_support: '#faad14',
+  billing: '#722ed1'
 };

@@ -2,6 +2,8 @@ import { db } from '../database/database';
 import { logger } from '../utils/logger';
 import { financeService, Currency } from './financeService';
 import { notificationService } from './notificationService';
+import { emailService } from './emailService';
+import { activityLogService } from './activityLogService';
 
 export interface PaymentMilestoneRow {
     id: number;
@@ -286,6 +288,98 @@ export class BillingService {
             }
         };
     }
+
+    /**
+     * Marca un hito de pago como cumplido manualmente (Team Lead / PM),
+     * pasándolo a estado 'billable', notificando in-app y por email a los usuarios con rol billing,
+     * y registrando la acción en activity_log.
+     */
+    async completePaymentMilestone(milestoneId: number, completedByUserId?: number, notes?: string): Promise<any> {
+        const milestone = await db.get(
+            `SELECT pm.*, p.name as project_name
+             FROM payment_milestones pm
+             JOIN projects p ON p.id = pm.project_id
+             WHERE pm.id = ?`,
+            [milestoneId]
+        );
+
+        if (!milestone) {
+            throw new Error('Payment milestone not found');
+        }
+
+        const oldStatus = milestone.status;
+        await db.run(
+            `UPDATE payment_milestones
+             SET status = 'billable', billable_at = datetime('now'), updated_at = datetime('now')
+             WHERE id = ?`,
+            [milestoneId]
+        );
+
+        const updated = await db.get(
+            `SELECT pm.*, p.name as project_name
+             FROM payment_milestones pm
+             JOIN projects p ON p.id = pm.project_id
+             WHERE pm.id = ?`,
+            [milestoneId]
+        );
+
+        // Notificar a usuarios con rol 'billing' (y team_lead de respaldo si no hay billing activo)
+        const billingUsers = await db.query(
+            `SELECT id, email, full_name, role FROM users WHERE role = 'billing' AND is_active = 1`
+        );
+        const notifyUsers = billingUsers.length > 0
+            ? billingUsers
+            : await db.query(`SELECT id, email, full_name, role FROM users WHERE role = 'team_lead' AND is_active = 1`);
+
+        for (const user of notifyUsers) {
+            await notificationService.notify({
+                userId: user.id,
+                eventKey: 'payment_milestone_billable',
+                title: 'Hito listo para facturación',
+                message: `El hito "${milestone.name}" del proyecto "${milestone.project_name}" ha sido marcado como cumplido y está listo para facturar (${milestone.amount} ${milestone.currency}).${notes ? ` Observación: ${notes}` : ''}`,
+                type: 'success',
+                entityType: 'payment_milestone',
+                entityId: milestoneId,
+                senderId: completedByUserId,
+                link: `/billing?tab=milestones&project_id=${milestone.project_id}`
+            });
+        }
+
+        // Envío de correo a los responsables de facturación
+        const emails = notifyUsers.map((u: any) => u.email).filter(Boolean);
+        if (emails.length > 0) {
+            await emailService.sendEmail({
+                to: emails,
+                subject: `[Cobranza] Hito cumplido listo para facturar: ${milestone.name} (${milestone.project_name})`,
+                text: `Se ha marcado como cumplido el hito de pago "${milestone.name}" en el proyecto "${milestone.project_name}".\n\n` +
+                      `Monto: ${milestone.amount} ${milestone.currency}\n` +
+                      (notes ? `Observaciones: ${notes}\n\n` : '\n') +
+                      `Puede emitir la factura correspondiente desde el módulo de Facturación.\n` +
+                      `Enlace: /billing?tab=milestones&project_id=${milestone.project_id}`
+            });
+        }
+
+        // Registro de auditoría
+        await activityLogService.logActivity(
+            completedByUserId,
+            'payment_milestone',
+            milestoneId,
+            'completed',
+            { status: oldStatus },
+            { status: 'billable', notes }
+        );
+        await activityLogService.logActivity(
+            completedByUserId,
+            'project',
+            milestone.project_id,
+            'payment_milestone_completed',
+            null,
+            { payment_milestone_id: milestoneId, name: milestone.name, amount: milestone.amount, currency: milestone.currency, notes }
+        );
+
+        return updated;
+    }
 }
 
 export const billingService = new BillingService();
+

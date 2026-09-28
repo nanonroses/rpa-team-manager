@@ -69,6 +69,7 @@ const BillingPage: React.FC = () => {
   const [dashboardError, setDashboardError] = useState(false);
   const [filters, setFilters] = useState({ period: null as [any, any] | null });
   const requestedProject = Number(searchParams.get('project_id'));
+  const canManageBilling = user?.role === 'team_lead' || user?.role === 'billing';
 
   const goToProject = (projectId: number, tab = 'commercial') => navigate(`/projects/${projectId}?tab=${tab}`);
   const formatMoney = (amount: number, currency: string) => `${Number(amount || 0).toLocaleString('es-CL')} ${currency}`;
@@ -319,7 +320,7 @@ const BillingPage: React.FC = () => {
             Estado de pago
           </Button>
           <Button size="small" onClick={() => setSelectedInvoice(r)}>Detalle y pagos</Button>
-          {user?.role === 'team_lead' && r.status !== 'paid' && r.status !== 'cancelled' && (
+          {canManageBilling && r.status !== 'paid' && r.status !== 'cancelled' && (
             <Button icon={<DollarOutlined />} size="small" type="primary" onClick={() => handleOpenPaymentModal(r)}>
               Registrar pago
             </Button>
@@ -360,7 +361,7 @@ const BillingPage: React.FC = () => {
             ]} />
             <Select allowClear placeholder="Todas las monedas" style={{ width: 155 }} value={currencyFilter} onChange={setCurrencyFilter} options={CURRENCY_OPTIONS} />
             <DatePicker.RangePicker value={filters.period as any} onChange={(period) => setFilters((current) => ({ ...current, period: period as [any, any] | null }))} aria-label="Periodo de cobranza" />
-            {user?.role === 'team_lead' && <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)}>
+            {canManageBilling && <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)}>
               Nuevo hito de pago
             </Button>}
           </Space>

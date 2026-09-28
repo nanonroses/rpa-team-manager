@@ -14,7 +14,8 @@ export type NotificationEventKey =
     | 'billing_due_today'
     | 'billing_overdue_weekly'
     | 'project_delay_created'
-    | 'scope_change_pending_approval';
+    | 'scope_change_pending_approval'
+    | 'payment_milestone_billable';
 
 export interface NotifyParams {
     userId: number;

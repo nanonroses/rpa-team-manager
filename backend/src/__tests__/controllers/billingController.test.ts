@@ -2,7 +2,7 @@ jest.mock('../../database/database', () => ({
     db: { get: jest.fn(), run: jest.fn(), query: jest.fn(), beginTransaction: jest.fn(), commit: jest.fn(), rollback: jest.fn() }
 }));
 jest.mock('../../services/billingService', () => ({
-    billingService: { getDashboard: jest.fn(), evaluateTriggers: jest.fn(), evaluateOverdue: jest.fn() }
+    billingService: { getDashboard: jest.fn(), evaluateTriggers: jest.fn(), evaluateOverdue: jest.fn(), completePaymentMilestone: jest.fn() }
 }));
 
 import { db } from '../../database/database';
@@ -174,6 +174,59 @@ describe('BillingController', () => {
             expect(res.json).toHaveBeenCalledWith({ error: 'Payment currency must match invoice currency' });
             expect(db.beginTransaction).not.toHaveBeenCalled();
             expect(db.run).not.toHaveBeenCalled();
+        });
+    });
+
+    describe('completePaymentMilestone', () => {
+        it('completa el hito y devuelve 200 con el hito actualizado', async () => {
+            const req = {
+                params: { id: '5' },
+                body: { notes: 'Todo entregado ok' },
+                user: { id: 1 }
+            } as any;
+            const res = mockRes();
+
+            (db.get as jest.Mock).mockResolvedValueOnce({
+                id: 5,
+                project_id: 1,
+                status: 'pending'
+            });
+
+            (billingService.completePaymentMilestone as jest.Mock).mockResolvedValueOnce({
+                id: 5,
+                project_id: 1,
+                status: 'billable',
+                name: 'Entrega Fase 1'
+            });
+
+            await controller.completePaymentMilestone(req, res);
+
+            expect(billingService.completePaymentMilestone).toHaveBeenCalledWith(5, 1, 'Todo entregado ok');
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ id: 5, status: 'billable' }));
+        });
+
+        it('rechaza con 404 si el hito no existe', async () => {
+            const req = { params: { id: '99' }, body: {}, user: { id: 1 } } as any;
+            const res = mockRes();
+
+            (db.get as jest.Mock).mockResolvedValueOnce(null);
+
+            await controller.completePaymentMilestone(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(404);
+            expect(res.json).toHaveBeenCalledWith({ error: 'Payment milestone not found' });
+        });
+
+        it('rechaza con 400 si el hito ya está paid', async () => {
+            const req = { params: { id: '5' }, body: {}, user: { id: 1 } } as any;
+            const res = mockRes();
+
+            (db.get as jest.Mock).mockResolvedValueOnce({ id: 5, status: 'paid' });
+
+            await controller.completePaymentMilestone(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining('already in status') }));
         });
     });
 });

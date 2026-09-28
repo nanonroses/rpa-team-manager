@@ -6,6 +6,7 @@ export interface Migration {
   up: string[];
   run?: (database: sqlite3.Database) => Promise<void>;
   down?: string[];
+  disableForeignKeys?: boolean;
 }
 
 export class MigrationManager {
@@ -48,59 +49,96 @@ export class MigrationManager {
     if (!this.db) throw new Error('Database not initialized');
 
     console.log(`Aplicando migración ${migration.version}: ${migration.description}`);
+
+    const setForeignKeys = (enabled: boolean): Promise<void> => {
+      return new Promise<void>((res, rej) => {
+        this.db!.exec(`PRAGMA foreign_keys = ${enabled ? 'ON' : 'OFF'}`, (err) => {
+          if (err) rej(err);
+          else res();
+        });
+      });
+    };
     
     return new Promise((resolve, reject) => {
-      this.db!.exec('BEGIN TRANSACTION', (err) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-
-        const executeStatements = async () => {
-          try {
-            // Ejecutar las sentencias de migración
-            for (const statement of migration.up) {
-              await new Promise<void>((res, rej) => {
-                this.db!.exec(statement, (err) => {
-                  if (err) rej(err);
-                  else res();
-                });
-              });
-            }
-
-            if (migration.run) {
-              await migration.run(this.db!);
-            }
-            
-            // Registrar la migración como aplicada
-            await new Promise<void>((res, rej) => {
-              this.db!.run(
-                'INSERT INTO schema_migrations (version, description) VALUES (?, ?)',
-                [migration.version, migration.description],
-                function(err) {
-                  if (err) rej(err);
-                  else res();
-                }
-              );
-            });
-            
-            this.db!.exec('COMMIT', (err) => {
-              if (err) {
-                reject(err);
-              } else {
-                console.log(`✅ Migración ${migration.version} aplicada exitosamente`);
-                resolve();
-              }
-            });
-          } catch (error) {
-            this.db!.exec('ROLLBACK');
-            console.error(`❌ Error aplicando migración ${migration.version}:`, error);
-            reject(error);
+      const runTx = async () => {
+        try {
+          if (migration.disableForeignKeys) {
+            await setForeignKeys(false);
           }
-        };
 
-        executeStatements();
-      });
+          this.db!.exec('BEGIN TRANSACTION', (err) => {
+            if (err) {
+              const handleErr = async () => {
+                if (migration.disableForeignKeys) {
+                  await setForeignKeys(true).catch(() => {});
+                }
+                reject(err);
+              };
+              handleErr();
+              return;
+            }
+
+            const executeStatements = async () => {
+              try {
+                // Ejecutar las sentencias de migración
+                for (const statement of migration.up) {
+                  await new Promise<void>((res, rej) => {
+                    this.db!.exec(statement, (err) => {
+                      if (err) rej(err);
+                      else res();
+                    });
+                  });
+                }
+
+                if (migration.run) {
+                  await migration.run(this.db!);
+                }
+                
+                // Registrar la migración como aplicada
+                await new Promise<void>((res, rej) => {
+                  this.db!.run(
+                    'INSERT INTO schema_migrations (version, description) VALUES (?, ?)',
+                    [migration.version, migration.description],
+                    function(err) {
+                      if (err) rej(err);
+                      else res();
+                    }
+                  );
+                });
+                
+                this.db!.exec('COMMIT', async (err) => {
+                  if (migration.disableForeignKeys) {
+                    await setForeignKeys(true).catch(() => {});
+                  }
+                  if (err) {
+                    reject(err);
+                  } else {
+                    console.log(`✅ Migración ${migration.version} aplicada exitosamente`);
+                    resolve();
+                  }
+                });
+              } catch (error) {
+                this.db!.exec('ROLLBACK', async () => {
+                  if (migration.disableForeignKeys) {
+                    await setForeignKeys(true).catch(() => {});
+                  }
+                  console.error(`❌ Error aplicando migración ${migration.version}:`, error);
+                  reject(error);
+                });
+              }
+            };
+
+            executeStatements();
+          });
+        } catch (initErr) {
+          if (migration.disableForeignKeys) {
+            await setForeignKeys(true).catch(() => {});
+          }
+          reject(initErr);
+        }
+      };
+
+      runTx();
     });
   }
 

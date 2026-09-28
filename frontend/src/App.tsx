@@ -104,7 +104,7 @@ function App() {
 
               {/* Billing / Cobranza */}
               <Route path="billing" element={
-                <ProtectedRoute requiredRoles={['team_lead', 'rpa_operations']}>
+                <ProtectedRoute requiredRoles={['team_lead', 'rpa_operations', 'billing']}>
                   <BillingPage />
                 </ProtectedRoute>
               } />
