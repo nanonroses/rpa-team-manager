@@ -27,7 +27,8 @@ import {
   ClockCircleOutlined,
   DollarOutlined,
   CheckSquareOutlined,
-  TeamOutlined
+  TeamOutlined,
+  LinkOutlined
 } from '@ant-design/icons';
 import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -36,6 +37,7 @@ import { TaskSubtasksChecklist } from '@/components/tasks/TaskSubtasksChecklist'
 import { CommentsThread } from '@/components/comments/CommentsThread';
 import { TaskTagsEditor } from '@/components/tasks/TaskTagsEditor';
 import { TaskCollaboratorsEditor } from '@/components/tasks/TaskCollaboratorsEditor';
+import { TaskDependenciesEditor } from '@/components/tasks/TaskDependenciesEditor';
 import { EmptyState, LoadingState } from '@/components/common';
 import { getPriorityColor } from '@/utils';
 import dayjs from 'dayjs';
@@ -91,6 +93,8 @@ interface Task {
   tags?: string | null;
   collaborators_count?: number;
   collaborators_names?: string | null;
+  depends_on_count?: number;
+  blocks_count?: number;
   created_at: string;
   updated_at: string;
 }
@@ -701,6 +705,26 @@ export const TasksPage: React.FC = () => {
                       </Tag>
                     </Tooltip>
                   )}
+
+                  {((task.depends_on_count || 0) > 0 || (task.blocks_count || 0) > 0) && (
+                    <Tooltip
+                      title={
+                        (task.depends_on_count || 0) > 0 && (task.blocks_count || 0) > 0
+                          ? `Depende de ${task.depends_on_count} | Bloquea ${task.blocks_count}`
+                          : (task.depends_on_count || 0) > 0
+                          ? `Depende de ${task.depends_on_count} tarea(s)`
+                          : `Bloquea ${task.blocks_count} tarea(s)`
+                      }
+                    >
+                      <Tag
+                        icon={<LinkOutlined />}
+                        color={(task.depends_on_count || 0) > 0 ? 'orange' : 'cyan'}
+                        data-testid="task-dependency-badge"
+                      >
+                        {(task.depends_on_count || 0) + (task.blocks_count || 0)}
+                      </Tag>
+                    </Tooltip>
+                  )}
                 </Space>
               </div>
 
@@ -1271,6 +1295,12 @@ export const TasksPage: React.FC = () => {
               <Divider />
               <TaskSubtasksChecklist
                 taskId={editingTask.id}
+                onChange={() => selectedBoard && loadBoard(selectedBoard.id)}
+              />
+              <Divider />
+              <TaskDependenciesEditor
+                taskId={editingTask.id}
+                availableTasks={selectedBoard?.tasks || []}
                 onChange={() => selectedBoard && loadBoard(selectedBoard.id)}
               />
               <Divider />
