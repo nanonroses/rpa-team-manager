@@ -30,10 +30,10 @@ export const commonEndpointsLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-// Strict rate limiting for authentication routes
+// Strict rate limiting for authentication routes (relaxed in development)
 export const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // limit each IP to 5 login requests per windowMs
+    max: process.env.NODE_ENV === 'production' ? 5 : 100, // 5 in production, 100 in development
     skipSuccessfulRequests: true,
     message: {
         error: {
