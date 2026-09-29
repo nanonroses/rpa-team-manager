@@ -5,7 +5,7 @@ import { fileService } from '@/services/fileService';
 export function previewKind(type: string): 'pdf' | 'image' | 'text' | 'video' | 'audio' | 'unsupported' {
   const mime = type.split(';')[0].toLowerCase();
   if (mime === 'application/pdf') return 'pdf';
-  if (['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/avif', 'image/svg+xml'].includes(mime)) return 'image';
+  if (['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/avif'].includes(mime)) return 'image';
   if (mime === 'text/plain') return 'text';
   if (['video/mp4', 'video/webm'].includes(mime)) return 'video';
   if (['audio/mpeg', 'audio/wav', 'audio/ogg'].includes(mime)) return 'audio';

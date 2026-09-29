@@ -68,6 +68,9 @@ export class LLMConfigService {
             crypto.randomBytes(32).toString('hex');
 
         if (!process.env.ENCRYPTION_KEY) {
+            if (process.env.NODE_ENV === 'production') {
+                throw new Error('ENCRYPTION_KEY must be set in production');
+            }
             logger.warn('ENCRYPTION_KEY not set. Using random key (will not persist across restarts)');
         }
     }

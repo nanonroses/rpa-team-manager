@@ -40,12 +40,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-          <Router
-            future={{
-              v7_startTransition: true,
-              v7_relativeSplatPath: true
-            }}
-          >
+          <Router>
             <Routes>
             {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />

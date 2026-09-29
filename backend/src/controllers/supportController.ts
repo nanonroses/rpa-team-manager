@@ -2,12 +2,45 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { db } from '../database/database';
 import { logger } from '../utils/logger';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import multer from 'multer';
-import path from 'path';
 import fs from 'fs';
 
 export class SupportController {
+
+    private spreadsheetValue(value: ExcelJS.CellValue): unknown {
+        if (value && typeof value === 'object') {
+            if ('result' in value) return value.result;
+            if ('text' in value) return value.text;
+            if ('richText' in value) return value.richText.map(part => part.text).join('');
+        }
+        return value ?? '';
+    }
+
+    private async readSpreadsheet(filePath: string, mimeType: string): Promise<{ headers: string[]; rows: unknown[][]; records: Record<string, unknown>[] }> {
+        const workbook = new ExcelJS.Workbook();
+        if (mimeType === 'text/csv') await workbook.csv.readFile(filePath);
+        else await workbook.xlsx.readFile(filePath);
+
+        const worksheet = workbook.worksheets[0];
+        if (!worksheet || worksheet.rowCount === 0) return { headers: [], rows: [], records: [] };
+
+        const headers = (worksheet.getRow(1).values as ExcelJS.CellValue[])
+            .slice(1)
+            .map(value => String(this.spreadsheetValue(value)).trim());
+        const rows: unknown[][] = [];
+        const records: Record<string, unknown>[] = [];
+
+        worksheet.eachRow((row, rowNumber) => {
+            if (rowNumber === 1) return;
+            const values = (row.values as ExcelJS.CellValue[]).slice(1).map(value => this.spreadsheetValue(value));
+            if (!values.some(value => value !== '' && value !== null && value !== undefined)) return;
+            rows.push(values);
+            records.push(Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ''])));
+        });
+
+        return { headers, rows, records };
+    }
 
     // Helper function to get UF to CLP conversion rate
     private getUFToCLPRate = async (): Promise<number> => {
@@ -1053,7 +1086,6 @@ export class SupportController {
         fileFilter: (req, file, cb) => {
             const allowedMimes = [
                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                'application/vnd.ms-excel',
                 'text/csv'
             ];
             if (allowedMimes.includes(file.mimetype)) {
@@ -1075,18 +1107,14 @@ export class SupportController {
                 return;
             }
 
-            const workbook = XLSX.readFile(req.file.path);
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+            const { headers, rows } = await this.readSpreadsheet(req.file.path, req.file.mimetype);
 
-            if (jsonData.length === 0) {
+            if (headers.length === 0) {
                 res.status(400).json({ error: 'Excel file is empty' });
                 return;
             }
 
-            const headers = jsonData[0] as string[];
-            const sampleData = jsonData.slice(1, 6); // First 5 rows for preview
+            const sampleData = rows.slice(0, 5);
 
             // Define available field mappings
             const availableFields = [
@@ -1162,7 +1190,7 @@ export class SupportController {
                 sampleData,
                 availableFields,
                 suggestedMappings,
-                totalRows: jsonData.length - 1
+                totalRows: rows.length
             });
         } catch (error) {
             logger.error('Preview Excel import error:', error);
@@ -1188,10 +1216,7 @@ export class SupportController {
             const parsedMappings = typeof mappings === 'string' ? JSON.parse(mappings) : mappings;
             const parsedOptions = typeof options === 'string' ? JSON.parse(options) : options;
 
-            const workbook = XLSX.readFile(req.file.path);
-            const sheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[sheetName];
-            const jsonData = XLSX.utils.sheet_to_json(worksheet);
+            const { records: jsonData } = await this.readSpreadsheet(req.file.path, req.file.mimetype);
 
             const results = {
                 totalRows: jsonData.length,

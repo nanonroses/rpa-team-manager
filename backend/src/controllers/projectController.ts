@@ -425,6 +425,10 @@ export class ProjectController {
                 res.status(403).json({ error: 'Access denied' });
                 return;
             }
+            if (!req.user || !['team_lead', 'rpa_operations', 'rpa_developer'].includes(req.user.role)) {
+                res.status(403).json({ error: 'Access denied: insufficient permissions to update project' });
+                return;
+            }
 
             // Build update query dynamically
             const allowedFields = [
@@ -436,7 +440,9 @@ export class ProjectController {
 
             // Solo team_lead puede reasignar el proyecto (assigned_to); otros roles lo ven descartado silenciosamente.
             const updatesForFields = req.user?.role === 'team_lead' ? updates : (() => {
-                const { assigned_to, ...rest } = updates;
+                const rest = { ...updates };
+                delete rest.assigned_to;
+                delete rest.budget;
                 return rest;
             })();
 

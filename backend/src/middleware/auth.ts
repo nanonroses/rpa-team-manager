@@ -147,6 +147,12 @@ export class AuthMiddleware {
             const key = req.ip || 'unknown';
             const now = Date.now();
 
+            if (attempts.size > 100) {
+                for (const [attemptKey, record] of attempts.entries()) {
+                    if (now > record.resetTime) attempts.delete(attemptKey);
+                }
+            }
+
             const userAttempts = attempts.get(key);
 
             if (!userAttempts || now > userAttempts.resetTime) {

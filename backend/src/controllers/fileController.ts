@@ -7,7 +7,6 @@ import path from 'path';
 import fs from 'fs/promises';
 import { createReadStream } from 'fs';
 import crypto from 'crypto';
-import mime from 'mime-types';
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -35,7 +34,7 @@ const fileFilter = (req: any, file: Express.Multer.File, cb: multer.FileFilterCa
   // Get allowed extensions from file categories
   // For now, allow common file types - we'll validate against categories in the controller
   const allowedTypes = [
-    'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
     'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
@@ -57,7 +56,7 @@ export const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 500 * 1024 * 1024, // 500MB max file size
+    fileSize: 50 * 1024 * 1024, // 50MB max file size
     files: 10 // Max 10 files per upload
   }
 });
@@ -97,9 +96,14 @@ export class FileController {
 
       for (const file of files) {
         try {
-          // Calculate file hash
-          const fileBuffer = await fs.readFile(file.path);
-          const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+          // Calculate the hash as a stream so uploads never occupy the Node heap in full.
+          const fileHash = await new Promise<string>((resolve, reject) => {
+            const hash = crypto.createHash('sha256');
+            const stream = createReadStream(file.path);
+            stream.on('data', chunk => hash.update(chunk));
+            stream.on('end', () => resolve(hash.digest('hex')));
+            stream.on('error', reject);
+          });
 
           // Get file extension
           const fileExtension = path.extname(file.originalname).toLowerCase().substring(1);
@@ -467,7 +471,7 @@ export class FileController {
 
       // Set appropriate headers
       // Never serve executable uploads as HTML on the application's origin.
-      const safeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/avif', 'image/svg+xml', 'video/mp4', 'video/webm', 'audio/mpeg', 'audio/wav', 'audio/ogg'];
+      const safeTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/avif', 'video/mp4', 'video/webm', 'audio/mpeg', 'audio/wav', 'audio/ogg'];
       const contentType = safeTypes.includes(file.mime_type) ? file.mime_type
         : file.mime_type.startsWith('text/') || file.mime_type === 'application/json' ? 'text/plain; charset=utf-8' : 'application/octet-stream';
       res.setHeader('Content-Type', preview ? contentType : file.mime_type);

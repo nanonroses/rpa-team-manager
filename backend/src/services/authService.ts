@@ -31,6 +31,9 @@ export class AuthService {
         
         // Validate JWT secret strength
         if (this.jwtSecret.length < 32) {
+            if (process.env.NODE_ENV === 'production') {
+                throw new Error('JWT_SECRET must contain at least 32 characters in production');
+            }
             logger.warn('JWT secret should be at least 32 characters long for security');
         }
         

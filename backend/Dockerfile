@@ -1,5 +1,5 @@
 # Multi-stage build for production optimization
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -8,7 +8,7 @@ WORKDIR /app
 COPY package*.json ./
 
 # Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+RUN npm ci && npm cache clean --force
 
 # Copy source code
 COPY . .
@@ -16,8 +16,11 @@ COPY . .
 # Build TypeScript
 RUN npm run build
 
+# Keep only runtime dependencies in the production image.
+RUN npm prune --omit=dev
+
 # Production stage
-FROM node:18-alpine AS production
+FROM node:22-alpine AS production
 
 # Create app user for security
 RUN addgroup -g 1001 -S nodejs && \

@@ -1,5 +1,4 @@
 import rateLimit from 'express-rate-limit';
-import { Request, Response } from 'express';
 
 // General API rate limiting - Increased for development/small teams
 export const apiLimiter = rateLimit({
