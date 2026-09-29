@@ -28,6 +28,7 @@ import {
 } from '@ant-design/icons';
 import { useLLMConfigStore, LLMProvider } from '@/store/llmConfigStore';
 import { SkillConfigModal } from '@/components/projects/SkillConfigModal';
+import { AIUsagePanel } from '@/components/settings/AIUsagePanel';
 
 const REASONING_LABELS: Record<string, string> = { none: 'Sin razonamiento', minimal: 'Mínimo', low: 'Ligero', medium: 'Medio', high: 'Alto', xhigh: 'Muy alto', max: 'Máximo' };
 
@@ -411,6 +412,8 @@ export const LLMConfigPage: React.FC = () => {
         />
       </div>
 
+      <AIUsagePanel />
+
       <Divider />
 
       <Spin spinning={isLoading && apiKeys.length === 0}>
@@ -431,12 +434,7 @@ export const LLMConfigPage: React.FC = () => {
           Gestiona los agentes y directivas preconfiguradas que se ejecutan automáticamente en los proyectos y módulos del sistema.
         </Paragraph>
 
-        <Card
-          style={{
-            borderColor: '#b7eb8f',
-            background: 'linear-gradient(135deg, #f6ffed 0%, #ffffff 100%)'
-          }}
-        >
+        <Card className="ai-skill-config-card">
           <Row justify="space-between" align="middle" gutter={[16, 16]}>
             <Col xs={24} md={18}>
               <Space align="center" size="middle">
@@ -445,7 +443,7 @@ export const LLMConfigPage: React.FC = () => {
                     width: 48,
                     height: 48,
                     borderRadius: 12,
-                    backgroundColor: '#52c41a',
+                    backgroundColor: 'var(--color-success)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',

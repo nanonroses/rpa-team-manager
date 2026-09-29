@@ -258,16 +258,16 @@ export class ProjectReviewerSkillService {
 
         // Project milestones
         const milestones = ((await db.query(
-            `SELECT id, name, description, status, planned_date, actual_date, order_index
+            `SELECT id, name, description, status, planned_date, actual_date
              FROM project_milestones
              WHERE project_id = ?
-             ORDER BY order_index ASC`,
+             ORDER BY planned_date ASC, id ASC`,
             [projectId]
         )) as any[]) || [];
 
         // Timesheet total hours
         const timesheet = ((await db.query(
-            `SELECT SUM(duration_minutes) / 60.0 as total_hours, COUNT(DISTINCT user_id) as contributors_count
+            `SELECT SUM(hours) as total_hours, COUNT(DISTINCT user_id) as contributors_count
              FROM time_entries
              WHERE project_id = ?`,
             [projectId]

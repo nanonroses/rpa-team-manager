@@ -251,7 +251,8 @@ export const getAntdTheme = (palette: ThemePalette = activePalette): ThemeConfig
     },
     Modal: {
       borderRadiusLG: designTokens.radius.large,
-      headerBg: palette.color.surface,
+      headerBg: 'transparent',
+      contentBg: palette.color.surface,
     },
     Popconfirm: {
       borderRadiusLG: designTokens.radius.medium,

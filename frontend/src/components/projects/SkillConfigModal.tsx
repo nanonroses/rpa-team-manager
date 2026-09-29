@@ -289,11 +289,11 @@ export const SkillConfigModal: React.FC<SkillConfigModalProps> = ({
                       />
                     </Form.Item>
 
-                    <div style={{ backgroundColor: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 6, padding: '12px 16px' }}>
-                      <Text strong style={{ color: '#389e0d' }}>
+                    <div className="ai-skill-guide-box">
+                      <Text strong style={{ color: 'var(--color-success)', display: 'block', marginBottom: 4 }}>
                         <CheckCircleOutlined /> Consejo de Redacción:
                       </Text>
-                      <Paragraph style={{ margin: '4px 0 0 0', fontSize: 13, color: '#274916' }}>
+                      <Paragraph style={{ margin: 0, fontSize: 13, color: 'var(--color-text-secondary)' }}>
                         La IA inyectará automáticamente los datos reales del proyecto (progreso %, componentes concluidos, hitos alcanzados y puntos bloqueados) dentro de la plantilla que definas.
                       </Paragraph>
                     </div>
