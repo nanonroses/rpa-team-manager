@@ -113,6 +113,16 @@ export function ThemeProvider({ children }: React.PropsWithChildren) {
           defaultHoverBorderColor: palette === 'orange' ? '#FB923C' : '#3B82F6',
           borderColorDisabled: '#38383E',
         },
+        Modal: {
+          ...antdTheme.components?.Modal,
+          headerBg: 'transparent',
+          contentBg: '#171718',
+          footerBg: 'transparent',
+        },
+        Drawer: {
+          ...antdTheme.components?.Drawer,
+          colorBgElevated: '#171718',
+        },
       } : {}),
     },
   }), [dark, palette, currentPalette]);
