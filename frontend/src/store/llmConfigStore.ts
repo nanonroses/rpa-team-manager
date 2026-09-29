@@ -9,6 +9,7 @@ export interface LLMApiKey {
   provider: LLMProvider;
   api_key_masked: string;
   selected_model: string | null;
+  reasoning_effort: string | null;
   is_valid: boolean;
   last_validated: string | null;
   validation_error: string | null;
@@ -19,6 +20,7 @@ export interface LLMApiKey {
 export interface ModelOption {
   value: string;
   label: string;
+  reasoning_options?: string[];
 }
 
 export interface AvailableModels {
@@ -46,8 +48,8 @@ interface LLMConfigActions {
   fetchApiKeys: () => Promise<void>;
   fetchAvailableModels: () => Promise<void>;
   validateApiKey: (provider: LLMProvider, apiKey: string) => Promise<ValidationResult>;
-  saveApiKey: (provider: LLMProvider, apiKey: string, selectedModel?: string) => Promise<void>;
-  updateApiKey: (provider: LLMProvider, apiKey: string, selectedModel?: string) => Promise<void>;
+  saveApiKey: (provider: LLMProvider, apiKey: string, selectedModel?: string, reasoningEffort?: string | null) => Promise<void>;
+  updateApiKey: (provider: LLMProvider, apiKey: string, selectedModel?: string, reasoningEffort?: string | null) => Promise<void>;
   deleteApiKey: (provider: LLMProvider) => Promise<void>;
   setError: (error: string | null) => void;
   clearError: () => void;
@@ -118,14 +120,15 @@ export const useLLMConfigStore = create<LLMConfigStore>((set, get) => ({
     }
   },
 
-  saveApiKey: async (provider: LLMProvider, apiKey: string, selectedModel?: string) => {
+  saveApiKey: async (provider: LLMProvider, apiKey: string, selectedModel?: string, reasoningEffort?: string | null) => {
     try {
       set({ isLoading: true, error: null });
 
       await apiService.post('/llm-config', {
         provider,
-        api_key: apiKey,
-        selected_model: selectedModel
+        api_key: apiKey || undefined,
+        selected_model: selectedModel,
+        reasoning_effort: reasoningEffort
       });
 
       // Refresh the list
@@ -139,13 +142,14 @@ export const useLLMConfigStore = create<LLMConfigStore>((set, get) => ({
     }
   },
 
-  updateApiKey: async (provider: LLMProvider, apiKey: string, selectedModel?: string) => {
+  updateApiKey: async (provider: LLMProvider, apiKey: string, selectedModel?: string, reasoningEffort?: string | null) => {
     try {
       set({ isLoading: true, error: null });
 
       await apiService.put(`/llm-config/${provider}`, {
-        api_key: apiKey,
-        selected_model: selectedModel
+        api_key: apiKey || undefined,
+        selected_model: selectedModel,
+        reasoning_effort: reasoningEffort
       });
 
       // Refresh the list

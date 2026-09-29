@@ -1192,6 +1192,27 @@ class ApiService {
     const response = await this.api.get(`/lifecycle/projects/${projectId}/summary`);
     return response.data;
   }
+
+  // RPA Project Reviewer Skill
+  async reviewProjectWithSkill(projectId: number, provider?: string): Promise<any> {
+    const response = await this.api.post(`/ai/projects/${projectId}/review`, { provider });
+    return response.data;
+  }
+
+  async getSkillConfig(): Promise<any> {
+    const response = await this.api.get('/ai/skills/project-reviewer');
+    return response.data;
+  }
+
+  async updateSkillConfig(config: any): Promise<any> {
+    const response = await this.api.put('/ai/skills/project-reviewer', config);
+    return response.data;
+  }
+
+  async resetSkillConfig(): Promise<any> {
+    const response = await this.api.post('/ai/skills/project-reviewer/reset');
+    return response.data;
+  }
 }
 
 // Export singleton instance

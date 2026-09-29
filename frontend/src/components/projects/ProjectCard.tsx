@@ -29,7 +29,16 @@ export const ProjectCard: React.FC<ProjectCardProps> = ({ project, health, onEdi
 
   return <Card hoverable className={`project-card ${isOverdue ? 'overdue' : ''}`} onClick={() => onClick?.(project)} extra={<Dropdown menu={{ items: menuItems }} trigger={['click']}><Button aria-label={`Acciones para ${project.name}`} type="text" icon={<MoreOutlined />} size="small" onClick={(event) => event.stopPropagation()} /></Dropdown>}>
     <div className="project-card-heading"><div><Title level={5}>{project.name}</Title><Text type="secondary">{project.description?.trim() || 'Sin descripción registrada'}</Text></div></div>
-    <div className="project-card-tags"><Tag color={getProjectStatusColor(project.status)}>{statusLabel}</Tag><Tag color={project.commercial_stage === 'quoting' ? 'gold' : project.commercial_stage === 'lost' ? 'default' : 'green'}>{stageLabel}</Tag><Tag color={getPriorityColor(project.priority)}>{PriorityLabels[project.priority]}</Tag></div>
+    <div className="project-card-tags">
+      <Tag color={getProjectStatusColor(project.status)}>{statusLabel}</Tag>
+      {project.status === 'completed' && (
+        project.financial_closed_at
+          ? <Tag color="cyan">Cierre financiero OK</Tag>
+          : <Tag color="gold">Cobranza pendiente</Tag>
+      )}
+      <Tag color={project.commercial_stage === 'quoting' ? 'gold' : project.commercial_stage === 'lost' ? 'default' : 'green'}>{stageLabel}</Tag>
+      <Tag color={getPriorityColor(project.priority)}>{PriorityLabels[project.priority]}</Tag>
+    </div>
     {health && <div className="project-card-health"><Text type="secondary">Salud PMO</Text><Tag color={healthColors[health.semaphore]}>{healthLabels[health.semaphore]}</Tag></div>}
     {project.client_name && <div className="project-card-meta"><ApartmentOutlined /><Text ellipsis>{project.client_name}</Text></div>}
     <div className="project-card-meta"><UserOutlined /><Text ellipsis>{project.assigned_to_name || 'Sin responsable asignado'}</Text></div>

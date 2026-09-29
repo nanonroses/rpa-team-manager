@@ -1990,4 +1990,20 @@ export const migrations: Migration[] = [
         END`
     ]
   }
+,
+  {
+    version: 44,
+    description: 'Restore per-user LLM reasoning preferences without replacing credentials',
+    up: [],
+    run: async (database) => {
+      const columns = await new Promise<Array<{name: string}>>((resolve, reject) => {
+        database.all('PRAGMA table_info(llm_api_keys)', (error, rows: Array<{name: string}>) => error ? reject(error) : resolve(rows));
+      });
+      if (!columns.some(column => column.name === 'reasoning_effort')) {
+        await new Promise<void>((resolve, reject) => {
+          database.exec('ALTER TABLE llm_api_keys ADD COLUMN reasoning_effort TEXT', error => error ? reject(error) : resolve());
+        });
+      }
+    }
+  }
 ];

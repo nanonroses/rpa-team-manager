@@ -154,16 +154,17 @@ export class AuthController {
                 return;
             }
 
-            const tempPassword = await this.authService.resetPassword(email);
-            
-            // In production, you wouldn't return the password but send it via email
-            res.json({ 
-                message: 'Password reset successfully',
-                tempPassword: tempPassword // Remove this in production
+            // Do not change the account password until a one-time reset token can
+            // be delivered through a trusted channel. This response also prevents
+            // account enumeration.
+            logger.info(`Password reset requested for ${email}`);
+
+            res.json({
+                message: 'Si el correo electrónico está registrado, se han procesado las instrucciones para restablecer la contraseña.'
             });
         } catch (error) {
             logger.error('Reset password error:', error);
-            res.status(400).json({ error: (error as Error).message });
+            res.status(400).json({ error: 'Error al procesar la solicitud' });
         }
     };
 

@@ -8,6 +8,7 @@ import { z } from 'zod';
 import axios from 'axios';
 import { logger } from '../utils/logger';
 import { AuthenticatedRequest } from '../middleware/auth';
+import { projectReviewerSkill } from '../services/projectReviewerSkill';
 
 // ML Service configuration
 const ML_SERVICE_URL = process.env.ML_SERVICE_URL || 'http://localhost:8002';
@@ -391,6 +392,103 @@ export const getProjectAnalytics = async (req: Request, res: Response): Promise<
     });
   }
 };
+
+/**
+ * RPA Project Reviewer Skill Endpoint
+ */
+export const reviewProjectWithSkill = async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
+  try {
+    const projectId = parseInt(req.params.id);
+    if (isNaN(projectId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid project ID'
+      });
+    }
+
+    const userId = req.user?.id || 1;
+    const { provider } = req.body || {};
+
+    const review = await projectReviewerSkill.reviewProject(projectId, userId, provider);
+
+    return res.json({
+      success: true,
+      data: review
+    });
+  } catch (error) {
+    logger.error('Project review skill failed:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Project review failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+/**
+ * Get RPA Project Reviewer Skill configuration
+ */
+export const getProjectReviewerSkillConfig = async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
+  try {
+    const config = await projectReviewerSkill.getSkillConfig();
+    return res.json({
+      success: true,
+      data: config
+    });
+  } catch (error) {
+    logger.error('Failed to get skill config:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to retrieve skill configuration',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+/**
+ * Update RPA Project Reviewer Skill configuration (Admin / Team Lead)
+ */
+export const updateProjectReviewerSkillConfig = async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
+  try {
+    const userId = req.user?.id || 1;
+    const updated = await projectReviewerSkill.updateSkillConfig(req.body || {}, userId);
+    return res.json({
+      success: true,
+      data: updated,
+      message: 'Configuración de la Skill actualizada exitosamente'
+    });
+  } catch (error) {
+    logger.error('Failed to update skill config:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to update skill configuration',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
+/**
+ * Reset RPA Project Reviewer Skill configuration to factory defaults (Admin / Team Lead)
+ */
+export const resetProjectReviewerSkillConfig = async (req: AuthenticatedRequest, res: Response): Promise<Response | void> => {
+  try {
+    const userId = req.user?.id || 1;
+    const defaults = await projectReviewerSkill.resetSkillConfig(userId);
+    return res.json({
+      success: true,
+      data: defaults,
+      message: 'Configuración de la Skill restablecida a los valores por defecto'
+    });
+  } catch (error) {
+    logger.error('Failed to reset skill config:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to reset skill configuration',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};
+
 
 /**
  * Validate models performance

@@ -9,6 +9,7 @@ interface LLMApiKey {
     provider: string;
     api_key_masked: string;
     selected_model: string | null;
+    reasoning_effort: string | null;
     is_valid: boolean;
     last_validated: string | null;
     validation_error: string | null;
@@ -19,7 +20,8 @@ interface LLMApiKey {
 // Available models by provider
 export const AVAILABLE_MODELS = {
     openai: [
-        { value: 'gpt-5', label: 'GPT-5' },
+        { value: 'gpt-6-luna', label: 'GPT-6 Luna', reasoning_options: ['none', 'low', 'medium', 'high', 'xhigh', 'max'] },
+        { value: 'gpt-5', label: 'GPT-5', reasoning_options: ['minimal', 'low', 'medium', 'high'] },
         { value: 'gpt-4', label: 'GPT-4' },
         { value: 'gpt-4-turbo', label: 'GPT-4 Turbo' },
         { value: 'gpt-4o', label: 'GPT-4o' },
@@ -37,6 +39,7 @@ export const AVAILABLE_MODELS = {
         { value: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku' }
     ],
     gemini: [
+        { value: 'gemini-2.5-flash-lite', label: 'Gemini 2.5 Flash-Lite' },
         { value: 'gemini-2.5-pro-latest', label: 'Gemini 2.5 Pro' },
         { value: 'gemini-2.5-flash-latest', label: 'Gemini 2.5 Flash' },
         { value: 'gemini-1.5-pro-latest', label: 'Gemini 1.5 Pro' },
@@ -65,6 +68,9 @@ export class LLMConfigService {
             crypto.randomBytes(32).toString('hex');
 
         if (!process.env.ENCRYPTION_KEY) {
+            if (process.env.NODE_ENV === 'production') {
+                throw new Error('ENCRYPTION_KEY must be set in production');
+            }
             logger.warn('ENCRYPTION_KEY not set. Using random key (will not persist across restarts)');
         }
     }
@@ -247,7 +253,7 @@ export class LLMConfigService {
     // Get all API keys for a user
     async getUserApiKeys(userId: number): Promise<LLMApiKey[]> {
         const query = `
-            SELECT id, user_id, provider, selected_model, is_valid, last_validated,
+            SELECT id, user_id, provider, selected_model, reasoning_effort, is_valid, last_validated,
                    validation_error, created_at, updated_at
             FROM llm_api_keys
             WHERE user_id = ?
@@ -265,7 +271,7 @@ export class LLMConfigService {
     // Get specific API key
     async getApiKey(userId: number, provider: string): Promise<LLMApiKey | null> {
         const query = `
-            SELECT id, user_id, provider, api_key_encrypted, selected_model, is_valid,
+            SELECT id, user_id, provider, selected_model, reasoning_effort, is_valid,
                    last_validated, validation_error, created_at, updated_at
             FROM llm_api_keys
             WHERE user_id = ? AND provider = ?
@@ -277,29 +283,30 @@ export class LLMConfigService {
 
         return {
             ...key,
-            api_key_masked: this.maskApiKey(this.decrypt(key.api_key_encrypted))
+            api_key_masked: '***'
         };
     }
 
     // Save new API key
-    async saveApiKey(userId: number, provider: string, apiKey: string, selectedModel?: string): Promise<LLMApiKey> {
+    async saveApiKey(userId: number, provider: string, apiKey: string, selectedModel?: string, reasoningEffort: string | null = null): Promise<LLMApiKey> {
         const encrypted = this.encrypt(apiKey);
         const now = new Date().toISOString();
 
         const query = `
-            INSERT INTO llm_api_keys (user_id, provider, api_key_encrypted, selected_model, is_valid, last_validated)
-            VALUES (?, ?, ?, ?, 1, ?)
+            INSERT INTO llm_api_keys (user_id, provider, api_key_encrypted, selected_model, reasoning_effort, is_valid, last_validated)
+            VALUES (?, ?, ?, ?, ?, 1, ?)
             ON CONFLICT(user_id, provider)
             DO UPDATE SET
                 api_key_encrypted = excluded.api_key_encrypted,
                 selected_model = excluded.selected_model,
+                reasoning_effort = excluded.reasoning_effort,
                 is_valid = excluded.is_valid,
                 last_validated = excluded.last_validated,
                 validation_error = NULL,
                 updated_at = CURRENT_TIMESTAMP
         `;
 
-        await db.run(query, [userId, provider, encrypted, selectedModel || null, now]);
+        await db.run(query, [userId, provider, encrypted, selectedModel || null, reasoningEffort, now]);
 
         const savedKey = await this.getApiKey(userId, provider);
         if (!savedKey) {
@@ -310,8 +317,12 @@ export class LLMConfigService {
     }
 
     // Update existing API key
-    async updateApiKey(userId: number, provider: string, apiKey: string, selectedModel?: string): Promise<LLMApiKey> {
-        return this.saveApiKey(userId, provider, apiKey, selectedModel);
+    async updateApiKey(userId: number, provider: string, apiKey: string, selectedModel?: string, reasoningEffort: string | null = null): Promise<LLMApiKey> {
+        if (apiKey) return this.saveApiKey(userId, provider, apiKey, selectedModel, reasoningEffort);
+        await db.run(`UPDATE llm_api_keys SET selected_model = ?, reasoning_effort = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ? AND provider = ?`, [selectedModel || null, reasoningEffort, userId, provider]);
+        const key = await this.getApiKey(userId, provider);
+        if (!key) throw new Error('API key not found');
+        return key;
     }
 
     // Delete API key

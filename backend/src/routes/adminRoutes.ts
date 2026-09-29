@@ -118,7 +118,7 @@ router.post('/db/backup', async (req: Request, res: Response) => {
             success: true,
             message: 'Database backup created successfully',
             data: {
-                backupPath,
+                filename: path.basename(backupPath),
                 size: `${sizeInMB} MB`,
                 timestamp
             }
@@ -156,7 +156,6 @@ router.get('/db/backups', async (req: Request, res: Response) => {
                 const stats = fs.statSync(filePath);
                 return {
                     filename: file,
-                    path: filePath,
                     size: `${(stats.size / (1024 * 1024)).toFixed(2)} MB`,
                     created: stats.ctime,
                     modified: stats.mtime

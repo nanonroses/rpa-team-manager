@@ -141,7 +141,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
   };
 
   const uploadProps: UploadProps = {
-    accept: '.xlsx,.xls,.csv',
+    accept: '.xlsx,.csv',
     beforeUpload: () => false, // Prevent automatic upload
     onChange: handleFileUpload,
     maxCount: 1,
@@ -243,7 +243,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
         <div>
           <Alert
             message="Formatos admitidos"
-            description="Puedes subir archivos Excel (.xlsx, .xls) o CSV. Tamaño máximo: 10 MB."
+            description="Puedes subir archivos Excel (.xlsx) o CSV. Tamaño máximo: 10 MB."
             type="info"
             style={{ marginBottom: '16px' }}
           />
@@ -255,7 +255,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
             <p className="ant-upload-text">Haz clic o arrastra un archivo Excel aquí</p>
             <p className="ant-upload-hint">
               
-              Se admiten archivos Excel (.xlsx, .xls) y CSV
+              Se admiten archivos Excel (.xlsx) y CSV
             </p>
           </Upload.Dragger>
 

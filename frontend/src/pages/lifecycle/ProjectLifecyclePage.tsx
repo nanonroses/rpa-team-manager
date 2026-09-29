@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   Card,
   Row,
@@ -19,6 +19,7 @@ import {
   Statistic,
   Progress,
   Alert,
+  Tooltip,
 } from 'antd';
 import {
   PlayCircleOutlined,
@@ -28,7 +29,8 @@ import {
   PlusOutlined,
   WarningOutlined,
   RiseOutlined,
-  FallOutlined
+  FallOutlined,
+  ProjectOutlined
 } from '@ant-design/icons';
 import { apiService } from '@/services/api';
 import { EmptyState, LoadingState } from '@/components/common';
@@ -47,6 +49,7 @@ interface ProjectLifecyclePageProps {
 
 export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ projectId: projectIdProp }) => {
   const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const resolvedProjectId = projectIdProp ?? (projectId ? parseInt(projectId, 10) : undefined);
   const [loading, setLoading] = useState(true);
@@ -285,10 +288,18 @@ export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ proj
               icon={<PlusOutlined />}
               onClick={() => handleAddActivity(record)}
             >
-              
               Agregar horas
             </Button>
           )}
+          <Tooltip title={`Ver tareas en el tablero Kanban`}>
+            <Button
+              size="small"
+              icon={<ProjectOutlined />}
+              onClick={() => navigate(`/tasks?project=${resolvedProjectId}`)}
+            >
+              Tareas
+            </Button>
+          </Tooltip>
         </Space>
       )
     }
@@ -408,7 +419,20 @@ export const ProjectLifecyclePage: React.FC<ProjectLifecyclePageProps> = ({ proj
       )}
 
       {/* Phases Table */}
-      <Card title="Fases del proyecto" style={{ marginBottom: '24px' }}>
+      <Card
+        title="Fases del proyecto"
+        style={{ marginBottom: '24px' }}
+        extra={
+          resolvedProjectId && (
+            <Button
+              icon={<ProjectOutlined />}
+              onClick={() => navigate(`/tasks?project=${resolvedProjectId}`)}
+            >
+              Abrir tablero Kanban del proyecto
+            </Button>
+          )
+        }
+      >
         <Table
           dataSource={phases}
           columns={phaseColumns}

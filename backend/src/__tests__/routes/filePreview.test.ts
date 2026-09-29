@@ -1,7 +1,7 @@
 jest.mock('../../database/database', () => ({ db: { get: jest.fn(), run: jest.fn() } }));
 jest.mock('../../utils/logger', () => ({ logger: { error: jest.fn() } }));
 jest.mock('fs/promises', () => ({ __esModule: true, default: { access: jest.fn().mockResolvedValue(undefined) } }));
-jest.mock('fs', () => ({ ...jest.requireActual('fs'), createReadStream: jest.fn(() => require('stream').Readable.from(['sample'])) }));
+jest.mock('fs', () => ({ ...jest.requireActual('fs'), createReadStream: jest.fn(() => jest.requireActual('stream').Readable.from(['sample'])) }));
 
 import express from 'express';
 import request from 'supertest';

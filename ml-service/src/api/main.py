@@ -89,7 +89,7 @@ app.add_middleware(
 def verify_api_key(credentials: HTTPAuthorizationCredentials = Security(security)) -> bool:
     """Verify API key authentication"""
     if not settings.api_key:
-        return True  # No auth required if no key set
+        raise HTTPException(status_code=500, detail="ML_API_KEY is not configured")
     
     if not credentials:
         raise HTTPException(status_code=401, detail="API key required")

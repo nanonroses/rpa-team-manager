@@ -240,4 +240,18 @@ describe('ProjectController - persistencia financiera (SQLite real)', () => {
         const row = await testDb.get('SELECT assigned_to FROM projects WHERE id = ?', [created.id]);
         expect(row.assigned_to).toBe(users.dev);
     });
+
+    it('it_support no puede modificar proyectos ajenos', async () => {
+        const created = await createAs(lead, { name: 'P8', assigned_to: users.dev });
+        const res = mockRes();
+
+        await controller.updateProject(
+            makeReq({ id: users.dev, role: 'it_support' }, { name: 'alterado' }, { id: String(created.id) }),
+            res
+        );
+
+        expect(res.status).toHaveBeenCalledWith(403);
+        const row = await testDb.get('SELECT name FROM projects WHERE id = ?', [created.id]);
+        expect(row.name).toBe('P8');
+    });
 });

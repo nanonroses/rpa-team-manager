@@ -1,3 +1,4 @@
+import { resolveReasoning } from '../services/llmReasoning';
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { LLMConfigService, AVAILABLE_MODELS } from '../services/llmConfigService';
@@ -111,7 +112,7 @@ export class LLMConfigController {
                 return;
             }
 
-            const { provider, api_key, selected_model } = req.body;
+            const { provider, api_key, selected_model, reasoning_effort } = req.body;
 
             if (!provider || !api_key) {
                 res.status(400).json({ error: 'Provider and API key are required' });
@@ -123,6 +124,10 @@ export class LLMConfigController {
                 res.status(400).json({ error: 'Invalid provider' });
                 return;
             }
+
+            let effort: string | null;
+            try { effort = resolveReasoning(provider, selected_model, reasoning_effort); }
+            catch (error) { res.status(400).json({ error: (error as Error).message }); return; }
 
             // Validate key first
             const validation = await this.llmConfigService.validateApiKey(provider, api_key);
@@ -140,7 +145,8 @@ export class LLMConfigController {
                 req.user.id,
                 provider,
                 api_key,
-                selected_model
+                selected_model,
+                effort
             );
 
             res.json(savedKey);
@@ -159,12 +165,8 @@ export class LLMConfigController {
             }
 
             const { provider } = req.params;
-            const { api_key, selected_model } = req.body;
+            let { api_key, selected_model, reasoning_effort } = req.body;
 
-            if (!api_key) {
-                res.status(400).json({ error: 'API key is required' });
-                return;
-            }
 
             const validProviders = ['openai', 'claude', 'gemini', 'deepseek'];
             if (!validProviders.includes(provider)) {
@@ -172,8 +174,16 @@ export class LLMConfigController {
                 return;
             }
 
+            const existing = await this.llmConfigService.getApiKey(req.user.id, provider);
+            if (!existing) { res.status(404).json({ error: 'API key not found' }); return; }
+            if (selected_model === undefined) selected_model = existing.selected_model;
+            if (reasoning_effort === undefined && selected_model === existing.selected_model) reasoning_effort = existing.reasoning_effort;
+            let effort: string | null;
+            try { effort = resolveReasoning(provider, selected_model, reasoning_effort); }
+            catch (error) { res.status(400).json({ error: (error as Error).message }); return; }
+
             // Validate key first
-            const validation = await this.llmConfigService.validateApiKey(provider, api_key);
+            const validation = api_key ? await this.llmConfigService.validateApiKey(provider, api_key) : { is_valid: true, error: undefined };
 
             if (!validation.is_valid) {
                 res.status(400).json({
@@ -188,7 +198,8 @@ export class LLMConfigController {
                 req.user.id,
                 provider,
                 api_key,
-                selected_model
+                selected_model,
+                effort
             );
 
             res.json(updatedKey);

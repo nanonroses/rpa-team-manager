@@ -8,7 +8,6 @@ import dotenv from 'dotenv';
 import { apiLimiter, authLimiter, analyticsLimiter, commonEndpointsLimiter } from './middleware/rateLimiter';
 import { globalErrorHandler, notFoundHandler, setupGlobalErrorHandlers, securityErrorHandler } from './middleware/errorHandler';
 import { sanitizeInput, securityHeaders } from './middleware/validation';
-import path from 'path';
 
 // Import routes
 import authRoutes from './routes/authRoutes';
@@ -46,6 +45,7 @@ class RPATeamManagerServer {
 
     constructor() {
         this.app = express();
+        this.app.set('trust proxy', 1);
         this.port = parseInt(process.env.PORT || '5001');
         
         this.initializeMiddleware();
@@ -57,6 +57,10 @@ class RPATeamManagerServer {
         // Setup global error handlers
         setupGlobalErrorHandlers();
         
+        // Parse request bodies before inspecting or sanitizing their contents.
+        this.app.use(express.json({ limit: '10mb' }));
+        this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
         // Security middleware (order matters!)
         this.app.use(helmet({
             contentSecurityPolicy: {
@@ -72,7 +76,7 @@ class RPATeamManagerServer {
         // Custom security headers
         this.app.use(securityHeaders);
         
-        // Input sanitization (before parsing)
+        // Input sanitization and security inspection on parsed input.
         this.app.use(sanitizeInput);
         
         // Security pattern detection
@@ -91,10 +95,6 @@ class RPATeamManagerServer {
         // Compression middleware
         this.app.use(compression());
 
-        // Body parsing middleware with UTF-8 encoding
-        this.app.use(express.json({ limit: '10mb' }));
-        this.app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-        
         // Set charset to UTF-8 for all responses and requests
         this.app.use((req, res, next) => {
             res.charset = 'utf-8';
@@ -108,9 +108,7 @@ class RPATeamManagerServer {
             next();
         });
 
-        // Static file serving for uploads
-        const uploadsPath = process.env.UPLOAD_PATH || path.join(process.cwd(), 'uploads');
-        this.app.use('/uploads', express.static(uploadsPath));
+        // Uploads are only exposed through authenticated /api/files routes.
     }
 
     private initializeRoutes(): void {
