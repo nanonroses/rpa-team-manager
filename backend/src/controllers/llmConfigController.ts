@@ -93,7 +93,7 @@ export class LLMConfigController {
                 return;
             }
 
-            const validation = await this.llmConfigService.validateApiKey(provider, api_key);
+            const validation = await this.llmConfigService.validateApiKey(provider, api_key, req.user?.id);
             res.json(validation);
         } catch (error) {
             logger.error('Validate API key error:', error);
@@ -130,7 +130,7 @@ export class LLMConfigController {
             catch (error) { res.status(400).json({ error: (error as Error).message }); return; }
 
             // Validate key first
-            const validation = await this.llmConfigService.validateApiKey(provider, api_key);
+            const validation = await this.llmConfigService.validateApiKey(provider, api_key, req.user.id);
 
             if (!validation.is_valid) {
                 res.status(400).json({
@@ -183,7 +183,7 @@ export class LLMConfigController {
             catch (error) { res.status(400).json({ error: (error as Error).message }); return; }
 
             // Validate key first
-            const validation = api_key ? await this.llmConfigService.validateApiKey(provider, api_key) : { is_valid: true, error: undefined };
+            const validation = api_key ? await this.llmConfigService.validateApiKey(provider, api_key, req.user.id) : { is_valid: true, error: undefined };
 
             if (!validation.is_valid) {
                 res.status(400).json({

@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { trackedLLMPost } from './llmUsageService';
 import { openAIParameters } from './llmReasoning';
 import { logger } from '../utils/logger';
 import { LLMConfigService } from './llmConfigService';
@@ -208,7 +209,11 @@ JSON Response:`;
             const config = await this.llmConfigService.getApiKey(userId, 'openai');
             const model = config?.selected_model || 'gpt-4o-mini';
 
-            const response = await axios.post(
+            const response = await trackedLLMPost(
+                userId,
+                'openai',
+                model,
+                'quote_extraction',
                 'https://api.openai.com/v1/chat/completions',
                 {
                     model,
@@ -252,7 +257,11 @@ JSON Response:`;
             const keyInfo = await this.llmConfigService.getApiKey(userId, 'claude');
             const model = keyInfo?.selected_model || 'claude-3-5-sonnet-20241022';
 
-            const response = await axios.post(
+            const response = await trackedLLMPost(
+                userId,
+                'claude',
+                model,
+                'quote_extraction',
                 'https://api.anthropic.com/v1/messages',
                 {
                     model: model,
@@ -292,8 +301,12 @@ JSON Response:`;
             const config = await this.llmConfigService.getApiKey(userId, 'gemini');
             const model = config?.selected_model || 'gemini-2.5-flash-lite';
 
-            const response = await axios.post(
-                `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+            const response = await trackedLLMPost(
+                userId,
+                'gemini',
+                model,
+                'quote_extraction',
+                `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`,
                 {
                     contents: [
                         {
@@ -334,7 +347,11 @@ JSON Response:`;
             const config = await this.llmConfigService.getApiKey(userId, 'deepseek');
             const model = config?.selected_model || 'deepseek-chat';
 
-            const response = await axios.post(
+            const response = await trackedLLMPost(
+                userId,
+                'deepseek',
+                model,
+                'quote_extraction',
                 'https://api.deepseek.com/v1/chat/completions',
                 {
                     model,
@@ -500,7 +517,11 @@ JSON Response:`;
                     body.response_format = { type: 'json_object' };
                 }
 
-                const response = await axios.post(
+                const response = await trackedLLMPost(
+                    userId,
+                    'openai',
+                    model,
+                    'completion',
                     'https://api.openai.com/v1/chat/completions',
                     body,
                     {
@@ -532,8 +553,12 @@ JSON Response:`;
                     body.generationConfig.responseMimeType = 'application/json';
                 }
 
-                const response = await axios.post(
-                    `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+                const response = await trackedLLMPost(
+                    userId,
+                    'gemini',
+                    model,
+                    'completion',
+                    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${apiKey}`,
                     body,
                     {
                         headers: { 'Content-Type': 'application/json' },
@@ -545,7 +570,11 @@ JSON Response:`;
             }
 
             case 'claude': {
-                const response = await axios.post(
+                const response = await trackedLLMPost(
+                    userId,
+                    'claude',
+                    model,
+                    'completion',
                     'https://api.anthropic.com/v1/messages',
                     {
                         model,
@@ -568,7 +597,11 @@ JSON Response:`;
             }
 
             case 'deepseek': {
-                const response = await axios.post(
+                const response = await trackedLLMPost(
+                    userId,
+                    'deepseek',
+                    model,
+                    'completion',
                     'https://api.deepseek.com/v1/chat/completions',
                     {
                         model,

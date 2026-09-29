@@ -28,6 +28,7 @@ import {
 } from '@ant-design/icons';
 import { useLLMConfigStore, LLMProvider } from '@/store/llmConfigStore';
 import { SkillConfigModal } from '@/components/projects/SkillConfigModal';
+import { AIUsagePanel } from '@/components/settings/AIUsagePanel';
 
 const REASONING_LABELS: Record<string, string> = { none: 'Sin razonamiento', minimal: 'Mínimo', low: 'Ligero', medium: 'Medio', high: 'Alto', xhigh: 'Muy alto', max: 'Máximo' };
 
@@ -410,6 +411,8 @@ export const LLMConfigPage: React.FC = () => {
           style={{ marginTop: '16px' }}
         />
       </div>
+
+      <AIUsagePanel />
 
       <Divider />
 

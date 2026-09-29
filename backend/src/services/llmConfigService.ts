@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import axios from 'axios';
+import { trackedLLMPost } from './llmUsageService';
 import { db } from '../database/database';
 import { logger } from '../utils/logger';
 
@@ -137,24 +138,24 @@ export class LLMConfigService {
     }
 
     // Validate Claude (Anthropic) API key
-    private async validateClaude(apiKey: string): Promise<ValidationResult> {
+    private async validateClaude(apiKey: string, userId?: number): Promise<ValidationResult> {
         try {
-            const response = await axios.post(
-                'https://api.anthropic.com/v1/messages',
-                {
-                    model: 'claude-3-haiku-20240307',
-                    max_tokens: 10,
-                    messages: [{ role: 'user', content: 'Hi' }]
+            const body = {
+                model: 'claude-3-haiku-20240307',
+                max_tokens: 10,
+                messages: [{ role: 'user', content: 'Hi' }]
+            };
+            const config = {
+                headers: {
+                    'x-api-key': apiKey,
+                    'anthropic-version': '2023-06-01',
+                    'content-type': 'application/json'
                 },
-                {
-                    headers: {
-                        'x-api-key': apiKey,
-                        'anthropic-version': '2023-06-01',
-                        'content-type': 'application/json'
-                    },
-                    timeout: 10000
-                }
-            );
+                timeout: 10000
+            };
+            const response = userId
+                ? await trackedLLMPost(userId, 'claude', 'claude-3-haiku-20240307', 'key_validation', 'https://api.anthropic.com/v1/messages', body, config)
+                : await axios.post('https://api.anthropic.com/v1/messages', body, config);
 
             const data = response.data as any;
 
@@ -197,23 +198,23 @@ export class LLMConfigService {
     }
 
     // Validate DeepSeek API key
-    private async validateDeepSeek(apiKey: string): Promise<ValidationResult> {
+    private async validateDeepSeek(apiKey: string, userId?: number): Promise<ValidationResult> {
         try {
-            const response = await axios.post(
-                'https://api.deepseek.com/v1/chat/completions',
-                {
-                    model: 'deepseek-chat',
-                    messages: [{ role: 'user', content: 'Hi' }],
-                    max_tokens: 10
+            const body = {
+                model: 'deepseek-chat',
+                messages: [{ role: 'user', content: 'Hi' }],
+                max_tokens: 10
+            };
+            const config = {
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json'
                 },
-                {
-                    headers: {
-                        'Authorization': `Bearer ${apiKey}`,
-                        'Content-Type': 'application/json'
-                    },
-                    timeout: 10000
-                }
-            );
+                timeout: 10000
+            };
+            const response = userId
+                ? await trackedLLMPost(userId, 'deepseek', 'deepseek-chat', 'key_validation', 'https://api.deepseek.com/v1/chat/completions', body, config)
+                : await axios.post('https://api.deepseek.com/v1/chat/completions', body, config);
 
             const data = response.data as any;
 
@@ -232,16 +233,16 @@ export class LLMConfigService {
     }
 
     // Main validation method
-    async validateApiKey(provider: string, apiKey: string): Promise<ValidationResult> {
+    async validateApiKey(provider: string, apiKey: string, userId?: number): Promise<ValidationResult> {
         switch (provider) {
             case 'openai':
                 return this.validateOpenAI(apiKey);
             case 'claude':
-                return this.validateClaude(apiKey);
+                return this.validateClaude(apiKey, userId);
             case 'gemini':
                 return this.validateGemini(apiKey);
             case 'deepseek':
-                return this.validateDeepSeek(apiKey);
+                return this.validateDeepSeek(apiKey, userId);
             default:
                 return {
                     is_valid: false,

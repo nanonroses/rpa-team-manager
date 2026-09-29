@@ -2005,5 +2005,27 @@ export const migrations: Migration[] = [
         });
       }
     }
+  },
+  {
+    version: 45,
+    description: 'Registro de consumo y costo estimado de IA',
+    up: [
+      `CREATE TABLE IF NOT EXISTS llm_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        provider TEXT NOT NULL,
+        model TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        input_tokens INTEGER,
+        output_tokens INTEGER,
+        cached_tokens INTEGER,
+        reasoning_tokens INTEGER,
+        cost_usd REAL,
+        pricing_snapshot TEXT,
+        created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+      )`,
+      'CREATE INDEX IF NOT EXISTS idx_llm_usage_user_date ON llm_usage(user_id, created_at)'
+    ]
   }
 ];
