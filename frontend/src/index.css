@@ -727,3 +727,116 @@ button, [role="button"], a, input, select, textarea, [tabindex]:not([tabindex="-
   .document-file-list.ant-list .ant-list-item .ant-list-item-meta { width: 100%; min-width: 0; }
   .document-file-list.ant-list .ant-list-item .ant-list-item-action { margin: 12px 0 0; }
 }
+
+/* AI Reviewer Skill Styles - Adaptable Día/Noche y Multi-Paleta */
+.ai-reviewer-card {
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, var(--color-primary-bg) 0%, var(--color-surface) 100%) !important;
+  border-color: var(--color-primary-border) !important;
+  transition: background .2s ease, border-color .2s ease;
+}
+
+:root[data-theme="dark"] .ai-reviewer-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.04) 0%, #171718 100%) !important;
+  border-color: #262626 !important;
+}
+
+.ai-reviewer-icon-wrapper {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background-color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #FFFFFF;
+  font-size: 22px;
+  box-shadow: var(--elevation-1);
+}
+
+.ai-reviewer-bottleneck-card {
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  background: #FFFBEB;
+  border: 1px solid #FEF3C7;
+  transition: all .15s ease;
+}
+
+:root[data-theme="dark"] .ai-reviewer-bottleneck-card {
+  background: rgba(217, 119, 6, 0.12) !important;
+  border: 1px solid rgba(217, 119, 6, 0.25) !important;
+}
+
+.ai-reviewer-mitigation-box {
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-top: 8px;
+  background: #FFFFFF;
+  border-left: 3px solid var(--color-primary);
+  color: var(--color-text);
+}
+
+:root[data-theme="dark"] .ai-reviewer-mitigation-box {
+  background: #1E1E20 !important;
+  border-left: 3px solid var(--color-primary) !important;
+  color: var(--color-text) !important;
+}
+
+.ai-reviewer-action-number {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background-color: var(--color-primary-bg);
+  color: var(--color-primary);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+
+.ai-reviewer-report-box {
+  background-color: #FAFAFA;
+  border: 1px solid #E5E5E5;
+  border-radius: 6px;
+  padding: 16px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  max-height: 380px;
+  overflow-y: auto;
+  color: var(--color-text);
+}
+
+:root[data-theme="dark"] .ai-reviewer-report-box {
+  background-color: #0F0F10 !important;
+  border: 1px solid #262626 !important;
+  color: #F5F5F5 !important;
+}
+
+/* Configuración de Skill en LLMConfig y Modal */
+.ai-skill-config-card {
+  margin-bottom: 20px;
+  background: linear-gradient(135deg, rgba(22, 163, 74, 0.08) 0%, var(--color-surface) 100%) !important;
+  border-color: rgba(22, 163, 74, 0.3) !important;
+}
+
+:root[data-theme="dark"] .ai-skill-config-card {
+  background: linear-gradient(135deg, rgba(22, 163, 74, 0.12) 0%, #171718 100%) !important;
+  border-color: rgba(22, 163, 74, 0.3) !important;
+}
+
+.ai-skill-guide-box {
+  background-color: rgba(22, 163, 74, 0.06);
+  border: 1px solid rgba(22, 163, 74, 0.25);
+  border-radius: 6px;
+  padding: 12px 16px;
+  color: var(--color-text);
+}
+
+:root[data-theme="dark"] .ai-skill-guide-box {
+  background-color: rgba(22, 163, 74, 0.12) !important;
+  border: 1px solid rgba(22, 163, 74, 0.3) !important;
+}

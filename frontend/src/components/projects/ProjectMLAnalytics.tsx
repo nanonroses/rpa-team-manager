@@ -212,29 +212,11 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
   return (
     <div style={{ padding: '8px 0 24px 0' }}>
       {/* Skill Banner & Header */}
-      <Card
-        style={{
-          marginBottom: '20px',
-          background: 'linear-gradient(135deg, #f0f7ff 0%, #ffffff 100%)',
-          borderColor: '#bae0ff'
-        }}
-      >
+      <Card className="ai-reviewer-card">
         <Row justify="space-between" align="middle" gutter={[16, 16]}>
           <Col xs={24} md={14}>
             <Space align="center" size="middle" wrap>
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 10,
-                  backgroundColor: '#1677ff',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#fff',
-                  fontSize: 22
-                }}
-              >
+              <div className="ai-reviewer-icon-wrapper">
                 <RobotOutlined />
               </div>
               <div>
@@ -512,7 +494,7 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
                     <Text strong style={{ fontSize: 15, display: 'block', marginBottom: 4 }}>
                       Estado del Proyecto: {review.health_status.toUpperCase()}
                     </Text>
-                    <Paragraph style={{ margin: 0, color: '#595959', fontSize: 13, lineHeight: '1.5' }}>
+                    <Paragraph style={{ margin: 0, color: 'var(--color-text-secondary)', fontSize: 13, lineHeight: '1.5' }}>
                       {review.summary}
                     </Paragraph>
                   </div>
@@ -521,19 +503,19 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
                 <Divider style={{ margin: '14px 0' }} />
 
                 <div style={{ marginBottom: 10 }}>
-                  <Text strong style={{ fontSize: 13, color: '#1f1f1f' }}>
+                  <Text strong style={{ fontSize: 13 }}>
                     📅 Evaluación del Cronograma:
                   </Text>
-                  <Paragraph style={{ margin: '4px 0 0 0', fontSize: 13, color: '#595959' }}>
+                  <Paragraph style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>
                     {review.schedule_assessment}
                   </Paragraph>
                 </div>
 
                 <div>
-                  <Text strong style={{ fontSize: 13, color: '#1f1f1f' }}>
+                  <Text strong style={{ fontSize: 13 }}>
                     💰 Evaluación del Presupuesto y Esfuerzo:
                   </Text>
-                  <Paragraph style={{ margin: '4px 0 0 0', fontSize: 13, color: '#595959' }}>
+                  <Paragraph style={{ margin: '4px 0 0 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>
                     {review.budget_assessment}
                   </Paragraph>
                 </div>
@@ -570,13 +552,7 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
                     renderItem={(item) => (
                       <List.Item
                         key={item.title}
-                        style={{
-                          backgroundColor: '#fffbe6',
-                          borderRadius: 6,
-                          padding: '12px',
-                          marginBottom: '10px',
-                          border: '1px solid #ffe58f'
-                        }}
+                        className="ai-reviewer-bottleneck-card"
                       >
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
                           <Text strong style={{ fontSize: 14 }}>
@@ -584,11 +560,11 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
                           </Text>
                           {getSeverityTag(item.severity)}
                         </div>
-                        <Paragraph style={{ margin: '0 0 8px 0', fontSize: 13, color: '#434343' }}>
+                        <Paragraph style={{ margin: '0 0 8px 0', fontSize: 13, color: 'var(--color-text-secondary)' }}>
                           {item.description}
                         </Paragraph>
-                        <div style={{ backgroundColor: '#ffffff', padding: '6px 10px', borderRadius: 4, borderLeft: '3px solid #1677ff' }}>
-                          <Text style={{ fontSize: 12, color: '#262626' }}>
+                        <div className="ai-reviewer-mitigation-box">
+                          <Text style={{ fontSize: 12 }}>
                             <strong>Mitigación sugerida:</strong> {item.mitigation}
                           </Text>
                         </div>
@@ -620,20 +596,7 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
                     <List.Item style={{ padding: '12px 0' }}>
                       <List.Item.Meta
                         avatar={
-                          <div
-                            style={{
-                              width: 26,
-                              height: 26,
-                              borderRadius: '50%',
-                              backgroundColor: '#e6f4ff',
-                              color: '#1677ff',
-                              fontWeight: 'bold',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: 12
-                            }}
-                          >
+                          <div className="ai-reviewer-action-number">
                             {index + 1}
                           </div>
                         }
@@ -688,20 +651,7 @@ export const ProjectMLAnalytics: React.FC<ProjectMLAnalyticsProps> = ({
                   </Text>
                 </div>
 
-                <div
-                  style={{
-                    backgroundColor: '#fafafa',
-                    border: '1px solid #d9d9d9',
-                    borderRadius: 6,
-                    padding: '16px',
-                    fontFamily: 'monospace, -apple-system, BlinkMacSystemFont',
-                    fontSize: '13px',
-                    lineHeight: '1.6',
-                    whiteSpace: 'pre-wrap',
-                    maxHeight: '380px',
-                    overflowY: 'auto'
-                  }}
-                >
+                <div className="ai-reviewer-report-box">
                   {review.client_report_draft}
                 </div>
 
