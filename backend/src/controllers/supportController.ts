@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth';
 import { db } from '../database/database';
 import { logger } from '../utils/logger';
-import ExcelJS from 'exceljs';
+import * as ExcelJS from 'exceljs';
 import multer from 'multer';
 import fs from 'fs';
 
@@ -12,7 +12,7 @@ export class SupportController {
         if (value && typeof value === 'object') {
             if ('result' in value) return value.result;
             if ('text' in value) return value.text;
-            if ('richText' in value) return value.richText.map(part => part.text).join('');
+            if ('richText' in value && Array.isArray(value.richText)) return value.richText.map(part => part.text).join('');
         }
         return value ?? '';
     }
@@ -25,7 +25,7 @@ export class SupportController {
         const worksheet = workbook.worksheets[0];
         if (!worksheet || worksheet.rowCount === 0) return { headers: [], rows: [], records: [] };
 
-        const headers = (worksheet.getRow(1).values as ExcelJS.CellValue[])
+        const headers = ((worksheet.getRow(1).values as ExcelJS.CellValue[]) || [])
             .slice(1)
             .map(value => String(this.spreadsheetValue(value)).trim());
         const rows: unknown[][] = [];
@@ -33,7 +33,7 @@ export class SupportController {
 
         worksheet.eachRow((row, rowNumber) => {
             if (rowNumber === 1) return;
-            const values = (row.values as ExcelJS.CellValue[]).slice(1).map(value => this.spreadsheetValue(value));
+            const values = ((row.values as ExcelJS.CellValue[]) || []).slice(1).map(value => this.spreadsheetValue(value));
             if (!values.some(value => value !== '' && value !== null && value !== undefined)) return;
             rows.push(values);
             records.push(Object.fromEntries(headers.map((header, index) => [header, values[index] ?? ''])));
