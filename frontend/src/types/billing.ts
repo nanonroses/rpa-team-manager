@@ -20,12 +20,20 @@ export interface PaymentMilestone {
   sort_order: number;
   project_name?: string;
   source_milestone_name?: string;
+  cost_center_id?: number | null;
+  cost_center_code?: string;
+  cost_center_name?: string;
+  cost_center_country?: string;
+  cost_center_is_rpa?: boolean;
 }
 
 export interface InvoiceLine {
   id: number;
   invoice_id: number;
   payment_milestone_id: number | null;
+  cost_center_id?: number | null;
+  cost_center_code?: string;
+  cost_center_name?: string;
   description: string;
   amount: number;
 }

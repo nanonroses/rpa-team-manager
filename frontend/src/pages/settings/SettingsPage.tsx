@@ -15,6 +15,7 @@ import {
 import { BankOutlined, ClockCircleOutlined } from '@ant-design/icons';
 import { apiService } from '@/services/api';
 import { TeamCostsCard } from '@/components/settings/TeamCostsCard';
+import { CostCentersDirectoryCard } from '@/components/settings/CostCentersDirectoryCard';
 
 const { Title, Text } = Typography;
 
@@ -211,6 +212,7 @@ export const SettingsPage: React.FC = () => {
           </Form>
 
           <TeamCostsCard />
+          <CostCentersDirectoryCard />
         </Col>
 
         <Col xs={24} lg={8}>

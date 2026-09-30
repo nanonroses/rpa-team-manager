@@ -68,3 +68,12 @@ Conocimiento acumulado del desarrollo del proyecto para referencia futura.
 **Problema**: El modal mantenía estado anterior entre aperturas
 **Lección**: Usar `destroyOnClose` en Modal de Ant Design
 **Acción**: Agregado patrón en reference/frontend-components.md
+
+---
+
+## Theming Día/Noche y Ant Design v5
+
+**Contexto**: Crear componentes UI complejos con soporte de múltiples temas (Día / Noche y paletas Orange / Cobalt).
+**Problema**: Escribir estilos asumiendo fondo claro provoca cajas blancas deslumbrantes (`#fafafa`) y texto ilegible en modo Noche. Usar props viejas (`bodyStyle`) genera warnings.
+**Lección**: PROHIBIDO usar colores hexadecimales fijos en interfaces. Todo componente debe usar `theme.useToken()`, `styles={{ body: ... }}` y soportar `bordered={false}` al ir dentro de modales.
+**Acción**: Creado `docs/UI_THEME_SPEC.md`, script de auditoría `npm run check:theme`, integrado en `npm run lint` y documentado en `CLAUDE.md`, `GEMINI.md` y `reference/frontend-components.md`.

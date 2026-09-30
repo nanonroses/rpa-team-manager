@@ -6,6 +6,49 @@ El formato está basado en [Keep a Changelog](https://keepachangelog.com/es-ES/1
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-09-29
+
+### 🏢 Centros de Costos (CECOs) & Imputación Comercial de Ventas
+
+**SISTEMA CORPORATIVO DE IMPUTACIÓN Y DISTRIBUCIÓN CONTABLE:**
+
+#### 💼 Imputación Comercial Pre-Venta
+- ✅ **Catálogo Corporativo Oficial Multi-País**: Migración 46 con 28 centros de costo para Chile (🇨🇱), Perú (🇵🇪) y Estados Unidos (🇺🇸).
+- ✅ **Centros Estratégicos RPA & IA**:
+  - `RPA-L`: RPA Licencias (margen de software y suscripciones).
+  - `RPA-P`: RPA Proyectos (HH e imputación de ingenieros de desarrollo).
+  - `RPA-S`: RPA Soporte (mesa de incidentes y servicios continuos).
+- ✅ **Captura Temprana en el Flujo de Venta**: Posibilidad de imputar el 100% del valor del proyecto al momento de la venta o en la ficha comercial.
+- ✅ **Selector de Distribución con Presets Inteligentes**: Componente `CostCenterDistributionPicker` con atajos rápidos de un clic:
+  - ⚡ 100% RPA Proyectos
+  - ⚡ RPA Integral (40% Licencias + 50% Soporte + 10% Proyectos)
+  - ⚡ 100% RPA Soporte
+- ✅ **Validación en Tiempo Real**: Control de suma exacta del 100%, cálculo automático de montos monetarios según el valor del contrato y desglose visual.
+- ✅ **Visualización Consolidada**: Paneles de resumen en el módulo de Facturación (`CostCenterSummaryPanel`) y directorio en Configuración (`CostCentersDirectoryCard`).
+- ✅ **Nuevas APIs Backend**:
+  - `GET /api/cost-centers`: Catálogo de centros de costo con filtros por país, unidad RPA y estado.
+  - `POST /api/cost-centers`: Registro de nuevos centros de costo.
+  - `GET /api/projects/:id/cost-centers`: Distribución imputada por proyecto.
+  - `PUT /api/projects/:id/cost-centers`: Guardado transaccional de distribuciones.
+  - `GET /api/billing/cost-centers/summary`: Agrupación financiera para facturación mensual.
+
+### 🎨 Sistema de Theming Ant Design v5 & Especificación de Diseño (Día / Noche)
+
+**ACCESIBILIDAD, CONTRASTE Y ARQUITECTURA DE TOKENS DINÁMICOS:**
+
+#### 🌓 Theming Día/Noche & Corrección de Menús Desplegables
+- ✅ **Solución Global a Menús Desplegables en Modo Noche**: Ajuste en `ThemeProvider.tsx`, `designTokens.ts` y `src/index.css` que garantiza contraste legible en `Select`, `Dropdown`, `DatePicker`, `Cascader` y `TreeSelect`.
+- ✅ **Cumplimiento WCAG 2.1 AA**: Cero fondos claros accidentales con texto blanco en portales flotantes.
+- ✅ **Reemplazo de Props Deprecadas de AntD**: Migración de `bodyStyle` y `headStyle` (AntD v4) hacia `styles={{ body: ... }}` (AntD v5).
+- ✅ **Especificación de Diseño**: Creación de `docs/UI_THEME_SPEC.md` documentando las 8 Reglas de Oro de UI/UX, tokens semánticos y reglas anti-regresión.
+- ✅ **Herramienta Automatizada de Verificación**: Script `frontend/scripts/check-theme-compliance.js` (`npm run check:theme`) integrado al linting general para prevenir hardcoding de colores (`#fff`, `#fafafa`, `#000`, etc.).
+
+#### 🧪 Calidad & Testing
+- ✅ **Nuevas Pruebas Unitarias y de Integración**: Pruebas automáticas para el controlador de centros de costo y la migración 46.
+- ✅ **Resultados de Validación**: 74 test suites y 523 tests en verde en backend; build de producción frontend exitoso.
+
+---
+
 ## [3.0.0] - 2025-08-30
 
 ### 🧪 Comprehensive Testing Framework & Critical UTF-8 Platform Solution

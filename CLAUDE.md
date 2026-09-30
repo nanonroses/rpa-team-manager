@@ -23,14 +23,16 @@ npm run lint
 ## Code Quality - CRÍTICO
 
 **SIEMPRE antes de completar una tarea:**
-1. Ejecutar diagnósticos del IDE para errores de linting/tipos
-2. Corregir todos los errores antes de considerar completa la tarea
-3. Este paso NUNCA debe omitirse
+1. Ejecutar diagnósticos del IDE para errores de linting/tipos (`npm run lint` y `npm run check:theme`).
+2. En tareas de Frontend/UI: Cumplir estrictamente `docs/UI_THEME_SPEC.md` (cero colores quemados `#fafafa`/`#262626`, cero `bodyStyle`, soporte 100% Día y Noche con `theme.useToken()`).
+3. Corregir todos los errores antes de considerar completa la tarea.
+4. Este paso NUNCA debe omitirse.
 
 ## Reference Docs (cargar según el tipo de tarea)
 
 | Tarea | Documento |
 |-------|-----------|
+| Theming Día/Noche / UI | `docs/UI_THEME_SPEC.md` |
 | Desarrollar API | `reference/api-development.md` |
 | Componentes UI | `reference/frontend-components.md` |
 | Migraciones DB | `reference/database-migrations.md` |

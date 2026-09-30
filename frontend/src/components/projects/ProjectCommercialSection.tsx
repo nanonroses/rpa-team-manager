@@ -1,7 +1,7 @@
 import { ProjectTeamEditor } from './ProjectTeamEditor';
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, Button, Card, Checkbox, DatePicker, Descriptions, Empty, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Statistic, Switch, Table, Tabs, Tag, Typography, App } from 'antd';
-import { CalendarOutlined, CheckCircleOutlined, DeleteOutlined, DollarOutlined, EditOutlined, FileTextOutlined, PlusOutlined, TeamOutlined, UserAddOutlined } from '@ant-design/icons';
+import { Alert, Button, Card, Checkbox, DatePicker, Descriptions, Empty, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Statistic, Switch, Table, Tabs, Tag, Typography, App, theme } from 'antd';
+import { CalendarOutlined, CheckCircleOutlined, DeleteOutlined, DollarOutlined, EditOutlined, FileTextOutlined, PlusOutlined, TeamOutlined, UserAddOutlined, PieChartOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { apiService } from '@/services/api';
 import { fileService } from '@/services/fileService';
@@ -9,6 +9,9 @@ import { User } from '@/types/auth';
 import { Project } from '@/types/project';
 import { FileManager } from '@/components/files';
 import { FilePreviewModal } from '@/components/files/FilePreviewModal';
+import { CostCenterDistributionPicker } from '@/components/costCenters/CostCenterDistributionPicker';
+import { CostCenterTag } from '@/components/costCenters/CostCenterTag';
+import { ProjectCostCenterAllocation } from '@/types/costCenter';
 
 const { Text, Title } = Typography;
 interface Props { project: Project; user?: User; onRefresh?: () => void; initialTab?: string; onTabChange?: (tab: string) => void; }
@@ -20,6 +23,8 @@ const rowsFrom = (response: any): Row[] => {
 };
 
 export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRefresh, initialTab = 'commercial', onTabChange }) => {
+  const { token } = theme.useToken();
+  const isDark = document.documentElement.dataset.theme === 'dark' || token.colorBgBase === '#0F0F10' || token.colorBgContainer === '#171718';
   const { message, modal } = App.useApp();
   const [teamEditorOpen, setTeamEditorOpen] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -47,6 +52,10 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
   const [savingCapacity, setSavingCapacity] = useState(false);
   const [teamUsers, setTeamUsers] = useState<Array<{ id: number; full_name: string; email: string; role: string }>>([]);
   const [previewFileId, setPreviewFileId] = useState<number | null>(null);
+  const [projectAllocations, setProjectAllocations] = useState<ProjectCostCenterAllocation[]>([]);
+  const [costCenterModalOpen, setCostCenterModalOpen] = useState(false);
+  const [editingAllocations, setEditingAllocations] = useState<ProjectCostCenterAllocation[]>([]);
+  const [savingAllocations, setSavingAllocations] = useState(false);
   const isLead = user?.role === 'team_lead';
   const canManage = isLead || user?.role === 'rpa_operations';
   const canViewBilling = isLead || canManage || user?.role === 'billing';
@@ -63,7 +72,8 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
         canManage ? apiService.request({ url: `${base}/capacity` }) : Promise.resolve({ data: { data: [] } }),
         canViewBilling ? apiService.getPaymentMilestones(project.id) : Promise.resolve([]),
         canViewBilling ? apiService.getInvoices(project.id) : Promise.resolve([]),
-        apiService.request({ url: `/lifecycle/projects/${project.id}/scope-changes` })
+        apiService.request({ url: `/lifecycle/projects/${project.id}/scope-changes` }),
+        canManage ? apiService.getProjectCostCenters(project.id) : Promise.resolve({ allocations: [] })
       ]);
       if (results[0].status === 'fulfilled') setMeetings(rowsFrom(results[0].value));
       if (results[1].status === 'fulfilled') setQuotes(rowsFrom(results[1].value));
@@ -74,10 +84,32 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
       if (results[5].status === 'fulfilled') setInvoices(rowsFrom(results[5].value));
       else message.error('No se pudieron cargar facturas y pagos. Verifica que tengas permiso financiero.');
       if (results[6].status === 'fulfilled') setScopeChanges(rowsFrom(results[6].value));
+      if (results[7]?.status === 'fulfilled') {
+        const payload: any = results[7].value;
+        const allocs = payload?.allocations || payload?.data?.allocations || (Array.isArray(payload) ? payload : []);
+        setProjectAllocations(Array.isArray(allocs) ? allocs : []);
+      }
     } catch {
       message.error('No se pudo cargar el seguimiento comercial');
     } finally { setLoading(false); }
   }, [base, canManage, canViewBilling, message, project.id]);
+
+  const handleSaveCostCenters = async () => {
+    try {
+      setSavingAllocations(true);
+      await apiService.setProjectCostCenters(project.id, {
+        allocations: editingAllocations,
+      });
+      message.success('Imputación por Centro de Costo guardada exitosamente');
+      setCostCenterModalOpen(false);
+      await load();
+      onRefresh?.();
+    } catch (err: any) {
+      message.error(err?.response?.data?.error || 'Error al guardar la imputación por CECO');
+    } finally {
+      setSavingAllocations(false);
+    }
+  };
 
   useEffect(() => { void load(); }, [load]);
 
@@ -240,6 +272,129 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
         {isLead && quotes.find((q) => q.status === 'approved') && <div className="commercial-margin-note"><DollarOutlined /> La validación interna de la versión no sustituye la aprobación del cliente. Esta versión fija precio y horas del proyecto.</div>}
       </Card>
     </div>
+    {canManage && (
+      <Card
+        title={
+          <Space>
+            <PieChartOutlined style={{ color: '#1890ff' }} />
+            <span>Imputación por Centro de Costo (CECOs)</span>
+          </Space>
+        }
+        extra={
+          <Button
+            type="primary"
+            ghost
+            icon={<EditOutlined />}
+            size="small"
+            onClick={() => {
+              setEditingAllocations(Array.isArray(projectAllocations) && projectAllocations.length ? [...projectAllocations] : []);
+              setCostCenterModalOpen(true);
+            }}
+          >
+            {projectAllocations.length ? 'Editar Imputación' : 'Configurar Imputación'}
+          </Button>
+        }
+        style={{ marginTop: 16 }}
+      >
+        {projectAllocations.length ? (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <div
+                style={{
+                  height: 12,
+                  width: '100%',
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : '#f0f2f5',
+                  borderRadius: 6,
+                  overflow: 'hidden',
+                  display: 'flex',
+                  border: `1px solid ${token.colorBorderSecondary}`,
+                }}
+              >
+                {projectAllocations.map((item, idx) => {
+                  const colors: Record<string, string> = {
+                    'RPA-L': '#13c2c2',
+                    'RPA-P': isDark ? '#597ef7' : '#2f54eb',
+                    'RPA-S': isDark ? '#9254de' : '#722ed1',
+                    'P-RPA-L': '#13c2c2',
+                    'P-RPA-P': isDark ? '#597ef7' : '#2f54eb',
+                    'P-RPA-S': isDark ? '#9254de' : '#722ed1',
+                    'U-RPA-L': '#13c2c2',
+                    'U-RPA-P': isDark ? '#597ef7' : '#2f54eb',
+                    'U-RPA-S': isDark ? '#9254de' : '#722ed1',
+                  };
+                  const color = colors[item.cost_center_code || ''] || '#fa8c16';
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        width: `${item.percentage || 0}%`,
+                        backgroundColor: color,
+                        height: '100%',
+                      }}
+                      title={`${item.cost_center_code}: ${item.percentage}%`}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+            <Table
+              size="small"
+              pagination={false}
+              dataSource={projectAllocations}
+              rowKey={(r) => r.id || r.cost_center_id}
+              columns={[
+                {
+                  title: 'Centro de Costo',
+                  key: 'ceco',
+                  render: (_: unknown, r: ProjectCostCenterAllocation) => (
+                    <CostCenterTag
+                      code={r.cost_center_code}
+                      name={r.cost_center_name}
+                      country={r.country}
+                      isRpa={r.is_rpa}
+                      showName
+                      showCountry
+                    />
+                  ),
+                },
+                {
+                  title: 'Monto Imputado',
+                  dataIndex: 'amount',
+                  render: (v: number, r: ProjectCostCenterAllocation) =>
+                    `${r.currency || project.currency || 'CLP'} ${Number(v).toLocaleString('es-CL')}`,
+                },
+                {
+                  title: 'Distribución',
+                  dataIndex: 'percentage',
+                  render: (v: number) => <Tag color="blue">{v}%</Tag>,
+                },
+                {
+                  title: 'Concepto / Glosa',
+                  dataIndex: 'description',
+                  render: (v: string) => v || '-',
+                },
+              ]}
+            />
+          </div>
+        ) : (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="Aún no se ha definido la imputación por centro de costos para este proyecto."
+          >
+            <Button
+              type="primary"
+              size="small"
+              onClick={() => {
+                setEditingAllocations([]);
+                setCostCenterModalOpen(true);
+              }}
+            >
+              Configurar Imputación
+            </Button>
+          </Empty>
+        )}
+      </Card>
+    )}
   </div>;
 
   const deliveryContent = <div className="commercial-workspace">
@@ -365,6 +520,19 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
       >
         {paymentMilestones.length ? <Table size="small" rowKey="id" pagination={false} dataSource={paymentMilestones} columns={[
           { title: 'Hito', dataIndex: 'name' },
+          {
+            title: 'Centro de Costo',
+            key: 'cost_center',
+            render: (_: unknown, r: Row) => (
+              <CostCenterTag
+                code={r.cost_center_code}
+                name={r.cost_center_name}
+                country={r.cost_center_country}
+                isRpa={r.cost_center_is_rpa}
+                size="small"
+              />
+            ),
+          },
           { title: 'Fecha prevista', dataIndex: 'planned_date', render: (v: string) => v ? dayjs(v).format('DD MMM YYYY') : 'Por definir' },
           {
             title: 'Estado',
@@ -659,6 +827,38 @@ export const ProjectCommercialSection: React.FC<Props> = ({ project, user, onRef
           {editingCapacity ? 'Actualizar asignación' : 'Asignar al proyecto'}
         </Button>
       </Form>
+    </Modal>
+    <Modal
+      title="Configurar Imputación por Centro de Costo (CECO)"
+      open={costCenterModalOpen}
+      onCancel={() => setCostCenterModalOpen(false)}
+      onOk={handleSaveCostCenters}
+      confirmLoading={savingAllocations}
+      width={860}
+      okText="Guardar Imputación"
+      cancelText="Cancelar"
+      destroyOnClose
+    >
+      <CostCenterDistributionPicker
+        totalAmount={
+          Number(
+            quotes.find((q) => q.status === 'approved')?.amount ||
+            quotes[0]?.amount ||
+            project.sale_price ||
+            project.budget ||
+            0
+          )
+        }
+        currency={
+          quotes.find((q) => q.status === 'approved')?.currency ||
+          quotes[0]?.currency ||
+          project.currency ||
+          'CLP'
+        }
+        allocations={Array.isArray(editingAllocations) ? editingAllocations : []}
+        onChange={(val) => setEditingAllocations(Array.isArray(val) ? val : [])}
+        bordered={false}
+      />
     </Modal>
   </>;
 };

@@ -22,6 +22,7 @@ The RPA Team Manager uses SQLite as its primary database with a comprehensive sc
 6. [Support Module](#support-module)
 7. [Financial Tracking](#financial-tracking)
 8. [Ideas Management](#ideas-management)
+9. [Cost Centers & Commercial Imputation](#cost-centers--commercial-imputation)
 
 ---
 
@@ -550,6 +551,50 @@ User notification system.
 
 ---
 
+## Cost Centers & Commercial Imputation
+
+### cost_centers
+Official multi-country corporate cost center catalog (Chile, Peru, USA).
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | INTEGER | PK, AUTO_INCREMENT | Unique identifier |
+| `code` | VARCHAR(20) | UNIQUE, NOT NULL | Unique center code (e.g. `RPA-L`, `RPA-P`, `RPA-S`) |
+| `name` | VARCHAR(100) | NOT NULL | Descriptive name (e.g. `RPA Licencias`, `RPA Proyectos`) |
+| `country` | VARCHAR(20) | NOT NULL | Country: `CHILE`, `PERU`, `USA` |
+| `category` | VARCHAR(50) | NOT NULL | Business category (`RPA`, `ENTEL`, `SAP`, `SOFTWARE`, `OUTSOURCING`, `FACILITIES`) |
+| `is_rpa` | BOOLEAN | DEFAULT 0 | 1 if belonging to RPA / AI business unit, 0 otherwise |
+| `is_active` | BOOLEAN | DEFAULT 1 | Active catalog status |
+| `created_at` | DATETIME | DEFAULT CURRENT_TIMESTAMP | Creation timestamp |
+| `updated_at` | DATETIME | DEFAULT CURRENT_TIMESTAMP | Last update timestamp |
+
+**Business Rules:**
+- Seeded with 28 official corporate centers across 3 jurisdictions.
+- Core RPA Centers: `RPA-L` (Software Licenses Margin), `RPA-P` (Developer Man-Hours / Projects), and `RPA-S` (Helpdesk & Support Desk).
+- Used for commercial pre-sales imputation and downstream billing attribution.
+
+### project_cost_center_allocations
+Pre-sales and commercial percentage/amount imputation per project.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| `id` | INTEGER | PK, AUTO_INCREMENT | Unique allocation ID |
+| `project_id` | INTEGER | FK(projects.id) ON DELETE CASCADE, NOT NULL | Target project |
+| `quote_id` | INTEGER | FK(project_quotes.id) ON DELETE SET NULL, NULL | Associated quote / commercial offer |
+| `cost_center_id` | INTEGER | FK(cost_centers.id), NOT NULL | Assigned cost center |
+| `amount` | DECIMAL(14,2) | CHECK (amount >= 0), NOT NULL | Imputed monetary amount |
+| `percentage` | DECIMAL(5,2) | CHECK (percentage >= 0 AND percentage <= 100) | Imputed percentage of total project value |
+| `currency` | VARCHAR(3) | DEFAULT 'CLP', NOT NULL | Currency (`CLP`, `USD`, `UF`) |
+| `description` | TEXT | NULL | Optional rationale or line-item description |
+| `created_at` | DATETIME | DEFAULT CURRENT_TIMESTAMP | Creation timestamp |
+| `updated_at` | DATETIME | DEFAULT CURRENT_TIMESTAMP | Last update timestamp |
+
+### Cross-Cutting References
+- `payment_milestones.cost_center_id`: Links specific billing/payment milestones to a cost center for cash-flow forecasting.
+- `invoice_lines.cost_center_id`: Segregates invoiced lines directly to accounting cost centers.
+
+---
+
 ## Database Triggers
 
 ### Automatic Timestamp Updates
@@ -596,6 +641,10 @@ idx_attachments_entity, idx_comments_entity
 
 -- Ideas system
 idx_ideas_status, idx_ideas_category, idx_ideas_priority
+
+-- Cost Centers & Commercial Allocations
+idx_cost_centers_country, idx_cost_centers_is_rpa
+idx_pcca_project, idx_pcca_cost_center
 ```
 
 ---

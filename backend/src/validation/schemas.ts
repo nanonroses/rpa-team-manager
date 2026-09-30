@@ -157,7 +157,8 @@ export const createPaymentMilestoneSchema = z.object({
     trigger_type: z.enum(['date', 'progress_pct', 'deliverable_approved']),
     trigger_value: z.number().min(0).max(100).optional().nullable(),
     planned_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional().nullable(),
-    sort_order: z.number().int().optional()
+    sort_order: z.number().int().optional(),
+    cost_center_id: z.number().int().positive().optional().nullable()
 }).refine(
     (data) => data.trigger_type !== 'progress_pct' || (data.trigger_value !== null && data.trigger_value !== undefined),
     { message: 'trigger_value is required when trigger_type is progress_pct', path: ['trigger_value'] }
@@ -176,7 +177,8 @@ export const updatePaymentMilestoneSchema = z.object({
     currency: z.enum(['CLP', 'USD', 'UF']).optional(),
     planned_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be in YYYY-MM-DD format').optional().nullable(),
     trigger_value: z.number().min(0).max(100).optional().nullable(),
-    sort_order: z.number().int().optional()
+    sort_order: z.number().int().optional(),
+    cost_center_id: z.number().int().positive().optional().nullable()
 });
 
 export const createInvoiceSchema = z.object({
