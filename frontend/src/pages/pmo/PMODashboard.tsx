@@ -55,6 +55,11 @@ import dayjs from 'dayjs';
 import { useBatchDeletion } from '../../hooks/useBatchDeletion';
 import { useGanttData } from '../../hooks/useGanttData';
 import { LoadingState } from '@/components/common';
+import { PMORoleHeader } from '@/components/pmo/PMORoleHeader';
+import { PMOGeneralManagerView } from '@/components/pmo/views/PMOGeneralManagerView';
+import { PMOCommercialView } from '@/components/pmo/views/PMOCommercialView';
+import { PMOControllerView } from '@/components/pmo/views/PMOControllerView';
+import { PMORolePerspective, PMOExecutiveSuiteResponse } from '@/types/pmo';
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -125,6 +130,36 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   const [stageFilter, setStageFilter] = useState<string | undefined>();
   const [mermaidDrawerVisible, setMermaidDrawerVisible] = useState(false);
   const [mermaidCode, setMermaidCode] = useState('');
+
+  // PMO Executive Suite perspective state
+  const [currentPerspective, setCurrentPerspective] = useState<PMORolePerspective>(() => {
+    if (ganttMode) return 'operations';
+    if (user?.role === 'billing') return 'controller';
+    const saved = localStorage.getItem('pmo_preferred_perspective') as PMORolePerspective | null;
+    return saved || 'general_manager';
+  });
+  const [executiveData, setExecutiveData] = useState<PMOExecutiveSuiteResponse | null>(null);
+  const [executiveLoading, setExecutiveLoading] = useState(false);
+
+  const handlePerspectiveChange = (perspective: PMORolePerspective) => {
+    setCurrentPerspective(perspective);
+    try {
+      localStorage.setItem('pmo_preferred_perspective', perspective);
+    } catch {}
+  };
+
+  const loadExecutiveData = async () => {
+    try {
+      setExecutiveLoading(true);
+      const data = await apiService.getPMOExecutiveSuite();
+      setExecutiveData(data);
+    } catch (error) {
+      console.error('Error loading PMO executive suite:', error);
+    } finally {
+      setExecutiveLoading(false);
+    }
+  };
+
   
   // Multi-selection state for batch deletion
   const [selectedItems, setSelectedItems] = useState<Set<number>>(new Set());
@@ -485,6 +520,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
   useEffect(() => {
     console.log('🚀 PMO Dashboard mounted - loading initial data');
     loadDashboardData();
+    loadExecutiveData();
     loadAnalytics();
     loadDropdownData();
     loadTeamCapacity();
@@ -1073,23 +1109,64 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
 
   return (
     <div style={{ padding: 'clamp(12px, 3vw, 24px)' }}>
-      <Row justify="space-between" align="middle" style={{ marginBottom: '24px' }}>
-        <Col>
-          <Title level={2}>Centro PMO</Title>
-          <Text type="secondary">Excepciones, hitos y seguimiento del portafolio</Text>
-        </Col>
-        <Col>
-          <Space>
-            {['team_lead', 'rpa_operations'].includes(user?.role || '') && <Button
-              type="primary" 
-              icon={<PlusOutlined />}
-              onClick={() => setMilestoneModalVisible(true)}
-            >
-              Crear Hito
-            </Button>}
-          </Space>
-        </Col>
-      </Row>
+      <PMORoleHeader
+        currentPerspective={currentPerspective}
+        onPerspectiveChange={handlePerspectiveChange}
+        executiveData={executiveData}
+        loading={executiveLoading}
+        onRefresh={() => {
+          loadExecutiveData();
+          loadDashboardData();
+        }}
+      />
+
+      {currentPerspective === 'general_manager' && (
+        <PMOGeneralManagerView
+          data={executiveData?.general_manager || null}
+          loading={executiveLoading}
+          onGoToGantt={(id) => {
+            setSelectedProjectId(id);
+            handlePerspectiveChange('operations');
+            setActiveTab('gantt');
+          }}
+        />
+      )}
+
+      {currentPerspective === 'commercial' && (
+        <PMOCommercialView
+          data={executiveData?.commercial || null}
+          loading={executiveLoading}
+        />
+      )}
+
+      {currentPerspective === 'controller' && (
+        <PMOControllerView
+          data={executiveData?.controller || null}
+          loading={executiveLoading}
+        />
+      )}
+
+      {currentPerspective === 'operations' && (
+        <>
+          <Row justify="space-between" align="middle" style={{ marginBottom: '16px' }}>
+            <Col>
+              <Title level={4} style={{ margin: 0 }}>Gestión Operativa PMO</Title>
+              <Text type="secondary">Portafolio, cronogramas Gantt, dependencias externas y capacidad FTE</Text>
+            </Col>
+            <Col>
+              <Space>
+                {['team_lead', 'rpa_operations'].includes(user?.role || '') && (
+                  <Button
+                    type="primary" 
+                    icon={<PlusOutlined />}
+                    onClick={() => setMilestoneModalVisible(true)}
+                  >
+                    Crear Hito
+                  </Button>
+                )}
+              </Space>
+            </Col>
+          </Row>
 
       <Tabs activeKey={activeTab} onChange={setActiveTab}>
         <TabPane tab="Vista General" key="overview">
@@ -1787,7 +1864,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                             <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
                               Velocidad: {member.avg_velocity?.toFixed(1) || 'N/A'}
                             </div>
-                            <div style={{ fontSize: '9px', marginTop: '2px' }}>
+                            <div style={{ fontSize: '11px', marginTop: '2px' }}>
                               <Tag color={member.avg_budget_variance > 10 ? 'red' : member.avg_budget_variance > 0 ? 'orange' : 'green'}>
                                 {member.avg_budget_variance > 0 ? '+' : ''}{member.avg_budget_variance?.toFixed(1) || 0}% budget
                               </Tag>
@@ -1842,7 +1919,7 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
                             <div style={{ fontWeight: 'bold', fontSize: '11px' }}>
                               {project.project_name}
                             </div>
-                            <div style={{ fontSize: '9px', color: 'var(--color-text-secondary)' }}>
+                            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
                               Bugs: {project.bugs_found || 0} / Resueltos: {project.bugs_resolved || 0}
                             </div>
                           </div>
@@ -3051,6 +3128,8 @@ export const PMODashboard: React.FC<PMODashboardProps> = ({ ganttMode = false })
           </Card>
         </TabPane>
       </Tabs>
+        </>
+      )}
 
       {/* Modal editar elemento */}
       <Modal

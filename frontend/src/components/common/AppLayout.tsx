@@ -123,8 +123,9 @@ export const AppLayout: React.FC = () => {
       return [
         {
           type: 'group',
-          label: 'FACTURACIÓN Y COBRANZA',
+          label: 'CONTROL Y COBRANZA',
           children: [
+            { key: '/pmo', icon: <FundOutlined />, label: 'Centro PMO' },
             { key: '/billing', icon: <DollarOutlined />, label: 'Cobranza y Facturación' }
           ]
         }

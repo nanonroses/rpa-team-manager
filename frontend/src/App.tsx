@@ -82,7 +82,7 @@ function App() {
               
               {/* PMO Dashboard */}
               <Route path="pmo" element={
-                <ProtectedRoute requiredRoles={['team_lead', 'rpa_operations']}>
+                <ProtectedRoute requiredRoles={['team_lead', 'rpa_operations', 'billing']}>
                   <PMODashboard />
                 </ProtectedRoute>
               } />

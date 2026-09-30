@@ -2,6 +2,9 @@ import { Request, Response } from 'express';
 import { db } from '../database/database';
 import { logger } from '../utils/logger';
 import { activityLogService } from '../services/activityLogService';
+import { financeService, Currency } from '../services/financeService';
+import { billingService } from '../services/billingService';
+import { timesheetService } from '../services/timesheetService';
 
 interface AuthenticatedRequest extends Request {
     user?: {
@@ -1272,4 +1275,479 @@ export class PMOController {
             res.status(500).json({ error: 'Failed to get project PMO metrics' });
         }
     };
+
+    // GET /api/pmo/executive-suite - Datos integrados para Gerente General, Comercial y Controller
+    getPMOExecutiveSuite = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            await billingService.evaluateTriggers();
+            await billingService.evaluateOverdue();
+
+            // 1. Proyectos activos y métricas PMO
+            const projects = await db.query(`
+                SELECT 
+                    p.id, p.name, p.status, p.priority, p.end_date, p.start_date, p.budget,
+                    c.id as client_id, c.name as client_name,
+                    u.id as assigned_to_id, u.full_name as assigned_to_name,
+                    pm.completion_percentage, pm.schedule_variance_days, pm.cost_variance_percentage,
+                    pm.risk_level, pm.planned_budget, pm.actual_cost, pm.planned_hours, pm.actual_hours,
+                    pm.client_satisfaction_score
+                FROM projects p
+                LEFT JOIN project_pmo_metrics pm ON p.id = pm.project_id
+                LEFT JOIN clients c ON p.client_id = c.id
+                LEFT JOIN users u ON p.assigned_to = u.id
+                WHERE p.status != 'cancelled'
+                ORDER BY p.name ASC
+            `);
+
+            // 2. Financials calculados en vivo por financeService
+            const financialsMap = new Map<number, any>();
+            await Promise.all(
+                projects.map(async (p: any) => {
+                    try {
+                        const fin = await financeService.calculateProjectFinancials(p.id);
+                        financialsMap.set(p.id, fin);
+                    } catch {
+                        financialsMap.set(p.id, null);
+                    }
+                })
+            );
+
+            // 3. Billing Dashboard para datos de caja y facturación
+            const billingDashboard = await billingService.getDashboard();
+
+            // -----------------------------------------------------------------
+            // PERSPECTIVA 1: GERENTE GENERAL (CEO / P&L Consolidado)
+            // -----------------------------------------------------------------
+            let total_sold_clp = 0;
+            let total_real_cost_clp = 0;
+            let healthy_count = 0;
+            let warning_count = 0;
+            let critical_count = 0;
+
+            const analyzedProjects = projects.map((p: any) => {
+                const fin = financialsMap.get(p.id);
+                const salePrice = fin && fin.sale_price > 0 ? fin.sale_price : Number(p.budget || p.planned_budget || 0);
+                const realCost = fin && fin.real_cost > 0 ? fin.real_cost : Number(p.actual_cost || 0);
+                const budgetedCost = fin && fin.planned_cost > 0 ? fin.planned_cost : Number(p.planned_budget || p.budget || 0);
+                const costVarianceCLP = Math.max(0, realCost - budgetedCost);
+                const schedVar = Number(p.schedule_variance_days || 0);
+                const riskLevel = p.risk_level || 'low';
+
+                const isCritical = schedVar > 5 || (budgetedCost > 0 && (realCost / budgetedCost) > 1.2) || riskLevel === 'critical';
+                const isWarning = !isCritical && (schedVar > 2 || (budgetedCost > 0 && (realCost / budgetedCost) > 1.1) || riskLevel === 'high');
+                const healthStatus = isCritical ? 'critical' : isWarning ? 'warning' : 'healthy';
+
+                if (healthStatus === 'critical') critical_count++;
+                else if (healthStatus === 'warning') warning_count++;
+                else healthy_count++;
+
+                if (salePrice > 0) {
+                    total_sold_clp += salePrice;
+                    total_real_cost_clp += realCost;
+                }
+
+                let criticalReason = 'En curso regular';
+                if (costVarianceCLP > 0 && schedVar > 5) {
+                    criticalReason = `Sobrecosto de $${Math.round(costVarianceCLP).toLocaleString('es-CL')} y retraso de ${schedVar} días`;
+                } else if (costVarianceCLP > 0) {
+                    criticalReason = `Sobrecosto de $${Math.round(costVarianceCLP).toLocaleString('es-CL')} sobre presupuesto`;
+                } else if (schedVar > 5) {
+                    criticalReason = `Retraso crítico de ${schedVar} días frente a la fecha comprometida`;
+                } else if (riskLevel === 'critical' || riskLevel === 'high') {
+                    criticalReason = `Alerta de riesgo operativo ${riskLevel.toUpperCase()}`;
+                }
+
+                const daysToDeadline = p.end_date
+                    ? Math.round((new Date(p.end_date).getTime() - Date.now()) / (1000 * 3600 * 24))
+                    : null;
+
+                return {
+                    id: p.id,
+                    name: p.name,
+                    client_id: p.client_id,
+                    client_name: p.client_name || 'Sin cliente',
+                    assigned_to_name: p.assigned_to_name || 'Sin asignar',
+                    project_health_status: healthStatus,
+                    schedule_variance_days: schedVar,
+                    cost_variance_clp: costVarianceCLP,
+                    real_cost_clp: realCost,
+                    budgeted_cost_clp: budgetedCost,
+                    sale_price_clp: salePrice,
+                    progress_pct: Number(p.completion_percentage || 0),
+                    days_to_deadline: daysToDeadline,
+                    critical_reason: criticalReason,
+                    risk_level: riskLevel,
+                    satisfaction_score: p.client_satisfaction_score
+                };
+            });
+
+            const total_gross_profit_clp = total_sold_clp - total_real_cost_clp;
+            const avg_margin_pct = total_sold_clp > 0
+                ? Math.round(((total_gross_profit_clp / total_sold_clp) * 100) * 10) / 10
+                : 0;
+
+            const top_risk_projects = analyzedProjects
+                .filter(p => p.project_health_status !== 'healthy')
+                .sort((a, b) => (b.cost_variance_clp + b.schedule_variance_days * 100000) - (a.cost_variance_clp + a.schedule_variance_days * 100000))
+                .slice(0, 5);
+
+            // Capacidad y utilización
+            const teamCapacityRows = await db.query(`
+                SELECT u.id, u.full_name, u.role,
+                       ROUND(COALESCE(SUM(CASE WHEN p.id IS NOT NULL THEN pa.allocation_percentage ELSE 0 END), 0) / 100.0, 2) AS planned_fte
+                FROM users u
+                LEFT JOIN project_assignments pa ON pa.user_id = u.id AND pa.is_active = 1
+                LEFT JOIN projects p ON p.id = pa.project_id AND p.status IN ('active', 'on_hold')
+                WHERE u.is_active = 1 AND u.role IN ('rpa_developer', 'rpa_operations', 'team_lead')
+                GROUP BY u.id, u.full_name, u.role
+            `);
+
+            const total_planned_fte = teamCapacityRows.reduce((acc: number, r: any) => acc + Number(r.planned_fte || 0), 0);
+            const overutilized_count = teamCapacityRows.filter((r: any) => Number(r.planned_fte) > 1.05).length;
+            const underutilized_count = teamCapacityRows.filter((r: any) => Number(r.planned_fte) < 0.8).length;
+            const optimal_count = teamCapacityRows.length - overutilized_count - underutilized_count;
+
+            // -----------------------------------------------------------------
+            // PERSPECTIVA 2: GERENTE COMERCIAL (Revenue, Hitos Cobrables & Margen)
+            // -----------------------------------------------------------------
+            const billableMilestoneRows = await db.query(`
+                SELECT 
+                    pm.id as milestone_id, pm.name as milestone_name, pm.amount, pm.currency,
+                    pm.status, pm.planned_date, pm.billable_at, pm.trigger_type,
+                    p.id as project_id, p.name as project_name,
+                    c.name as client_name,
+                    mile.name as source_milestone_name,
+                    CAST(julianday('now') - julianday(COALESCE(pm.billable_at, pm.planned_date, pm.created_at)) AS INTEGER) as days_since_completed
+                FROM payment_milestones pm
+                JOIN projects p ON p.id = pm.project_id
+                LEFT JOIN clients c ON p.client_id = c.id
+                LEFT JOIN project_milestones mile ON mile.id = pm.project_milestone_id
+                WHERE pm.status = 'billable'
+                ORDER BY days_since_completed DESC, pm.amount DESC
+            `);
+
+            let total_unlocked_revenue_clp = 0;
+            const ready_to_invoice = await Promise.all(
+                billableMilestoneRows.map(async (row: any) => {
+                    const amountCLP = row.currency === 'CLP'
+                        ? Number(row.amount)
+                        : await financeService.toCLP(Number(row.amount), row.currency as Currency);
+                    total_unlocked_revenue_clp += amountCLP;
+                    return {
+                        ...row,
+                        amount_clp: Math.round(amountCLP),
+                        days_since_completed: Math.max(0, Number(row.days_since_completed || 0))
+                    };
+                })
+            );
+
+            // Comparativa de Cotización (Margen Vendido vs Real)
+            const approvedQuotes = await db.query(`
+                SELECT pq.*, p.name as project_name, c.name as client_name
+                FROM project_quotes pq
+                JOIN projects p ON p.id = pq.project_id
+                LEFT JOIN clients c ON p.client_id = c.id
+                WHERE pq.status = 'approved'
+                ORDER BY pq.created_at DESC
+            `);
+
+            const margin_variance = approvedQuotes.map((q: any) => {
+                const fin = financialsMap.get(q.project_id);
+                const quotedMargin = Number(q.margin_percent || 0);
+                const realMargin = fin ? Number(fin.real_margin_percentage || 0) : 0;
+                const quotedHours = Number(q.hours || 0);
+                const realHours = fin ? Number(fin.real_hours || 0) : 0;
+                const leakage = quotedMargin - realMargin;
+
+                return {
+                    project_id: q.project_id,
+                    project_name: q.project_name,
+                    client_name: q.client_name || 'Sin cliente',
+                    quoted_margin_pct: quotedMargin,
+                    real_margin_pct: realMargin,
+                    margin_leakage_pct: Math.round(leakage * 10) / 10,
+                    quoted_hours: quotedHours,
+                    real_hours: realHours,
+                    hours_exceeded: Math.max(0, realHours - quotedHours),
+                    quoted_amount_clp: Number(q.amount || 0),
+                    real_cost_clp: fin ? fin.real_cost : 0,
+                    pricing_model: q.pricing_model
+                };
+            });
+
+            // Scope Creep Alerts (proyectos con exceso de horas sobre lo cotizado/estimado)
+            const scope_creep_alerts = margin_variance
+                .filter(m => m.hours_exceeded > 0)
+                .map(m => ({
+                    project_id: m.project_id,
+                    project_name: m.project_name,
+                    client_name: m.client_name,
+                    quoted_hours: m.quoted_hours,
+                    real_hours: m.real_hours,
+                    overrun_hours: m.hours_exceeded,
+                    overrun_cost_clp: Math.round(m.hours_exceeded * 35000), // Promedio estimado HH
+                    severity: (m.hours_exceeded > 20 || m.margin_leakage_pct > 15) ? 'critical' : 'warning'
+                }));
+
+            // Scorecard por Cliente
+            const clientScorecardMap = new Map<number, any>();
+            analyzedProjects.forEach(p => {
+                if (!p.client_id) return;
+                const existing = clientScorecardMap.get(p.client_id) || {
+                    client_id: p.client_id,
+                    client_name: p.client_name,
+                    active_projects: 0,
+                    total_sold_clp: 0,
+                    satisfaction_sum: 0,
+                    satisfaction_count: 0,
+                    has_critical: false
+                };
+                existing.active_projects++;
+                existing.total_sold_clp += p.sale_price_clp;
+                if (p.satisfaction_score) {
+                    existing.satisfaction_sum += p.satisfaction_score;
+                    existing.satisfaction_count++;
+                }
+                if (p.project_health_status === 'critical') existing.has_critical = true;
+                clientScorecardMap.set(p.client_id, existing);
+            });
+
+            const client_scorecards = Array.from(clientScorecardMap.values()).map(c => ({
+                client_id: c.client_id,
+                client_name: c.client_name,
+                active_projects: c.active_projects,
+                total_sold_clp: c.total_sold_clp,
+                avg_satisfaction: c.satisfaction_count > 0 ? Math.round((c.satisfaction_sum / c.satisfaction_count) * 10) / 10 : null,
+                health: c.has_critical ? 'critical' : 'healthy'
+            }));
+
+            // -----------------------------------------------------------------
+            // PERSPECTIVA 3: CONTROLLER / CONTROL DE GESTIÓN (Triple Conciliación & Imputaciones)
+            // -----------------------------------------------------------------
+            const invoiceAggregates = await db.query(`
+                SELECT i.project_id,
+                       COALESCE(SUM(i.amount), 0) as total_invoiced,
+                       COALESCE(SUM(pay.amount), 0) as total_paid
+                FROM invoices i
+                LEFT JOIN payments pay ON pay.invoice_id = i.id
+                WHERE i.status != 'cancelled'
+                GROUP BY i.project_id
+            `);
+            const invoiceMap = new Map<number, { total_invoiced: number; total_paid: number }>();
+            invoiceAggregates.forEach((r: any) => {
+                invoiceMap.set(Number(r.project_id), {
+                    total_invoiced: Number(r.total_invoiced || 0),
+                    total_paid: Number(r.total_paid || 0)
+                });
+            });
+
+            const triple_conciliation = analyzedProjects.map(p => {
+                const inv = invoiceMap.get(p.id) || { total_invoiced: 0, total_paid: 0 };
+                const physical_pct = p.progress_pct;
+                const cost_consumed_pct = p.budgeted_cost_clp > 0
+                    ? Math.round((p.real_cost_clp / p.budgeted_cost_clp) * 100)
+                    : 0;
+                const billed_pct = p.sale_price_clp > 0
+                    ? Math.round((inv.total_invoiced / p.sale_price_clp) * 100)
+                    : 0;
+
+                // EVM (Earned Value Management)
+                const ev = (physical_pct / 100) * p.sale_price_clp;
+                const ac = p.real_cost_clp;
+                const cpi = ac > 0 ? Math.round((ev / ac) * 100) / 100 : 1.0;
+
+                let deviation_flag: 'healthy' | 'cost_overrun' | 'unbilled_work' | 'critical_desynchronization' = 'healthy';
+                const hasCostOverrun = cost_consumed_pct > physical_pct + 15;
+                const hasUnbilledWork = physical_pct > billed_pct + 25;
+
+                if (hasCostOverrun && hasUnbilledWork) deviation_flag = 'critical_desynchronization';
+                else if (hasCostOverrun) deviation_flag = 'cost_overrun';
+                else if (hasUnbilledWork) deviation_flag = 'unbilled_work';
+
+                return {
+                    project_id: p.id,
+                    project_name: p.name,
+                    client_name: p.client_name,
+                    physical_progress_pct: physical_pct,
+                    cost_consumed_pct,
+                    billed_pct,
+                    cpi,
+                    deviation_flag,
+                    sale_price_clp: p.sale_price_clp,
+                    budgeted_cost_clp: p.budgeted_cost_clp,
+                    real_cost_clp: p.real_cost_clp,
+                    invoiced_clp: inv.total_invoiced,
+                    paid_clp: inv.total_paid
+                };
+            });
+
+            // Auditoría de Imputaciones (Timesheet Hygiene)
+            const activeTeamMembers = await db.query(`
+                SELECT id, full_name, role 
+                FROM users 
+                WHERE is_active = 1 AND role IN ('rpa_developer', 'rpa_operations', 'team_lead')
+            `);
+
+            const users_with_missing_days: any[] = [];
+            for (const member of activeTeamMembers) {
+                const reminders = await timesheetService.getPendingReminders(member.id);
+                if (reminders.missing_dates && reminders.missing_dates.length > 0) {
+                    users_with_missing_days.push({
+                        user_id: member.id,
+                        user_name: member.full_name,
+                        user_role: member.role,
+                        missing_days_count: reminders.missing_dates.length,
+                        missing_dates: reminders.missing_dates
+                    });
+                }
+            }
+
+            const pendingApprovalsRaw = await timesheetService.getPendingApprovals();
+            const pending_approval_periods = pendingApprovalsRaw.map(r => ({
+                period_id: r.id,
+                user_name: r.user_name,
+                week_start: r.period_start,
+                total_hours: r.total_hours,
+                submitted_at: r.submitted_at
+            }));
+
+            // Ratio de horas facturables en los últimos 30 días
+            const hoursStats = await db.get(`
+                SELECT 
+                    COALESCE(SUM(hours), 0) as total_hours,
+                    COALESCE(SUM(CASE WHEN is_billable = 1 THEN hours ELSE 0 END), 0) as billable_hours
+                FROM time_entries
+                WHERE date >= date('now', '-30 days')
+            `);
+            const totalHours30d = Number(hoursStats?.total_hours || 0);
+            const billableHours30d = Number(hoursStats?.billable_hours || 0);
+            const internalHours30d = Math.max(0, totalHours30d - billableHours30d);
+            const billableRatio30d = totalHours30d > 0
+                ? Math.round((billableHours30d / totalHours30d) * 1000) / 10
+                : 100;
+
+            // Desglose por Centro de Costos
+            const costCentersRaw = await db.query(`
+                SELECT cc.*,
+                       COUNT(DISTINCT pcca.project_id) as allocated_projects_count,
+                       COALESCE(SUM(pcca.amount), 0) as total_allocated_amount
+                FROM cost_centers cc
+                LEFT JOIN project_cost_center_allocations pcca ON pcca.cost_center_id = cc.id
+                WHERE cc.is_active = 1
+                GROUP BY cc.id
+                ORDER BY cc.country, cc.name
+            `);
+
+            const cost_centers_summary = costCentersRaw.map((cc: any) => ({
+                cost_center_id: cc.id,
+                code: cc.code,
+                name: cc.name,
+                country: cc.country,
+                is_rpa: Boolean(cc.is_rpa),
+                allocated_projects_count: Number(cc.allocated_projects_count || 0),
+                total_budget_clp: Number(cc.total_allocated_amount || 0)
+            }));
+
+            // Aging de Cartera (Cobranza y Facturación)
+            const unpaidInvoices = await db.query(`
+                SELECT i.*, p.name as project_name, c.name as client_name,
+                       COALESCE((SELECT SUM(amount) FROM payments WHERE invoice_id = i.id), 0) as amount_paid,
+                       CAST(julianday('now') - julianday(i.due_date) AS INTEGER) as days_overdue
+                FROM invoices i
+                JOIN projects p ON p.id = i.project_id
+                LEFT JOIN clients c ON p.client_id = c.id
+                WHERE i.status IN ('issued', 'partially_paid', 'overdue')
+                ORDER BY days_overdue DESC
+            `);
+
+            let current_clp = 0;
+            let overdue_30_clp = 0;
+            let overdue_60_clp = 0;
+
+            for (const inv of unpaidInvoices) {
+                const balance = Number(inv.amount || 0) - Number(inv.amount_paid || 0);
+                const balanceCLP = inv.currency === 'CLP'
+                    ? balance
+                    : await financeService.toCLP(balance, inv.currency as Currency);
+                const days = Number(inv.days_overdue || 0);
+
+                if (days <= 0) current_clp += balanceCLP;
+                else if (days <= 30) overdue_30_clp += balanceCLP;
+                else overdue_60_clp += balanceCLP;
+            }
+
+            const total_overdue_clp = overdue_30_clp + overdue_60_clp;
+
+            res.json({
+                general_manager: {
+                    consolidated_pnl: {
+                        total_sold_clp: Math.round(total_sold_clp),
+                        total_real_cost_clp: Math.round(total_real_cost_clp),
+                        total_gross_profit_clp: Math.round(total_gross_profit_clp),
+                        avg_margin_pct,
+                        active_projects_count: projects.filter(p => p.status === 'active').length,
+                        total_projects_count: projects.length,
+                        billable_hours_ratio: billableRatio30d
+                    },
+                    cashflow_forecast: billingDashboard.cashflow_projection || [],
+                    portfolio_health_summary: {
+                        healthy: healthy_count,
+                        warning: warning_count,
+                        critical: critical_count
+                    },
+                    top_risk_projects,
+                    team_utilization_summary: {
+                        total_planned_fte: Math.round(total_planned_fte * 100) / 100,
+                        total_developers: teamCapacityRows.length,
+                        overutilized_count,
+                        optimal_count,
+                        underutilized_count
+                    }
+                },
+                commercial: {
+                    ready_to_invoice,
+                    total_unlocked_revenue_clp: Math.round(total_unlocked_revenue_clp),
+                    margin_variance,
+                    scope_creep_alerts,
+                    client_scorecards
+                },
+                controller: {
+                    triple_conciliation,
+                    imputations_audit: {
+                        users_with_missing_days,
+                        pending_approval_periods,
+                        billable_breakdown: {
+                            total_real_hours: totalHours30d,
+                            total_billable_hours: billableHours30d,
+                            total_internal_hours: internalHours30d,
+                            billable_pct: billableRatio30d
+                        }
+                    },
+                    cost_centers_summary,
+                    aging_portfolio: {
+                        current_clp: Math.round(current_clp),
+                        overdue_30_clp: Math.round(overdue_30_clp),
+                        overdue_60_clp: Math.round(overdue_60_clp),
+                        total_overdue_clp: Math.round(total_overdue_clp),
+                        overdue_invoices: unpaidInvoices.map((inv: any) => ({
+                            id: inv.id,
+                            invoice_number: inv.invoice_number,
+                            project_name: inv.project_name,
+                            client_name: inv.client_name,
+                            amount: inv.amount,
+                            amount_paid: inv.amount_paid,
+                            currency: inv.currency,
+                            due_date: inv.due_date,
+                            days_overdue: Math.max(0, Number(inv.days_overdue || 0))
+                        }))
+                    }
+                }
+            });
+
+        } catch (error) {
+            logger.error('Get PMO Executive Suite error:', error);
+            res.status(500).json({ error: 'Failed to retrieve PMO executive suite data' });
+        }
+    };
 }
+
