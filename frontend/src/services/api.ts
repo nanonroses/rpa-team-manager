@@ -1039,6 +1039,11 @@ class ApiService {
     return response.data;
   }
 
+  async getPMOExecutiveSuite(): Promise<any> {
+    const response = await this.api.get('/pmo/executive-suite');
+    return response.data;
+  }
+
   async getPMOAnalytics(): Promise<any> {
     return this.makeRequest<any>('get', '/pmo/analytics', undefined, undefined, true);
   }
