@@ -97,6 +97,7 @@ The services are orchestrated using `docker-compose.yml`. The backend uses a SQL
 
 ## Development Conventions
 
+*   **UI/UX and Theming Standards (CRÍTICO):** All frontend components must strictly comply with `docs/UI_THEME_SPEC.md`. Zero hardcoded light/dark colors (`#fafafa`, `#262626`, etc.). Always use Ant Design Design Tokens (`theme.useToken()`). No deprecated AntD v4 props (`bodyStyle`, `headStyle`). Must pass `npm run check:theme` before completing any UI task.
 *   **Code Style:** The project uses ESLint and Prettier for code formatting and consistency.
 *   **Commits:** Commit messages should follow the conventional commits specification (e.g., `feat:`, `fix:`, `docs:`).
 *   **Testing:** The project uses Jest for testing.

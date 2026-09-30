@@ -2027,5 +2027,107 @@ export const migrations: Migration[] = [
       )`,
       'CREATE INDEX IF NOT EXISTS idx_llm_usage_user_date ON llm_usage(user_id, created_at)'
     ]
+  },
+  {
+    version: 46,
+    description: 'Centros de costos de la empresa (Chile, Peru, USA), imputación comercial y trazabilidad de facturación',
+    up: [
+      `CREATE TABLE IF NOT EXISTS cost_centers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        code VARCHAR(20) UNIQUE NOT NULL,
+        name VARCHAR(150) NOT NULL,
+        country VARCHAR(10) NOT NULL CHECK (country IN ('CHILE', 'PERU', 'USA')),
+        category VARCHAR(50) NOT NULL,
+        is_rpa BOOLEAN DEFAULT 0,
+        is_active BOOLEAN DEFAULT 1,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_cost_centers_country ON cost_centers(country)`,
+      `CREATE INDEX IF NOT EXISTS idx_cost_centers_is_rpa ON cost_centers(is_rpa)`,
+      `CREATE TABLE IF NOT EXISTS project_cost_center_allocations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        quote_id INTEGER REFERENCES project_quotes(id) ON DELETE SET NULL,
+        cost_center_id INTEGER NOT NULL REFERENCES cost_centers(id),
+        amount DECIMAL(14,2) NOT NULL CHECK (amount >= 0),
+        percentage DECIMAL(5,2),
+        currency VARCHAR(3) NOT NULL DEFAULT 'CLP',
+        description TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )`,
+      `CREATE INDEX IF NOT EXISTS idx_pcca_project ON project_cost_center_allocations(project_id)`,
+      `CREATE INDEX IF NOT EXISTS idx_pcca_cost_center ON project_cost_center_allocations(cost_center_id)`
+    ],
+    run: async (database) => {
+      // 1. Agregar cost_center_id a payment_milestones si no existe
+      const milestoneCols = await new Promise<Array<{ name: string }>>((resolve, reject) => {
+        database.all('PRAGMA table_info(payment_milestones)', (err, rows: any) => err ? reject(err) : resolve(rows));
+      });
+      if (!milestoneCols.some((col) => col.name === 'cost_center_id')) {
+        await new Promise<void>((resolve, reject) => {
+          database.exec('ALTER TABLE payment_milestones ADD COLUMN cost_center_id INTEGER REFERENCES cost_centers(id) ON DELETE SET NULL', (err) => err ? reject(err) : resolve());
+        });
+      }
+
+      // 2. Agregar cost_center_id a invoice_lines si no existe
+      const invoiceLineCols = await new Promise<Array<{ name: string }>>((resolve, reject) => {
+        database.all('PRAGMA table_info(invoice_lines)', (err, rows: any) => err ? reject(err) : resolve(rows));
+      });
+      if (!invoiceLineCols.some((col) => col.name === 'cost_center_id')) {
+        await new Promise<void>((resolve, reject) => {
+          database.exec('ALTER TABLE invoice_lines ADD COLUMN cost_center_id INTEGER REFERENCES cost_centers(id) ON DELETE SET NULL', (err) => err ? reject(err) : resolve());
+        });
+      }
+
+      // 3. Seed de los 28 Centros de Costos
+      const cecos = [
+        // CHILE
+        { code: 'E-MONTEL', name: 'Entel Monitoreo Telco', country: 'CHILE', category: 'ENTEL', is_rpa: 0 },
+        { code: 'E-MONTI', name: 'Entel Monitoreo TI', country: 'CHILE', category: 'ENTEL', is_rpa: 0 },
+        { code: 'E-OUTS', name: 'Entel Outsourcing', country: 'CHILE', category: 'OUTSOURCING', is_rpa: 0 },
+        { code: 'E-MESA', name: 'Entel Mesa Ayuda', country: 'CHILE', category: 'ENTEL', is_rpa: 0 },
+        { code: 'E-RESI', name: 'Entel Residentes', country: 'CHILE', category: 'ENTEL', is_rpa: 0 },
+        { code: 'SAP', name: 'Consultoría SAP', country: 'CHILE', category: 'SAP', is_rpa: 0 },
+        { code: 'RPA-S', name: 'RPA Soporte', country: 'CHILE', category: 'RPA', is_rpa: 1 },
+        { code: 'RPA-L', name: 'RPA Licencias', country: 'CHILE', category: 'RPA', is_rpa: 1 },
+        { code: 'RPA-P', name: 'RPA Proyectos', country: 'CHILE', category: 'RPA', is_rpa: 1 },
+        { code: 'SAAS', name: 'Servicios SAAS', country: 'CHILE', category: 'SOFTWARE', is_rpa: 0 },
+        { code: 'DSOFT', name: 'Desarrollos de software', country: 'CHILE', category: 'SOFTWARE', is_rpa: 0 },
+        { code: 'ARRIENDOS', name: 'Arriendo de Espacios', country: 'CHILE', category: 'FACILITIES', is_rpa: 0 },
+        { code: 'O-OUTS', name: 'Otros Outsourcing', country: 'CHILE', category: 'OUTSOURCING', is_rpa: 0 },
+
+        // PERU
+        { code: 'P-E-OUTS', name: 'Entel Outsourcing', country: 'PERU', category: 'OUTSOURCING', is_rpa: 0 },
+        { code: 'P-SAP', name: 'Consultoría SAP', country: 'PERU', category: 'SAP', is_rpa: 0 },
+        { code: 'P-RPA-S', name: 'RPA Soporte', country: 'PERU', category: 'RPA', is_rpa: 1 },
+        { code: 'P-RPA-L', name: 'RPA Licencias', country: 'PERU', category: 'RPA', is_rpa: 1 },
+        { code: 'P-RPA-P', name: 'RPA Proyectos', country: 'PERU', category: 'RPA', is_rpa: 1 },
+        { code: 'P-SAAS', name: 'Servicios SAAS', country: 'PERU', category: 'SOFTWARE', is_rpa: 0 },
+        { code: 'P-DSOFT', name: 'Desarrollos de software', country: 'PERU', category: 'SOFTWARE', is_rpa: 0 },
+        { code: 'P-O-OUTS', name: 'Otros Outsourcing', country: 'PERU', category: 'OUTSOURCING', is_rpa: 0 },
+
+        // USA
+        { code: 'U-SAP', name: 'Consultoría SAP', country: 'USA', category: 'SAP', is_rpa: 0 },
+        { code: 'U-RPA-S', name: 'RPA Soporte', country: 'USA', category: 'RPA', is_rpa: 1 },
+        { code: 'U-RPA-L', name: 'RPA Licencias', country: 'USA', category: 'RPA', is_rpa: 1 },
+        { code: 'U-RPA-P', name: 'RPA Proyectos', country: 'USA', category: 'RPA', is_rpa: 1 },
+        { code: 'U-SAAS', name: 'Servicios SAAS', country: 'USA', category: 'SOFTWARE', is_rpa: 0 },
+        { code: 'U-DSOFT', name: 'Desarrollos de software', country: 'USA', category: 'SOFTWARE', is_rpa: 0 },
+        { code: 'U-OUTS', name: 'Outsourcing', country: 'USA', category: 'OUTSOURCING', is_rpa: 0 }
+      ];
+
+      for (const ceco of cecos) {
+        await new Promise<void>((resolve, reject) => {
+          database.run(
+            `INSERT OR IGNORE INTO cost_centers (code, name, country, category, is_rpa, is_active)
+             VALUES (?, ?, ?, ?, ?, 1)`,
+            [ceco.code, ceco.name, ceco.country, ceco.category, ceco.is_rpa],
+            (err) => err ? reject(err) : resolve()
+          );
+        });
+      }
+    }
   }
 ];

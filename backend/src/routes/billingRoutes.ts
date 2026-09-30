@@ -23,6 +23,7 @@ const billingPaymentRoles = authorize(['team_lead', 'billing']);
 // DASHBOARD DE COBRANZA
 // ========================================
 router.get('/dashboard', billingReadRoles, billingController.getDashboard);
+router.get('/cost-center-summary', billingReadRoles, billingController.getCostCenterBillingSummary);
 router.post('/evaluate', authorize(['team_lead', 'billing']), billingController.evaluate);
 
 // ========================================

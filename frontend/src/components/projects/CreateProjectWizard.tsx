@@ -1,14 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Steps, Form, Input, Select, DatePicker, InputNumber, Alert, Upload, Button, message, Space, Table, Statistic } from 'antd';
-import { UploadOutlined, PlusOutlined } from '@ant-design/icons';
+import { Modal, Steps, Form, Input, Select, DatePicker, InputNumber, Alert, Upload, Button, message, Space, Table, Statistic, Typography } from 'antd';
+import { UploadOutlined, PlusOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { Project } from '@/types/project';
 import { apiService } from '@/services/api';
 import { useAuthStore } from '@/store/authStore';
 import { useProjectStore } from '@/store/projectStore';
 import { buildUserAssignments } from './projectAssignments';
+import { CostCenterDistributionPicker } from '@/components/costCenters/CostCenterDistributionPicker';
+import { CostCenterTag } from '@/components/costCenters/CostCenterTag';
+import { ProjectCostCenterAllocation } from '@/types/costCenter';
 
 const { TextArea } = Input;
 const { RangePicker } = DatePicker;
+const { Text } = Typography;
 
 export interface QuoteStepData {
   pricing_model: 'fixed' | 'hourly' | 'mixed';
@@ -27,6 +32,9 @@ interface MilestoneRow {
   amount: number;
   currency: 'CLP' | 'UF' | 'USD';
   planned_date: string;
+  cost_center_id?: number | null;
+  cost_center_code?: string;
+  cost_center_name?: string;
 }
 
 interface CreateProjectWizardProps {
@@ -57,6 +65,9 @@ export const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ visibl
   const [createdProject, setCreatedProject] = useState<Project | null>(null);
   const [costEstimate, setCostEstimate] = useState<any>(null);
   const [milestoneRows, setMilestoneRows] = useState<MilestoneRow[]>([]);
+  const [costCenterAllocations, setCostCenterAllocations] = useState<ProjectCostCenterAllocation[]>([]);
+  const watchedQuoteAmount = Form.useWatch('amount', quoteForm);
+  const watchedQuoteCurrency = Form.useWatch('currency', quoteForm) || 'CLP';
 
   useEffect(() => {
     if (!visible) return;
@@ -68,6 +79,7 @@ export const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ visibl
     setCreatedProject(null);
     setCostEstimate(null);
     setMilestoneRows([]);
+    setCostCenterAllocations([]);
     void loadDirectories();
     void loadTeamMembers();
   }, [visible]);
@@ -158,6 +170,16 @@ export const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ visibl
         }
       }
 
+      if (costCenterAllocations.length > 0) {
+        try {
+          await apiService.setProjectCostCenters(project.id, {
+            allocations: costCenterAllocations,
+          });
+        } catch (error) {
+          console.warn('No se pudo registrar la imputación de centros de costo:', error);
+        }
+      }
+
       if (!isOperations && team.assigned_users?.length) {
         try {
           const userAssignments = buildUserAssignments(team.assigned_users, team.default_allocation, team.budgeted_hours_per_person, basics.dates?.[0]?.format('YYYY-MM-DD'), basics.dates?.[1]?.format('YYYY-MM-DD'));
@@ -189,9 +211,36 @@ export const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ visibl
     }
   };
 
+  const generateMilestonesFromAllocations = () => {
+    const today = dayjs().format('YYYY-MM-DD');
+    const newRows: MilestoneRow[] = costCenterAllocations.map((alloc, idx) => ({
+      key: Date.now() + idx,
+      name: `Hito ${alloc.cost_center_code} - ${alloc.description || alloc.cost_center_name || 'Servicio RPA'}`,
+      amount: alloc.amount,
+      currency: (alloc.currency as any) || watchedQuoteCurrency || 'CLP',
+      planned_date: today,
+      cost_center_id: alloc.cost_center_id,
+      cost_center_code: alloc.cost_center_code,
+      cost_center_name: alloc.cost_center_name,
+    }));
+    setMilestoneRows((rows) => [...rows, ...newRows]);
+    message.success(`${newRows.length} hitos generados automáticamente a partir de la imputación CECO`);
+  };
+
   const addMilestoneRow = async () => {
     const values = await milestoneForm.validateFields();
-    setMilestoneRows((rows) => [...rows, { ...values, key: Date.now(), planned_date: values.planned_date.format('YYYY-MM-DD') }]);
+    const ceco = costCenterAllocations.find((a) => a.cost_center_id === values.cost_center_id);
+    setMilestoneRows((rows) => [
+      ...rows,
+      {
+        ...values,
+        key: Date.now(),
+        planned_date: values.planned_date.format('YYYY-MM-DD'),
+        cost_center_id: values.cost_center_id || null,
+        cost_center_code: ceco?.cost_center_code,
+        cost_center_name: ceco?.cost_center_name,
+      }
+    ]);
     milestoneForm.resetFields();
   };
 
@@ -199,7 +248,15 @@ export const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ visibl
     if (createdProject && milestoneRows.length) {
       for (const row of milestoneRows) {
         try {
-          await apiService.post('/billing/payment-milestones', { project_id: createdProject.id, name: row.name, amount: row.amount, currency: row.currency, trigger_type: 'date', planned_date: row.planned_date });
+          await apiService.post('/billing/payment-milestones', {
+            project_id: createdProject.id,
+            name: row.name,
+            amount: row.amount,
+            currency: row.currency,
+            trigger_type: 'date',
+            planned_date: row.planned_date,
+            cost_center_id: row.cost_center_id || undefined,
+          });
         } catch (error) {
           message.warning(`No se pudo guardar el hito "${row.name}"`);
         }
@@ -215,7 +272,7 @@ export const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ visibl
   };
 
   return (
-    <Modal title="Nuevo proyecto" open={visible} onCancel={handleCancel} footer={null} width={720} destroyOnHidden>
+    <Modal title="Nuevo proyecto" open={visible} onCancel={handleCancel} footer={null} width={860} destroyOnHidden>
       <Steps current={stepKeys.indexOf(currentKey)} items={stepKeys.map((key) => ({ title: stepTitles[key] }))} style={{ marginBottom: 24 }} />
 
       <Form form={basicForm} layout="vertical" style={{ display: currentKey === 'basics' ? 'block' : 'none' }} initialValues={{ opportunity_source: 'direct', priority: 'medium' }}>
@@ -259,6 +316,18 @@ export const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ visibl
         </Form.Item>
         <Form.Item name="estimated_cost" label="Costo interno estimado (opcional)"><InputNumber style={{ width: '100%' }} min={0} precision={2} /></Form.Item>
         <Form.Item name="notes" label="Notas"><TextArea rows={2} /></Form.Item>
+
+        {watchedQuoteAmount && watchedQuoteAmount > 0 && (
+          <div style={{ marginTop: 20, marginBottom: 20 }}>
+            <CostCenterDistributionPicker
+              totalAmount={watchedQuoteAmount}
+              currency={watchedQuoteCurrency}
+              allocations={costCenterAllocations}
+              onChange={setCostCenterAllocations}
+            />
+          </div>
+        )}
+
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
           <Button onClick={() => setCurrentKey('basics')}>Atrás</Button>
           <Button type="primary" onClick={goNextFromQuote}>Siguiente</Button>
@@ -312,14 +381,51 @@ export const CreateProjectWizard: React.FC<CreateProjectWizardProps> = ({ visibl
           <Alert type="info" showIcon message="Solo el líder de equipo puede cargar hitos de pago. Se pueden completar después desde la ficha del proyecto." />
         ) : (
           <>
+            {costCenterAllocations.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <Button
+                  type="dashed"
+                  icon={<ThunderboltOutlined />}
+                  onClick={generateMilestonesFromAllocations}
+                >
+                  ⚡ Generar {costCenterAllocations.length} hitos automáticos desde la imputación por CECO
+                </Button>
+              </div>
+            )}
             <Form form={milestoneForm} layout="inline" style={{ marginBottom: 16 }}>
               <Form.Item name="name" rules={[{ required: true, message: 'Nombre' }]}><Input placeholder="Nombre del hito" /></Form.Item>
               <Form.Item name="amount" rules={[{ required: true, message: 'Monto' }]}><InputNumber placeholder="Monto" min={0} /></Form.Item>
-              <Form.Item name="currency" initialValue="CLP"><Select style={{ width: 90 }} options={[{ value: 'CLP', label: 'CLP' }, { value: 'UF', label: 'UF' }, { value: 'USD', label: 'USD' }]} /></Form.Item>
+              <Form.Item name="currency" initialValue={watchedQuoteCurrency || 'CLP'}><Select style={{ width: 90 }} options={[{ value: 'CLP', label: 'CLP' }, { value: 'UF', label: 'UF' }, { value: 'USD', label: 'USD' }]} /></Form.Item>
+              <Form.Item name="cost_center_id">
+                <Select
+                  style={{ width: 160 }}
+                  placeholder="CECO"
+                  allowClear
+                  options={costCenterAllocations.map((a) => ({
+                    value: a.cost_center_id,
+                    label: `${a.cost_center_code} (${a.cost_center_name || ''})`,
+                  }))}
+                />
+              </Form.Item>
               <Form.Item name="planned_date" rules={[{ required: true, message: 'Fecha' }]}><DatePicker placeholder="Fecha prevista" /></Form.Item>
               <Form.Item><Button icon={<PlusOutlined />} onClick={addMilestoneRow}>Agregar hito</Button></Form.Item>
             </Form>
-            <Table size="small" pagination={false} dataSource={milestoneRows} rowKey="key" columns={[{ title: 'Hito', dataIndex: 'name' }, { title: 'Monto', dataIndex: 'amount' }, { title: 'Moneda', dataIndex: 'currency' }, { title: 'Fecha', dataIndex: 'planned_date' }]} />
+            <Table
+              size="small"
+              pagination={false}
+              dataSource={milestoneRows}
+              rowKey="key"
+              columns={[
+                { title: 'Hito', dataIndex: 'name' },
+                { title: 'Monto', dataIndex: 'amount', render: (val: any, r: MilestoneRow) => `${r.currency} ${val?.toLocaleString()}` },
+                {
+                  title: 'Centro de Costo',
+                  dataIndex: 'cost_center_code',
+                  render: (code: string) => code ? <CostCenterTag code={code} size="small" /> : <Text type="secondary">-</Text>,
+                },
+                { title: 'Fecha', dataIndex: 'planned_date' },
+              ]}
+            />
           </>
         )}
         <div style={{ textAlign: 'right', marginTop: 16 }}><Button type="primary" onClick={finish}>Finalizar</Button></div>

@@ -22,16 +22,30 @@ export class BillingController {
     getPaymentMilestones = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             const projectId = req.query.project_id ? parseInt(req.query.project_id as string) : undefined;
-            const filter = projectId ? 'WHERE pm.project_id = ?' : '';
-            const params = projectId ? [projectId] : [];
+            const conditions: string[] = [];
+            const params: any[] = [];
+            if (projectId) {
+                conditions.push('pm.project_id = ?');
+                params.push(projectId);
+            }
+            if (req.query.cost_center_id) {
+                conditions.push('pm.cost_center_id = ?');
+                params.push(parseInt(req.query.cost_center_id as string));
+            }
+            if (req.query.rpa_only === 'true' || req.query.rpa_only === '1') {
+                conditions.push('cc.is_rpa = 1');
+            }
+            const filter = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
 
             await billingService.evaluateTriggers(projectId);
             await billingService.evaluateOverdue(projectId);
             const rows = await db.query(
-                `SELECT pm.*, p.name as project_name, mile.name AS source_milestone_name
+                `SELECT pm.*, p.name as project_name, mile.name AS source_milestone_name,
+                        cc.code AS cost_center_code, cc.name AS cost_center_name, cc.country AS cost_center_country, cc.is_rpa AS cost_center_is_rpa
                  FROM payment_milestones pm
                  JOIN projects p ON p.id = pm.project_id
                  LEFT JOIN project_milestones mile ON mile.id = pm.project_milestone_id
+                 LEFT JOIN cost_centers cc ON cc.id = pm.cost_center_id
                  ${filter}
                  ORDER BY pm.sort_order ASC, pm.planned_date ASC`,
                 params
@@ -47,22 +61,28 @@ export class BillingController {
     createPaymentMilestone = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
         try {
             const {
-                project_id, project_milestone_id, name, description,
+                project_id, project_milestone_id, cost_center_id, name, description,
                 amount, currency, trigger_type, trigger_value, planned_date, sort_order
             } = req.body;
 
             const result = await db.run(
                 `INSERT INTO payment_milestones (
-                    project_id, project_milestone_id, name, description, amount, currency,
+                    project_id, project_milestone_id, cost_center_id, name, description, amount, currency,
                     trigger_type, trigger_value, planned_date, sort_order, created_by
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [project_id, project_milestone_id ?? null, name, description ?? null, amount, currency,
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [project_id, project_milestone_id ?? null, cost_center_id ?? null, name, description ?? null, amount, currency,
                  trigger_type, trigger_value ?? null, planned_date ?? null, sort_order ?? 0, req.user?.id]
             );
 
-            const created = await db.get(`SELECT * FROM payment_milestones WHERE id = ?`, [result.id]);
+            const created = await db.get(
+                `SELECT pm.*, cc.code AS cost_center_code, cc.name AS cost_center_name, cc.country AS cost_center_country, cc.is_rpa AS cost_center_is_rpa
+                 FROM payment_milestones pm
+                 LEFT JOIN cost_centers cc ON cc.id = pm.cost_center_id
+                 WHERE pm.id = ?`,
+                [result.id]
+            );
             await activityLogService.logActivity(req.user?.id, 'payment_milestone', Number(result.id), 'created', null, created);
-            await activityLogService.logActivity(req.user?.id, 'project', Number(project_id), 'payment_milestone_created', null, { payment_milestone_id: result.id, name, amount, currency });
+            await activityLogService.logActivity(req.user?.id, 'project', Number(project_id), 'payment_milestone_created', null, { payment_milestone_id: result.id, name, amount, currency, cost_center_id });
             res.status(201).json(created);
         } catch (error) {
             logger.error('Create payment milestone error:', error);
@@ -83,7 +103,7 @@ export class BillingController {
                 return;
             }
 
-            const fields = ['name', 'description', 'amount', 'currency', 'planned_date', 'trigger_value', 'sort_order'];
+            const fields = ['name', 'description', 'amount', 'currency', 'planned_date', 'trigger_value', 'sort_order', 'cost_center_id'];
             const updates = fields.filter(f => req.body[f] !== undefined);
             if (updates.length === 0) {
                 res.status(400).json({ error: 'No fields to update' });
@@ -94,7 +114,13 @@ export class BillingController {
             const values = updates.map(f => req.body[f]);
             await db.run(`UPDATE payment_milestones SET ${setClause} WHERE id = ?`, [...values, id]);
 
-            const updated = await db.get(`SELECT * FROM payment_milestones WHERE id = ?`, [id]);
+            const updated = await db.get(
+                `SELECT pm.*, cc.code AS cost_center_code, cc.name AS cost_center_name, cc.country AS cost_center_country, cc.is_rpa AS cost_center_is_rpa
+                 FROM payment_milestones pm
+                 LEFT JOIN cost_centers cc ON cc.id = pm.cost_center_id
+                 WHERE pm.id = ?`,
+                [id]
+            );
             await activityLogService.logActivity(req.user?.id, 'payment_milestone', Number(id), 'updated', existing, updated);
             await activityLogService.logActivity(req.user?.id, 'project', Number(existing.project_id), 'payment_milestone_updated', existing, updated);
             res.json(updated);
@@ -166,7 +192,13 @@ export class BillingController {
 
             const withLines = await Promise.all(invoices.map(async (inv: any) => ({
                 ...inv,
-                lines: await db.query(`SELECT * FROM invoice_lines WHERE invoice_id = ?`, [inv.id]),
+                lines: await db.query(
+                    `SELECT il.*, cc.code AS cost_center_code, cc.name AS cost_center_name, cc.is_rpa AS cost_center_is_rpa
+                     FROM invoice_lines il
+                     LEFT JOIN cost_centers cc ON cc.id = il.cost_center_id
+                     WHERE il.invoice_id = ?`,
+                    [inv.id]
+                ),
                 payments: await db.query(`SELECT * FROM payments WHERE invoice_id = ? ORDER BY payment_date DESC, id DESC`, [inv.id]),
                 totals: await db.get(`SELECT COALESCE(SUM(amount), 0) AS paid_amount FROM payments WHERE invoice_id = ?`, [inv.id])
             })));
@@ -230,9 +262,9 @@ export class BillingController {
 
                 for (const m of milestones) {
                     await db.run(
-                        `INSERT INTO invoice_lines (invoice_id, payment_milestone_id, description, amount)
-                         VALUES (?, ?, ?, ?)`,
-                        [invoiceId, m.id, m.name, m.amount]
+                        `INSERT INTO invoice_lines (invoice_id, payment_milestone_id, cost_center_id, description, amount)
+                         VALUES (?, ?, ?, ?, ?)`,
+                        [invoiceId, m.id, m.cost_center_id ?? null, m.name, m.amount]
                     );
                     await db.run(`UPDATE payment_milestones SET status = 'invoiced' WHERE id = ?`, [m.id]);
                 }
@@ -400,6 +432,22 @@ export class BillingController {
         } catch (error) {
             logger.error('Get payment statement error:', error);
             res.status(500).json({ error: 'Failed to generate payment statement' });
+        }
+    };
+
+    getCostCenterBillingSummary = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+        try {
+            const { country, is_rpa, project_id } = req.query;
+            const filters: any = {};
+            if (country) filters.country = String(country);
+            if (is_rpa !== undefined && is_rpa !== '') filters.is_rpa = is_rpa === 'true' || is_rpa === '1';
+            if (project_id) filters.projectId = Number(project_id);
+
+            const summary = await billingService.getCostCenterBillingSummary(filters);
+            res.json(summary);
+        } catch (error) {
+            logger.error('Get cost center billing summary error:', error);
+            res.status(500).json({ error: 'Failed to get cost center billing summary' });
         }
     };
 }

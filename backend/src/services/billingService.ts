@@ -4,6 +4,7 @@ import { financeService, Currency } from './financeService';
 import { notificationService } from './notificationService';
 import { emailService } from './emailService';
 import { activityLogService } from './activityLogService';
+import { CostCenterBillingSummaryRow } from '../types/costCenter';
 
 export interface PaymentMilestoneRow {
     id: number;
@@ -378,6 +379,115 @@ export class BillingService {
         );
 
         return updated;
+    }
+
+    /**
+     * Resumen de facturación e imputaciones agrupado por Centro de Costo (CECO).
+     */
+    async getCostCenterBillingSummary(options?: { country?: string; is_rpa?: boolean; projectId?: number }): Promise<CostCenterBillingSummaryRow[]> {
+        const conditions: string[] = ['cc.is_active = 1'];
+        const params: any[] = [];
+
+        if (options?.country) {
+            conditions.push('cc.country = ?');
+            params.push(options.country.toUpperCase());
+        }
+        if (options?.is_rpa !== undefined) {
+            conditions.push('cc.is_rpa = ?');
+            params.push(options.is_rpa ? 1 : 0);
+        }
+
+        const costCenters = await db.query(
+            `SELECT id, code, name, country, category, is_rpa FROM cost_centers cc
+             WHERE ${conditions.join(' AND ')}
+             ORDER BY cc.country ASC, cc.is_rpa DESC, cc.name ASC`,
+            params
+        );
+
+        const projectFilter = options?.projectId ? 'AND pcca.project_id = ?' : '';
+        const projectParams = options?.projectId ? [options.projectId] : [];
+
+        // Imputaciones
+        const allocations = await db.query(
+            `SELECT pcca.cost_center_id, pcca.amount, pcca.currency
+             FROM project_cost_center_allocations pcca
+             WHERE 1=1 ${projectFilter}`,
+            projectParams
+        );
+
+        // Hitos de pago
+        const pmFilter = options?.projectId ? 'AND pm.project_id = ?' : '';
+        const milestones = await db.query(
+            `SELECT pm.cost_center_id, pm.amount, pm.currency, pm.status
+             FROM payment_milestones pm
+             WHERE pm.cost_center_id IS NOT NULL ${pmFilter}`,
+            projectParams
+        );
+
+        // Facturas / Líneas de factura
+        const invFilter = options?.projectId ? 'AND i.project_id = ?' : '';
+        const invoiceLines = await db.query(
+            `SELECT il.cost_center_id, il.amount, i.currency, i.status AS invoice_status,
+                    (SELECT COALESCE(SUM(p.amount), 0) FROM payments p WHERE p.invoice_id = i.id) AS total_paid_on_invoice,
+                    i.amount AS total_invoice_amount
+             FROM invoice_lines il
+             JOIN invoices i ON i.id = il.invoice_id
+             WHERE il.cost_center_id IS NOT NULL ${invFilter}`,
+            projectParams
+        );
+
+        const summary: CostCenterBillingSummaryRow[] = [];
+
+        for (const cc of costCenters) {
+            // Sum allocated
+            const ccAllocations = allocations.filter((a: any) => a.cost_center_id === cc.id);
+            let allocatedCLP = 0;
+            for (const a of ccAllocations) {
+                allocatedCLP += await financeService.toCLP(Number(a.amount || 0), a.currency as Currency);
+            }
+
+            // Sum invoiced & paid
+            const ccInvLines = invoiceLines.filter((l: any) => l.cost_center_id === cc.id);
+            let invoicedCLP = 0;
+            let paidCLP = 0;
+            for (const l of ccInvLines) {
+                const lineCLP = await financeService.toCLP(Number(l.amount || 0), l.currency as Currency);
+                invoicedCLP += lineCLP;
+
+                const invTotal = Number(l.total_invoice_amount || 0);
+                const invPaid = Number(l.total_paid_on_invoice || 0);
+                if (invTotal > 0 && invPaid > 0) {
+                    const ratio = Math.min(1, invPaid / invTotal);
+                    paidCLP += Math.round(lineCLP * ratio);
+                }
+            }
+
+            // Milestones pending invoice
+            const ccMilestones = milestones.filter((m: any) => m.cost_center_id === cc.id && ['pending', 'billable'].includes(m.status));
+            let pendingInvoiceCLP = 0;
+            for (const m of ccMilestones) {
+                pendingInvoiceCLP += await financeService.toCLP(Number(m.amount || 0), m.currency as Currency);
+            }
+            if (pendingInvoiceCLP === 0 && allocatedCLP > invoicedCLP) {
+                pendingInvoiceCLP = allocatedCLP - invoicedCLP;
+            }
+
+            summary.push({
+                cost_center_id: cc.id,
+                code: cc.code,
+                name: cc.name,
+                country: cc.country,
+                category: cc.category,
+                is_rpa: Boolean(cc.is_rpa),
+                allocated_amount_clp: Math.round(allocatedCLP),
+                invoiced_amount_clp: Math.round(invoicedCLP),
+                paid_amount_clp: Math.round(paidCLP),
+                pending_invoice_clp: Math.round(pendingInvoiceCLP),
+                pending_payment_clp: Math.max(0, Math.round(invoicedCLP - paidCLP))
+            });
+        }
+
+        return summary;
     }
 }
 

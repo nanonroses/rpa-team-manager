@@ -245,6 +245,7 @@ export const getAntdTheme = (palette: ThemePalette = activePalette): ThemeConfig
     Select: {
       borderRadius: designTokens.radius.medium,
       optionSelectedBg: palette.color.primaryBg,
+      optionSelectedColor: palette.color.primary,
     },
     Tag: {
       borderRadiusSM: designTokens.radius.small,

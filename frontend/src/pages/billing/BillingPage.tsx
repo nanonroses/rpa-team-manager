@@ -2,13 +2,16 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Alert, Card, Row, Col, Statistic, Table, Tag, Tabs, Button, Space, Select, Descriptions,
-  Modal, Form, Input, InputNumber, DatePicker, message, Empty, Typography
+  Modal, Form, Input, InputNumber, DatePicker, message, Empty, Typography, theme
 } from 'antd';
-import { PlusOutlined, DownloadOutlined, DollarOutlined, FileTextOutlined } from '@ant-design/icons';
+import { PlusOutlined, DownloadOutlined, DollarOutlined, FileTextOutlined, StarFilled } from '@ant-design/icons';
 import apiService from '../../services/api';
 import { useAuthStore } from '@/store/authStore';
 import { BillingDashboard, BillingDashboardRow, PaymentMilestone, Invoice } from '../../types/billing';
 import { ConfirmAction } from '@/components/common';
+import { CostCenter } from '@/types/costCenter';
+import CostCenterTag from '@/components/costCenters/CostCenterTag';
+import { CostCenterSummaryPanel } from '@/components/billing/CostCenterSummaryPanel';
 
 const STATUS_COLOR: Record<string, string> = {
   pending: 'default',
@@ -33,6 +36,14 @@ const CURRENCY_OPTIONS = [
 ];
 
 const BillingPage: React.FC = () => {
+  const { token } = theme.useToken();
+  const isDark = typeof document !== 'undefined' && (
+    document.documentElement.dataset.theme === 'dark' ||
+    token.colorBgBase === '#0F0F10' ||
+    token.colorBgContainer === '#171718' ||
+    token.colorBgElevated === '#262626'
+  );
+
   const { user } = useAuthStore();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -40,6 +51,9 @@ const BillingPage: React.FC = () => {
   const [quotes, setQuotes] = useState<any[]>([]);
   const [projects, setProjects] = useState<{ id: number; name: string }[]>([]);
   const [projectFilter, setProjectFilter] = useState<number | undefined>(undefined);
+  const [costCenterFilter, setCostCenterFilter] = useState<number | undefined>(undefined);
+  const [rpaOnlyFilter, setRpaOnlyFilter] = useState<boolean>(false);
+  const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
   const requestedStatus = searchParams.get('status') || undefined;
   const [currencyFilter, setCurrencyFilter] = useState<string | undefined>(undefined);
@@ -75,7 +89,13 @@ const BillingPage: React.FC = () => {
   const formatMoney = (amount: number, currency: string) => `${Number(amount || 0).toLocaleString('es-CL')} ${currency}`;
   const formatDate = (value?: string | null) => value ? new Date(`${value.slice(0, 10)}T00:00:00`).toLocaleDateString('es-CL') : 'Sin fecha';
   const filterByPeriod = (date?: string | null) => !filters.period || !date || ((!filters.period[0] || date.slice(0, 10) >= filters.period[0].format('YYYY-MM-DD')) && (!filters.period[1] || date.slice(0, 10) <= filters.period[1].format('YYYY-MM-DD')));
-  const visibleMilestones = milestones.filter((row) => (!statusFilter || row.status === statusFilter) && (!currencyFilter || row.currency === currencyFilter) && filterByPeriod(row.planned_date));
+  const visibleMilestones = milestones.filter((row) =>
+    (!statusFilter || row.status === statusFilter) &&
+    (!currencyFilter || row.currency === currencyFilter) &&
+    (!costCenterFilter || row.cost_center_id === costCenterFilter) &&
+    (!rpaOnlyFilter || row.cost_center_is_rpa) &&
+    filterByPeriod(row.planned_date)
+  );
   const visibleInvoices = invoices.filter((row) => (!statusFilter || (statusFilter === 'invoiced' ? row.status === 'issued' || row.status === 'partially_paid' : row.status === statusFilter)) && (!currencyFilter || row.currency === currencyFilter) && (!clientFilter || row.client_name === clientFilter) && filterByPeriod(row.due_date));
   const visibleQuotes = quotes.filter((row) => !projectFilter || row.project_id === projectFilter)
     .filter((row) => !currencyFilter || row.currency === currencyFilter)
@@ -92,6 +112,18 @@ const BillingPage: React.FC = () => {
   };
 
   useEffect(() => {
+    apiService.getCostCenters({ active_only: true })
+      .then((res) => {
+        const list = Array.isArray(res) ? res : (res as any)?.data || [];
+        setCostCenters(Array.isArray(list) ? list : []);
+      })
+      .catch((err) => {
+        console.error('Error al cargar centros de costo:', err);
+        setCostCenters([]);
+      });
+  }, []);
+
+  useEffect(() => {
     apiService.getProjects().then(p => {
       setProjects(p.map((x: any) => ({ id: x.id, name: x.name })));
       const relevantProjects = p.filter((x: any) => x.project_type === 'commercial' || x.client_id).map((x: any) => ({ id: x.id, name: x.name, client_name: x.client_name }));
@@ -103,7 +135,7 @@ const BillingPage: React.FC = () => {
   useEffect(() => {
     loadAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectFilter]);
+  }, [projectFilter, costCenterFilter, rpaOnlyFilter]);
 
   useEffect(() => {
     if (requestedStatus) setStatusFilter(requestedStatus);
@@ -126,7 +158,10 @@ const BillingPage: React.FC = () => {
       setLoading(true);
       const [dash, ms, inv] = await Promise.all([
         apiService.getBillingDashboard(projectFilter),
-        apiService.getPaymentMilestones(projectFilter),
+        apiService.getPaymentMilestones(projectFilter, {
+          cost_center_id: costCenterFilter,
+          rpa_only: rpaOnlyFilter,
+        }),
         apiService.getInvoices(projectFilter)
       ]);
       setDashboard(dash);
@@ -164,6 +199,7 @@ const BillingPage: React.FC = () => {
     try {
       const payload: any = {
         project_id: values.project_id,
+        cost_center_id: values.cost_center_id || undefined,
         name: values.name,
         description: values.description,
         amount: values.amount,
@@ -278,6 +314,19 @@ const BillingPage: React.FC = () => {
     { title: 'Proyecto', key: 'project', render: (_: unknown, r: PaymentMilestone) => <Button type="link" onClick={() => goToProject(r.project_id, 'billing')}>{r.project_name}</Button> },
     { title: 'Origen', key: 'source', render: (_: unknown, r: PaymentMilestone) => r.project_milestone_id ? <Button type="link" onClick={() => navigate(`/pmo/gantt/${r.project_id}`)}>{r.source_milestone_name || `Hito #${r.project_milestone_id}`}</Button> : 'Fecha / condición comercial' },
     { title: 'Nombre', dataIndex: 'name', key: 'name' },
+    {
+      title: 'Centro de Costo',
+      key: 'cost_center',
+      render: (_: unknown, r: PaymentMilestone) => (
+        <CostCenterTag
+          code={r.cost_center_code}
+          name={r.cost_center_name}
+          country={r.cost_center_country}
+          isRpa={r.cost_center_is_rpa}
+          size="small"
+        />
+      ),
+    },
     { title: 'Monto', key: 'amount', render: (_: unknown, r: PaymentMilestone) => formatMoney(r.amount, r.currency) },
     { title: 'Fecha planificada', dataIndex: 'planned_date', key: 'planned_date', render: formatDate },
     {
@@ -360,6 +409,32 @@ const BillingPage: React.FC = () => {
               { value: 'sent', label: 'Cotización enviada' }, { value: 'approved', label: 'Cotización aprobada' }, { value: 'replaced', label: 'Cotización reemplazada' }
             ]} />
             <Select allowClear placeholder="Todas las monedas" style={{ width: 155 }} value={currencyFilter} onChange={setCurrencyFilter} options={CURRENCY_OPTIONS} />
+            <Button
+              size="middle"
+              type={rpaOnlyFilter ? 'primary' : 'default'}
+              icon={<StarFilled style={{ color: rpaOnlyFilter ? '#fff' : '#faad14' }} />}
+              onClick={() => {
+                setRpaOnlyFilter(!rpaOnlyFilter);
+                if (!rpaOnlyFilter) setCostCenterFilter(undefined);
+              }}
+            >
+              ⭐ Mis CECOs RPA
+            </Button>
+            <Select
+              allowClear
+              placeholder="Centro de Costo"
+              style={{ width: 175 }}
+              value={costCenterFilter}
+              onChange={setCostCenterFilter}
+              showSearch
+              filterOption={(input, option) =>
+                String(option?.label || '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={(Array.isArray(costCenters) ? costCenters : []).map((c) => ({
+                value: c.id,
+                label: `${c.code} - ${c.name}`,
+              }))}
+            />
             <DatePicker.RangePicker value={filters.period as any} onChange={(period) => setFilters((current) => ({ ...current, period: period as [any, any] | null }))} aria-label="Periodo de cobranza" />
             {canManageBilling && <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateModalOpen(true)}>
               Nuevo hito de pago
@@ -441,6 +516,11 @@ const BillingPage: React.FC = () => {
               key: 'invoices',
               label: 'Facturas y pagos',
               children: <Table dataSource={visibleInvoices} columns={invoiceColumns} rowKey="id" loading={loading} pagination={{ pageSize: 10 }} locale={{ emptyText: loading ? 'Cargando facturas…' : 'No hay facturas en este filtro' }} />
+            },
+            {
+              key: 'cost-centers',
+              label: 'Imputación por CECO',
+              children: <CostCenterSummaryPanel projectId={projectFilter} />
             }
           ]}
         />
@@ -456,6 +536,20 @@ const BillingPage: React.FC = () => {
         <Form form={form} layout="vertical" onFinish={handleCreateMilestone}>
           <Form.Item name="project_id" label="Proyecto" rules={[{ required: true }]}>
             <Select options={projects.map(p => ({ value: p.id, label: p.name }))} />
+          </Form.Item>
+          <Form.Item name="cost_center_id" label="Centro de Costo (CECO)">
+            <Select
+              allowClear
+              placeholder="Seleccionar Centro de Costo (Opcional)"
+              showSearch
+              filterOption={(input, option) =>
+                String(option?.label || '').toLowerCase().includes(input.toLowerCase())
+              }
+              options={(Array.isArray(costCenters) ? costCenters : []).map((c) => ({
+                value: c.id,
+                label: `${c.code} - ${c.name} (${c.country}) ${c.is_rpa ? '⭐ RPA' : ''}`,
+              }))}
+            />
           </Form.Item>
           <Form.Item name="name" label="Nombre" rules={[{ required: true }]}>
             <Input placeholder="Ej: Anticipo 30%" />
@@ -514,10 +608,43 @@ const BillingPage: React.FC = () => {
         onOk={() => invoiceForm.submit()}
         destroyOnHidden
       >
-        <p>
-          Se facturarán {selectedMilestones.length} hito(s) de "{selectedMilestones[0]?.project_name || '—'}" por un total de{' '}
-          {selectedMilestones.reduce((s, m) => s + m.amount, 0).toLocaleString('es-CL')} {selectedMilestones[0]?.currency}.
-        </p>
+        <div style={{ marginBottom: 16 }}>
+          <p>
+            Se facturarán {selectedMilestones.length} hito(s) de "{selectedMilestones[0]?.project_name || '—'}" por un total de{' '}
+            <strong>{selectedMilestones.reduce((s, m) => s + m.amount, 0).toLocaleString('es-CL')} {selectedMilestones[0]?.currency}</strong>.
+          </p>
+          <div style={{ fontSize: 12, color: token.colorTextSecondary, marginBottom: 8, fontWeight: 600 }}>
+            Imputación por Centro de Costo en las líneas de factura:
+          </div>
+          <Space direction="vertical" style={{ width: '100%' }} size={6}>
+            {selectedMilestones.map((m) => (
+              <div
+                key={m.id}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : token.colorFillAlter,
+                  padding: '6px 10px',
+                  borderRadius: 4,
+                  border: `1px solid ${token.colorBorderSecondary}`,
+                }}
+              >
+                <span>{m.name}</span>
+                <Space>
+                  <Typography.Text strong>{m.currency} {m.amount.toLocaleString('es-CL')}</Typography.Text>
+                  <CostCenterTag
+                    code={m.cost_center_code}
+                    name={m.cost_center_name}
+                    country={m.cost_center_country}
+                    isRpa={m.cost_center_is_rpa}
+                    size="small"
+                  />
+                </Space>
+              </div>
+            ))}
+          </Space>
+        </div>
         <Form form={invoiceForm} layout="vertical" onFinish={handleCreateInvoice}>
           <Form.Item name="invoice_number" label="N° de factura" rules={[{ required: true }]}>
             <Input placeholder="Ej: F-0001" />

@@ -87,6 +87,42 @@ export const Componente: React.FC<ComponenteProps> = ({
 };
 ```
 
+## 🎨 Theming Día/Noche y Ant Design v5 (CRÍTICO)
+
+> **Ver especificación completa obligatoria en:** `docs/UI_THEME_SPEC.md`
+
+1. **PROHIBIDO quemar colores hexadecimales o RGB fijos** en inline styles (`#fafafa`, `#f5f5f5`, `#d9d9d9`, `#262626`, `#595959`).
+2. **SIEMPRE usar `theme.useToken()`** para acceder a tokens del tema activo.
+3. **Card y Modal:** NUNCA usar `bodyStyle` ni `headStyle` (deprecados en AntD v5). Usar `styles={{ body: {...}, header: {...} }}`.
+4. **Modales limpios:** Si un componente se monta dentro de un Modal, soportar `bordered?: boolean` (enviar `bordered={false}`) para no anidar marcos ni dobles tarjetas.
+5. **Auditoría automática:** Ejecutar `npm run check:theme` antes de completar cualquier cambio de UI.
+
+```tsx
+import { theme } from 'antd';
+
+const MiComponente = () => {
+  const { token } = theme.useToken();
+  const isDark = typeof document !== 'undefined' && (
+    document.documentElement.dataset.theme === 'dark' ||
+    token.colorBgBase === '#0F0F10' ||
+    token.colorBgContainer === '#171718' ||
+    token.colorBgElevated === '#262626'
+  );
+
+  return (
+    <div
+      style={{
+        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : token.colorFillAlter,
+        border: `1px solid ${token.colorBorderSecondary}`,
+        color: token.colorText,
+      }}
+    >
+      Contenido adaptativo Día/Noche
+    </div>
+  );
+};
+```
+
 ## Componentes Ant Design Comunes
 
 ```tsx

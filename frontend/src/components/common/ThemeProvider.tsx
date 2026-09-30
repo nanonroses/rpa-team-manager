@@ -72,16 +72,63 @@ export function ThemeProvider({ children }: React.PropsWithChildren) {
         colorPrimaryText: palette === 'orange' ? '#FB923C' : '#60A5FA',
         colorLink: palette === 'orange' ? '#FB923C' : '#60A5FA',
         colorLinkHover: palette === 'orange' ? '#FDBA74' : '#93C5FD',
-        colorTextLightSolid: '#FFFFFF',
+        controlItemBgActive: palette === 'orange' ? 'rgba(234, 88, 12, 0.22)' : 'rgba(37, 99, 235, 0.22)',
+        controlItemBgHover: 'rgba(255, 255, 255, 0.08)',
+        controlItemBgActiveHover: palette === 'orange' ? 'rgba(234, 88, 12, 0.32)' : 'rgba(37, 99, 235, 0.32)',
       } : {
         colorText: currentPalette.color.text,
         colorTextSecondary: currentPalette.color.textSecondary,
         colorTextPlaceholder: currentPalette.color.textMuted,
         colorBorder: currentPalette.color.border,
+        controlItemBgActive: palette === 'orange' ? '#FFF7ED' : '#EFF6FF',
+        controlItemBgHover: '#F5F5F5',
+        controlItemBgActiveHover: palette === 'orange' ? '#FFEDD5' : '#DBEAFE',
       }),
     },
     components: {
       ...antdTheme.components,
+      Select: dark ? {
+        ...antdTheme.components?.Select,
+        selectorBg: '#171718',
+        optionSelectedBg: palette === 'orange' ? 'rgba(234, 88, 12, 0.22)' : 'rgba(37, 99, 235, 0.22)',
+        optionSelectedColor: palette === 'orange' ? '#FB923C' : '#60A5FA',
+        optionActiveBg: 'rgba(255, 255, 255, 0.08)',
+        clearBg: '#171718',
+      } : {
+        ...antdTheme.components?.Select,
+        optionSelectedBg: palette === 'orange' ? '#FFF7ED' : '#EFF6FF',
+        optionSelectedColor: palette === 'orange' ? '#EA580C' : '#2563EB',
+        optionActiveBg: '#F5F5F5',
+      },
+      Dropdown: {
+        ...antdTheme.components?.Dropdown,
+        colorBgElevated: dark ? '#262626' : '#FFFFFF',
+        controlItemBgActive: dark
+          ? (palette === 'orange' ? 'rgba(234, 88, 12, 0.22)' : 'rgba(37, 99, 235, 0.22)')
+          : (palette === 'orange' ? '#FFF7ED' : '#EFF6FF'),
+        controlItemBgHover: dark ? 'rgba(255, 255, 255, 0.08)' : '#F5F5F5',
+      },
+      DatePicker: {
+        ...antdTheme.components?.DatePicker,
+        cellActiveWithRangeBg: dark
+          ? (palette === 'orange' ? 'rgba(234, 88, 12, 0.22)' : 'rgba(37, 99, 235, 0.22)')
+          : (palette === 'orange' ? '#FFF7ED' : '#EFF6FF'),
+        cellHoverWithRangeBg: dark ? 'rgba(255, 255, 255, 0.08)' : '#F5F5F5',
+      },
+      Cascader: {
+        ...antdTheme.components?.Cascader,
+        menuBg: dark ? '#262626' : '#FFFFFF',
+        itemSelectedBg: dark
+          ? (palette === 'orange' ? 'rgba(234, 88, 12, 0.22)' : 'rgba(37, 99, 235, 0.22)')
+          : (palette === 'orange' ? '#FFF7ED' : '#EFF6FF'),
+      },
+      TreeSelect: {
+        ...antdTheme.components?.TreeSelect,
+        nodeSelectedBg: dark
+          ? (palette === 'orange' ? 'rgba(234, 88, 12, 0.22)' : 'rgba(37, 99, 235, 0.22)')
+          : (palette === 'orange' ? '#FFF7ED' : '#EFF6FF'),
+        nodeHoverBg: dark ? 'rgba(255, 255, 255, 0.08)' : '#F5F5F5',
+      },
       ...(dark ? {
         Layout: {
           bodyBg: '#0A0A0A',

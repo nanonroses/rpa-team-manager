@@ -241,7 +241,7 @@ export const TaskDependenciesEditor: React.FC<TaskDependenciesEditorProps> = ({
 
       {/* Sección 1: Depende de (Predecesoras) */}
       <div style={{ marginBottom: 16 }}>
-        <Text strong style={{ fontSize: 13, color: '#595959' }}>
+        <Text strong type="secondary" style={{ fontSize: 13 }}>
           Depende de ({dependencies.depends_on.length})
         </Text>
         <List
@@ -277,7 +277,7 @@ export const TaskDependenciesEditor: React.FC<TaskDependenciesEditorProps> = ({
 
       {/* Sección 2: Bloquea a (Sucesoras) */}
       <div>
-        <Text strong style={{ fontSize: 13, color: '#595959' }}>
+        <Text strong type="secondary" style={{ fontSize: 13 }}>
           Bloquea a ({dependencies.blocks.length})
         </Text>
         <List

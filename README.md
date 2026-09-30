@@ -1,605 +1,302 @@
-# RPA Team Manager
+# RPA Team Manager 🤖💼
 
-[![Version](https://img.shields.io/badge/version-2.9.0-blue.svg)](https://github.com/nanon/rpa-team-manager)
-[![Status](https://img.shields.io/badge/status-production-success.svg)](https://github.com/nanon/rpa-team-manager)
-[![Build Status](https://img.shields.io/badge/build-passing-success.svg)](https://github.com/nanon/rpa-team-manager)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](#license)
-[![Security](https://img.shields.io/badge/security-hardened-red.svg)](#security)
-[![Docker](https://img.shields.io/badge/docker-ready-blue.svg)](https://www.docker.com/)
+[![Version](https://img.shields.io/badge/version-3.2.0-blue.svg)](https://github.com/nanon/rpa-team-manager)
+[![Status](https://img.shields.io/badge/status-production--ready-success.svg)](https://github.com/nanon/rpa-team-manager)
+[![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)](https://github.com/nanon/rpa-team-manager)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](#-licencia)
+[![Security](https://img.shields.io/badge/security-hardened-red.svg)](#-seguridad-empresarial)
+[![Theming](https://img.shields.io/badge/theme-D%C3%ADa%20%7C%20Noche%20(WCAG%20AA)-orange.svg)](docs/UI_THEME_SPEC.md)
+[![Docker](https://img.shields.io/badge/docker-ready-2496ED.svg?logo=docker&logoColor=white)](https://www.docker.com/)
 
-Sistema de gestión para equipos RPA - Diseñado para equipos pequeños (5 personas) con despliegue en notebook.
+**Plataforma Integral de Gestión Operacional, Financiera y PMO para Equipos de Automatización Robótica de Procesos (RPA) e Inteligencia Artificial.**
+
+Diseñada específicamente para optimizar el ciclo de vida completo de proyectos de automatización: desde la venta inicial e imputación a centros de costo, pasando por el seguimiento ejecutivo en PMO y Gantt, hasta la operación en mesa de ayuda, facturación mensual de clientes y analítica predictiva con Machine Learning.
 
 ---
 
 ## 📋 Tabla de Contenidos
 
-- [🚀 Quick Start](#-quick-start)
-- [🎯 Características Principales](#-características-principales)
-- [📖 Quick Reference](#-quick-reference)
-- [👥 Estructura del Equipo](#-estructura-del-equipo-y-funcionalidades-por-rol)
+- [🌟 Novedades Destacadas (v3.2.0)](#-novedades-destacadas-v320)
+- [🎯 Módulos y Capacidades del Sistema](#-módulos-y-capacidades-del-sistema)
+- [🏢 Sistema de Centros de Costos (CECOs) & Imputación Comercial](#-sistema-de-centros-de-costos-cecos--imputación-comercial)
+- [🌓 Sistema de Theming Día / Noche & Diseño Ant Design v5](#-sistema-de-theming-día--noche--diseño-ant-design-v5)
+- [🧠 Servicio de Machine Learning (ML Service)](#-servicio-de-machine-learning-ml-service)
+- [👥 Roles y Permisos](#-roles-y-permisos)
 - [🛠️ Stack Tecnológico](#️-stack-tecnológico)
-- [📋 Requisitos del Sistema](#-requisitos-del-sistema)
-- [🚀 Instalación](#-instalación-con-docker)
-- [📁 Estructura del Proyecto](#-estructura-del-proyecto)
-- [🎯 URLs Principales](#-urls-principales)
-- [🔧 Troubleshooting](#-troubleshooting)
-- [💾 Backup y Restore](#-backup-y-restore)
-- [🔧 Mantenimiento](#-mantenimiento)
-- [🚀 Estado Actual](#-estado-actual-del-sistema-ago-2025)
-- [📞 Soporte](#-soporte)
-- [📜 License](#-license)
-- [🤝 Contributing](#-contributing)
-- [🔒 Security](#-security)
+- [🚀 Puesta en Marcha Rápida (Quick Start)](#-puesta-en-marcha-rápida-quick-start)
+- [🐳 Despliegue con Docker](#-despliegue-con-docker)
+- [📁 Estructura del Repositorio](#-estructura-del-repositorio)
+- [📚 Documentación Completa](#-documentación-completa)
+- [🔒 Seguridad Empresarial](#-seguridad-empresarial)
+- [📜 Licencia](#-licencia)
 
 ---
 
-## 🚀 Quick Start
+## 🌟 Novedades Destacadas (v3.2.0)
 
-### Iniciar Servidores
-```bash
-# Terminal 1 - Backend
-cd backend && npm run dev
+### 🏢 Centros de Costos (CECOs) e Imputación Comercial Multi-País
+- **Catálogo Oficial Corporativo**: Integración de 28 centros de costo oficiales para **Chile 🇨🇱**, **Perú 🇵🇪** y **Estados Unidos 🇺🇸**.
+- **Imputación Comercial de Ventas**: Captura del desglose contable desde el primer momento de venta del proyecto (porcentaje y monto estimado por centro de costo).
+- **Foco en el Área de RPA & IA**:
+  - `RPA-L` (RPA Licencias): Margen por venta de software y licencias.
+  - `RPA-P` (RPA Proyectos): Horas Hombre y desarrollo de ingenieros RPA.
+  - `RPA-S` (RPA Soporte): Mesa de soporte continuo y atención a incidentes.
+- **Atajos Inteligentes (Presets)**: Distribución con un solo clic:
+  - ⚡ **100% RPA Proyectos**
+  - ⚡ **RPA Integral** (40% Licencias + 50% Soporte + 10% Proyectos)
+  - ⚡ **100% RPA Soporte**
+- **Validación Automática**: Comprobación estricta de suma 100% y vinculación directa con el módulo de facturación mensual.
 
-# Terminal 2 - Frontend  
-cd frontend && npm run dev
+### 🎨 Arquitectura de Theming Día/Noche con Ant Design Tokens
+- **Consistencia Visual Total**: Soporte nativo para modo claro y modo oscuro respetando las directrices de `docs/UI_THEME_SPEC.md`.
+- **Menús y Dropdowns Accesibles**: Corrección global de portales y selects en tema oscuro garantizando legibilidad WCAG 2.1 AA.
+- **Auditoría Automatizada**: Nuevo script de verificación `npm run check:theme` para prevenir colores hardcodeados en el código.
+
+---
+
+## 🎯 Módulos y Capacidades del Sistema
+
+| Módulo | Descripción | Características Clave |
+|---|---|---|
+| **💼 Ficha Comercial & Ventas** | Gestión de ofertas comerciales, hitos de cobro e imputación contable. | Extracción de cotizaciones, imputación de CECOs, hitos de facturación, condiciones de pago. |
+| **🚀 PMO & Control de Proyectos** | Monitoreo ejecutivo de plazos, presupuestos y desvíos operacionales. | Semáforos de salud, tracking de desvíos con imputación de responsabilidad, alertas de ROI. |
+| **📅 Carta Gantt Profesional** | Cronograma visual interactivo para seguimiento temporal. | Dependencias entre proyectos y tareas, visualización de duraciones, estados en tiempo real. |
+| **📋 Tareas & Tableros Planner** | Gestión visual del trabajo diario de los desarrolladores RPA. | Drag & drop Kanban, subtareas, checklist de evidencias, dependencias entre tareas. |
+| **⏱️ Time Tracking** | Registro de horas invertidas por persona y proyecto. | Temporizador en vivo, registro manual, imputación a tareas, cálculo de costo real por dedicación. |
+| **🎫 Mesa de Ayuda & Soporte** | Gestión de clientes corporativos (e.g. Agrosuper) e incidentes. | SLAs, importación masiva de tickets desde Excel, horas de soporte consumidas vs contratadas. |
+| **💵 Facturación & Finanzas** | Facturación recurrente y por hitos de proyecto. | Contrato mensual fijo + horas extras, desglose consolidado por Centro de Costo, multi-moneda (CLP, USD, UF). |
+| **🧠 Predicciones con ML** | Inteligencia predictiva para toma de decisiones directivas. | Predicción de fecha de finalización, probabilidad de desvío presupuestario, scoring de riesgo SHAP. |
+| **💡 Banco de Ideas RPA** | Pipeline de captura y priorización de iniciativas de automatización. | Cálculo automático de impacto vs esfuerzo, votación del equipo, conversión directa a proyecto. |
+
+---
+
+## 🏢 Sistema de Centros de Costos (CECOs) & Imputación Comercial
+
+Cuando se cierra una venta de servicios de automatización (por ejemplo, por \$10.000 USD o UF), el valor comercial se divide contablemente en diferentes centros de costo para reflejar la realidad del negocio:
+
+```
+                  ┌──────────────────────────────────────────────┐
+                  │          Venta Total del Proyecto            │
+                  │              (Ej: $10,000 USD)               │
+                  └──────────────────────┬───────────────────────┘
+                                         │
+                 ┌───────────────────────┼───────────────────────┐
+                 ▼                       ▼                       ▼
+      ┌──────────────────────┐┌──────────────────────┐┌──────────────────────┐
+      │  RPA-L (Licencias)   ││   RPA-S (Soporte)    ││  RPA-P (Proyectos)   │
+      │   40%  ->  $4,000    ││   50%  ->  $5,000    ││   10%  ->  $1,000    │
+      │  (Margen licencias)  ││   (Mesa de ayuda)    ││   (HH desarrollo)    │
+      └──────────────────────┘└──────────────────────┘└──────────────────────┘
 ```
 
-### Crear Usuarios de Prueba (si es necesario)
-```bash
-curl -X POST http://localhost:5001/api/auth/setup-test-users
-```
-
-### Verificación Rápida
-- **Backend**: http://localhost:5001/health
-- **Frontend**: http://localhost:3000
-- **Login**: admin@rpa.com / admin123
+### Catálogo Multi-País Soportado
+- **🇨🇱 Chile**: `RPA-L`, `RPA-P`, `RPA-S`, `E-MONTEL`, `E-MONTI`, `E-OUTS`, `E-MESA`, `E-RESI`, `SAP`, `SAAS`, `DSOFT`, `ARRIENDOS`, `O-OUTS`.
+- **🇵🇪 Perú**: `P-RPA-L`, `P-RPA-P`, `P-RPA-S`, `P-E-OUTS`, `P-SAP`, `P-SAAS`, `P-DSOFT`, `P-O-OUTS`.
+- **🇺🇸 USA**: `U-RPA-L`, `U-RPA-P`, `U-RPA-S`, `U-SAP`, `U-SAAS`, `U-DSOFT`, `U-OUTS`.
 
 ---
 
-## 🎯 Características Principales - IMPLEMENTADAS
+## 🌓 Sistema de Theming Día / Noche & Diseño Ant Design v5
 
-- **Gestión de Tareas**: Tableros tipo Planner con drag & drop ✅
-- **Time Tracking**: Seguimiento de horas por desarrollador y proyecto ✅
-- **Gestión de Proyectos**: Control de cronogramas y presupuestos ✅
-- **🆕 Sistema Multi-Usuario**: Asignación de múltiples usuarios por proyecto con roles y porcentajes ✅
-- **🆕 ROI Avanzado**: Cálculos automáticos considerando costos de TODO el equipo asignado ✅
-- **Sistema ROI**: Cálculos automáticos de rentabilidad por proyecto ✅
-- **Settings Financieros**: Configuración de salarios y tipos de cambio ✅
-- **Integración Módulos**: Navegación fluida Projects ↔ Tasks ↔ Time ✅
-- **Sistema de Ideas**: Captura y organización de ideas dispersas ✅
-- **Control Financiero**: Tracking de delays con responsabilidades ✅
-- **Evidencias**: Sistema de documentación y seguimiento ✅
-- **Roles y Permisos**: Acceso diferenciado por tipo de usuario ✅
-- **🆕 Sistema de Soporte**: Gestión de empresas clientes y tickets de soporte ✅
-- **🆕 Importación Excel**: Carga masiva de tickets desde archivos Excel con mapeo automático ✅
-- **🆕 Sistema de Facturación**: Cálculos dinámicos y automáticos por empresa cliente ✅
-- **🆕 Selector Mensual**: Vista histórica por meses con filtros automáticos ✅
-- **🆕 Facturación Fija**: Modelo de contrato mensual fijo + horas extra ✅
-- **🆕 PMO Dashboard**: Vista ejecutiva con análisis de desvíos y gestión de hitos ✅
-- **🆕 Gantt Chart Profesional**: Cronograma visual interactivo con timeline y gestión de duraciones ✅
-- **🆕 Vista General PMO**: Dashboard ejecutivo completo con alertas críticas y centro de control ✅
-- **🆕 Team Management**: Administración completa de usuarios y roles ✅
-- **🆕 Profile Management**: Gestión de perfil personal y cambio de contraseñas ✅
-- **🆕 Security Hardening**: Sistema de seguridad empresarial con rate limiting, validación de entrada y manejo de errores estandarizado ✅
-- **🆕 Asignaciones Proyecto**: Sistema profesional de múltiples usuarios por proyecto con roles lead/member ✅
-- **🆕 Cálculo Costos Real**: ROI considera salarios de TODOS los usuarios asignados con porcentajes de dedicación ✅
+La interfaz está construida siguiendo los estándares de diseño corporativo documentados en [`docs/UI_THEME_SPEC.md`](docs/UI_THEME_SPEC.md):
+
+1. **Tokens Dinámicos**: Uso exclusivo de `theme.useToken()` de Ant Design v5.
+2. **Cero Colores Hardcodeados**: No se permiten colores fijos en CSS ni estilos en línea.
+3. **Alto Contraste WCAG 2.1 AA**: Todos los componentes interactivos, modales y portales flotantes (`Select`, `Dropdown`, `DatePicker`) garantizan legibilidad perfecta tanto en tema claro como oscuro.
+4. **Verificación Continua**: Script integrado para validar componentes:
+   ```bash
+   cd frontend && npm run check:theme
+   ```
 
 ---
 
-## 📖 Quick Reference
+## 🧠 Servicio de Machine Learning (ML Service)
 
-### 🔑 Credenciales por Defecto
-| Usuario | Rol | Email | Contraseña |
-|---------|-----|--------|------------|
-| Admin | Team Lead | admin@rpa.com | admin123 |
-| Dev1 | RPA Developer | dev1@rpa.com | admin123 |
-| Dev2 | RPA Developer | dev2@rpa.com | admin123 |
-| Ops1 | RPA Operations | ops1@rpa.com | admin123 |
-| IT Support | IT Support | itsupport@rpa.com | admin123 |
+El microservicio de analítica avanzada corre en Python con FastAPI y expone modelos predictivos para los líderes de equipo:
 
-### 🌐 URLs Esenciales
-- **Dashboard**: http://localhost:3000/dashboard
-- **Proyectos**: http://localhost:3000/projects
-- **Tareas**: http://localhost:3000/tasks
-- **Time Tracking**: http://localhost:3000/time
-- **PMO Dashboard**: http://localhost:3000/pmo
-- **Soporte**: http://localhost:3000/support
-- **Administración**: http://localhost:3000/admin
-- **API Health**: http://localhost:5001/health
-
-### ⚡ Comandos Esenciales
-```bash
-# Desarrollo
-npm run dev                    # Iniciar en modo desarrollo
-npm run db:migrate            # Aplicar migraciones de BD
-curl -X POST http://localhost:5001/api/auth/setup-test-users  # Crear usuarios
-
-# Docker
-docker-compose up -d          # Iniciar servicios
-docker-compose logs -f        # Ver logs
-docker-compose down           # Detener servicios
-
-# Troubleshooting
-netstat -ano | findstr :3000  # Verificar puertos
-taskkill /F /PID <numero-pid> # Matar proceso específico
-```
+1. **Predicción de Tiempo de Finalización**: Modelos ensamblados (Random Forest, XGBoost, LightGBM) con optimización de hiperparámetros vía Optuna.
+2. **Predicción de Variación Presupuestaria**: Detección temprana de sobrecostos basada en la complejidad técnica, dedicación del equipo y desvíos históricos.
+3. **Scoring de Riesgo y Explicabilidad SHAP**: Clasificación del nivel de riesgo del proyecto (Bajo, Medio, Alto, Crítico) con gráficos de cascada SHAP para entender los factores determinantes.
 
 ---
 
-## 👥 Estructura del Equipo y Funcionalidades por Rol
+## 👥 Roles y Permisos
 
-### Team Lead
-- ✅ **Team Management**: Crear, editar y eliminar usuarios del equipo
-- ✅ **Gestión de Roles**: Asignar roles y permisos por usuario
-- ✅ **Reset Passwords**: Cambiar contraseñas de cualquier usuario
-- ✅ Creación y eliminación de proyectos
-- ✅ **🆕 Asignación Multi-Usuario**: Asignar múltiples usuarios por proyecto con roles y porcentajes
-- ✅ **🆕 ROI Avanzado**: Métricas financieras considerando costos de todo el equipo asignado
-- ✅ **ROI Dashboard**: Métricas financieras exclusivas
-- ✅ **Settings**: Configuración salarios USD/UF/CLP (incluyendo Team Lead)
-- ✅ **Rentabilidad**: Indicadores visuales por proyecto con cálculos realistas
-- ✅ **🆕 Gestión de Soporte**: Control empresas clientes y facturación
-- ✅ **🆕 PMO Dashboard**: Vista ejecutiva con gestión de hitos
-- ✅ **🆕 Gantt Chart**: Cronograma visual con timeline interactivo y gestión de duraciones
-- ✅ **🆕 Vista General PMO**: Dashboard ejecutivo con alertas críticas y centro de control operacional
-
-### RPA Developers
-- ✅ **Perfil Personal**: Gestión de información personal y cambio de contraseña
-- ✅ Gestión de tareas asignadas
-- ✅ Time tracking personal
-- ✅ **🆕 Resolución de Tickets**: Asignación y resolución de tickets de soporte
-- ✅ Sistema de ideas (completamente funcional)
-- ✅ Subida de archivos y evidencias
-
-### RPA Operations
-- ✅ Monitoreo de todos los proyectos
-- ✅ **🆕 Gestión de Tickets**: Creación y seguimiento de tickets de soporte
-- ✅ Time tracking general
-
-### IT Support
-- ✅ Mantenimiento del sistema
-- ✅ Soporte técnico a usuarios
-- ✅ Monitoreo de salud del sistema
+| Rol | Alcance y Responsabilidades |
+|---|---|
+| **👑 Team Lead / Jefe de Área** | Control integral de proyectos, gestión de usuarios, configuración salarial, acceso a métricas de rentabilidad y ROI, imputación de CECOs, aprobación de hitos de facturación y configuración del sistema. |
+| **💻 RPA Developer** | Gestión de tareas asignadas en tableros Kanban, registro de tiempo invertido (Time Tracking), resolución de tickets de soporte técnico asignados, aportación y votación de ideas. |
+| **⚙️ RPA Operations** | Monitoreo operacional de proyectos activos, recepción y triaje de tickets de soporte, seguimiento de SLAs de clientes. |
+| **🛡️ IT Support** | Supervisión de salud del sistema, mantenimiento técnico, backups y soporte operacional a la plataforma. |
 
 ---
 
 ## 🛠️ Stack Tecnológico
 
-- **Frontend**: React 18 + TypeScript + Vite
-- **Backend**: Node.js + Express + TypeScript
-- **Database**: SQLite (file-based, zero config)
-- **Authentication**: JWT + bcrypt
-- **Security**: Rate limiting, Input validation (Zod), XSS protection, Helmet security headers
-- **Deployment**: Docker Compose
-- **Storage**: Sistema de archivos local
-
----
-
-## 📋 Requisitos del Sistema
-
-- **CPU**: Intel i5 8va gen o superior
-- **RAM**: 16GB (1GB para la aplicación)
-- **Storage**: 15GB libres
-- **OS**: Windows 10/11, macOS, Linux
-
----
-
-## 🚀 Instalación con Docker
-
-```bash
-# Clonar el proyecto
-cd C:\\Users\\nanon\\OneDrive\\Documentos\\GitHub\\rpa-team-manager
-
-# Configurar variables de entorno
-cp .env.example .env
-
-# Iniciar con Docker
-docker-compose up -d
-
-# Acceder a la aplicación
-# Frontend: http://localhost:3000
-# Backend: http://localhost:5001
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                               FRONTEND                                  │
+│  React 18 + TypeScript + Vite + Ant Design 5 + React Query + Dayjs     │
+└────────────────────────────────────┬────────────────────────────────────┘
+                                     │ REST APIs (JSON / JWT)
+┌────────────────────────────────────▼────────────────────────────────────┐
+│                             BACKEND API                                 │
+│  Node.js + Express + TypeScript + SQLite 3 + Zod + Helmet + Bcrypt      │
+└───────────────────┬─────────────────────────────────┬───────────────────┘
+                    │                                 │
+┌───────────────────▼─────────────┐     ┌─────────────▼───────────────────┐
+│          BASE DE DATOS          │     │           ML SERVICE            │
+│  SQLite (WAL Mode, UTF-8, FKs)  │     │  Python 3.10 + FastAPI + Optuna │
+│  46 Migraciones versionadas     │     │  XGBoost + LightGBM + SHAP      │
+└─────────────────────────────────┘     └─────────────────────────────────┘
 ```
 
 ---
 
-## 📁 Estructura del Proyecto
+## 🚀 Puesta en Marcha Rápida (Quick Start)
+
+### Prerrequisitos
+- **Node.js**: `>= 18.0.0`
+- **npm**: `>= 8.0.0`
+- **Python**: `>= 3.10` (requerido únicamente para el microservicio de ML)
+
+### 1. Clonar e Instalar Dependencias
+```bash
+git clone https://github.com/nanon/rpa-team-manager.git
+cd rpa-team-manager
+
+# Backend
+cd backend && npm install
+
+# Frontend
+cd ../frontend && npm install
+
+# ML Service (Opcional)
+cd ../ml-service && pip install -r requirements.txt
+```
+
+### 2. Variables de Entorno
+Copia el archivo de ejemplo en la raíz:
+```bash
+cp .env.example .env
+```
+
+### 3. Iniciar en Modo Desarrollo
+
+Abre terminales separadas para cada servicio:
+
+```bash
+# Terminal 1 - Backend (Puerto 5001)
+cd backend
+npm run dev
+
+# Terminal 2 - Frontend (Puerto 3000)
+cd frontend
+npm run dev
+
+# Terminal 3 - ML Service (Puerto 8002, opcional)
+cd ml-service
+python -m uvicorn src.api.main:app --host 0.0.0.0 --port 8002 --reload
+```
+
+### 4. Credenciales de Acceso Inicial
+
+| Usuario | Rol | Email | Contraseña |
+|---|---|---|---|
+| Administrador / Lead | `team_lead` | `admin@rpa.com` | `admin123` |
+| Desarrollador 1 | `rpa_developer` | `dev1@rpa.com` | `admin123` |
+| Desarrollador 2 | `rpa_developer` | `dev2@rpa.com` | `admin123` |
+| Operaciones | `rpa_operations` | `ops1@rpa.com` | `admin123` |
+| Soporte TI | `it_support` | `itsupport@rpa.com` | `admin123` |
+
+> Si la base de datos está recién creada, ejecuta:
+> ```bash
+> curl -X POST http://localhost:5001/api/auth/setup-test-users
+> ```
+
+---
+
+## 🐳 Despliegue con Docker
+
+El proyecto cuenta con orquestación completa mediante Docker Compose:
+
+```bash
+# Construir y levantar todos los contenedores en segundo plano
+docker-compose up -d --build
+
+# Ver el estado y logs
+docker-compose logs -f
+
+# Detener los servicios
+docker-compose down
+```
+
+Acceso:
+- **Frontend**: `http://localhost:3000`
+- **Backend API**: `http://localhost:3001` (o `5001` en dev)
+- **ML Service**: `http://localhost:8002`
+
+---
+
+## 📁 Estructura del Repositorio
 
 ```
 rpa-team-manager/
-├── frontend/          # React application
-├── backend/           # Node.js API
-├── database/          # SQLite database and migrations
-├── docker/            # Docker configurations
-├── docs/              # 📖 Complete Documentation
-│   ├── pmo-api.md                    # PMO Analytics API Documentation
-│   ├── support-api.md                # Support & Billing API Documentation  
-│   ├── database-schema.md            # Complete Database Schema
-│   ├── feature-pmo-analytics.md      # PMO Analytics Feature Guide
-│   ├── feature-support-billing.md    # Support Billing Feature Guide
-│   ├── user-guide-support.md         # Support User Guide
-│   ├── component-project-pmo-view.md # PMO Component Documentation
-│   └── development-setup.md          # Development Setup Guide
-├── scripts/           # Backup and maintenance scripts
-└── docker-compose.yml # Main deployment configuration
+├── backend/                   # API REST en Node.js + Express + TypeScript
+│   ├── src/
+│   │   ├── controllers/       # Controladores (CECOs, Proyectos, Facturación, etc.)
+│   │   ├── database/          # Conexión SQLite y lista de 46 migraciones
+│   │   ├── routes/            # Definición de rutas Express
+│   │   ├── services/          # Lógica de negocio (Billing, Time, PMO)
+│   │   └── validation/        # Validaciones de esquema con Zod
+│   └── uploads/               # Archivos y evidencias adjuntas
+├── frontend/                  # Single Page Application en React 18 + Vite
+│   ├── src/
+│   │   ├── components/        # Componentes UI (CostCenters, Billing, Projects, PMO)
+│   │   ├── pages/             # Vistas principales (Projects, Tasks, Time, Support, etc.)
+│   │   ├── services/          # Cliente API Axios tipado
+│   │   └── types/             # Modelos TypeScript compartidos
+│   └── scripts/               # Scripts de control (check-theme-compliance.js)
+├── ml-service/                # Microservicio Python para analítica predictiva
+│   └── src/                   # Modelos, extractores de features y endpoints FastAPI
+├── docs/                      # 📖 Especificaciones y documentación técnica
+│   ├── UI_THEME_SPEC.md       # Especificación y 8 Reglas de Oro de UI/UX Día/Noche
+│   ├── database-schema.md     # Diccionario de datos y modelo E/R completo
+│   ├── pmo-api.md             # Documentación de endpoints de PMO
+│   └── support-api.md         # Documentación del módulo de soporte y SLAs
+├── scripts/                   # Scripts de utilidad, backup y restore
+└── docker-compose.yml         # Manifiesto de despliegue multi-contenedor
 ```
 
 ---
 
-## 🎯 URLs Principales
-- **Dashboard**: http://localhost:3000/dashboard
-- **Projects**: http://localhost:3000/projects
-- **Tasks**: http://localhost:3000/tasks
-- **Time**: http://localhost:3000/time
-- **Ideas**: http://localhost:3000/ideas
-- **Files**: http://localhost:3000/files
-- **Soporte**: http://localhost:3000/support
-- **PMO**: http://localhost:3000/pmo
-- **Profile**: http://localhost:3000/profile
-- **Team Management**: http://localhost:3000/admin
-- **Settings**: http://localhost:3000/settings
+## 📚 Documentación Completa
+
+- 🎨 [Especificación de Theming & UI/UX Día/Noche](docs/UI_THEME_SPEC.md)
+- 🗄️ [Diccionario de Datos & Schema SQLite](docs/database-schema.md)
+- 📊 [Guía de Analítica PMO](docs/feature-pmo-analytics.md)
+- 💵 [Guía de Facturación de Soporte](docs/feature-support-billing.md)
+- 📖 [Manual de Usuario - Soporte](docs/user-guide-support.md)
+- 📝 [Historial de Versiones & Changelog](CHANGELOG.md)
 
 ---
 
-## 🔧 Troubleshooting
+## 🔒 Seguridad Empresarial
 
-### ⚠️ IMPORTANTE: Manejo de Procesos Node.js
-**ADVERTENCIA:** Evitar `taskkill /F /IM node.exe` ya que cierra la sesión del usuario.
-
-#### Método Seguro para Reiniciar
-```bash
-# 1. PRIMERO: Cerrar normalmente con Ctrl+C en las terminales activas
-# 2. Esperar 3-5 segundos
-# 3. Verificar puertos libres:
-netstat -ano | findstr :3000
-netstat -ano | findstr :5001
-
-# 4. Si hay procesos bloqueando, matar por PID específico:
-taskkill /F /PID <numero-pid-especifico>
-```
-
-#### Verificación de Estado (RECOMENDADO)
-```powershell
-# Verificar procesos Node activos
-Get-Process node -ErrorAction SilentlyContinue
-
-# Verificar puertos específicos
-Test-NetConnection localhost -Port 3000 -InformationLevel Quiet
-Test-NetConnection localhost -Port 5001 -InformationLevel Quiet
-```
-
-### Problemas Comunes
-
-#### Problema: Puertos ocupados
-1. Usar Ctrl+C en terminales activas
-2. Esperar 5 segundos
-3. Verificar PID específico con netstat
-4. Matar solo el proceso específico por PID
-
-#### Problema: Base de datos bloqueada
-1. Cerrar backend con Ctrl+C (NO taskkill)
-2. Esperar 5 segundos
-3. **🆕 NUEVO**: Usar migraciones automáticas en lugar de eliminar BD:
-```bash
-cd backend && npm run db:migrate
-```
-
-#### Sistema de Migraciones (Desarrollo)
-**✅ NUEVO**: Sistema automático que preserva datos durante cambios de esquema:
-- **Comando**: `cd backend && npm run db:migrate`
-- **Ventaja**: NO requiere eliminar `database.sqlite`
-- **Uso**: Ejecutar cada vez que se actualice el código
-- **Versionado**: Control incremental de cambios de BD
-
-#### Problema: No aparecen métricas ROI
-- Verificar login como admin@rpa.com (team_lead)
-- Otros roles NO ven métricas financieras
-
-#### Problema: Caracteres con acentos (ñ, é, í, ó, ú)
-- ✅ **Solucionado**: UTF-8 configurado en base de datos y servidor
-- Los acentos ahora se manejan correctamente
-
-### 📞 Comando de Emergencia (ÚLTIMO RECURSO)
-```bash
-# 🚨 SOLO si todo lo anterior falló:
-taskkill /F /IM node.exe
-del backend/data/database.sqlite*
-cd backend && npm run dev
-cd frontend && npm run dev
-curl -X POST http://localhost:5001/api/auth/setup-test-users
-```
+- **Rate Limiting Multicapa**: Protección contra abuso y ataques de fuerza bruta en autenticación y endpoints públicos.
+- **Validación con Zod**: Tipado estricto y saneamiento de entradas en toda la superficie de la API.
+- **Protección XSS & Inyección**: Cabeceras HTTP seguras configuradas con `Helmet`.
+- **Criptografía**: Autenticación stateless mediante tokens JWT firmados y contraseñas hasheadas con `bcrypt`.
+- **Integridad Referencial**: Foreign keys activadas en SQLite con soporte para operaciones transaccionales seguras.
 
 ---
 
-## 💾 Backup y Restore
+## 📜 Licencia
 
-### Backup Automático
-```bash
-# Backup diario automático
-./scripts/backup.sh
-```
-
-### Restore Manual
-```bash
-# Restaurar desde backup
-./scripts/restore.sh /path/to/backup
-```
+Distribuido bajo la Licencia **MIT**. Consulta el archivo [`LICENSE`](LICENSE) para más información.
 
 ---
 
-## 🔧 Mantenimiento
-
-- **Logs**: `docker-compose logs -f`
-- **Health Check**: `http://localhost:5001/health`
-- **Database Size**: Monitoreado automáticamente
-- **Updates**: `docker-compose pull && docker-compose up -d`
-
----
-
-## 🚀 Estado Actual del Sistema (AGO 2025)
-- **✅ Backend**: http://localhost:5001 - Operativo con Security Hardening
-- **✅ Frontend**: http://localhost:3000 - Operativo  
-- **✅ Database**: SQLite con 26+ tablas - Healthy
-- **✅ Módulos**: 9/9 principales funcionando (Dashboard, Projects, Tasks, Time, Ideas, Files, Soporte, PMO, Profile, Admin)
-- **✅ Security**: Rate limiting, input validation, XSS protection, error handling estandarizado
-- **✅ Gantt Chart**: Timeline visual interactivo con gestión profesional de duraciones
-- **✅ Vista General PMO**: Dashboard ejecutivo con alertas críticas y centro de control operacional
-- **✅ 🆕 Multi-User Assignments**: Sistema profesional de asignación múltiple con roles y porcentajes
-- **✅ 🆕 Enhanced ROI**: Cálculos realistas considerando costos de todo el equipo asignado
-- **✅ ROI**: Cálculos timeline automáticos
-- **✅ Integraciones**: Projects ↔ Tasks ↔ Time ↔ Support
-- **✅ Drag & Drop**: Tasks Kanban completamente funcional
-- **✅ Support**: Gestión clientes y facturación automática
-- **✅ Excel Import**: Importación masiva de tickets con validaciones automáticas
-- **✅ Billing System**: Cálculos dinámicos de facturación por empresa con API dedicada
-- **✅ Monthly Views**: Selector de mes con filtros históricos automáticos
-- **✅ Fixed Contracts**: Modelo de facturación mensual fija + horas extra
-- **✅ UTF-8**: Soporte completo para caracteres especiales
-
----
-
-## 📞 Soporte
-
-Para dudas técnicas o problemas:
-1. Revisar logs: `docker-compose logs`
-2. Verificar health check: `http://localhost:5001/health`
-3. Consultar este README
-4. Revisar [CHANGELOG.md](CHANGELOG.md) para historial de cambios
-5. **📖 Documentación Completa**: Revisar carpeta `/docs/` para guías detalladas:
-   - **API**: `docs/pmo-api.md`, `docs/support-api.md`
-   - **Features**: `docs/feature-pmo-analytics.md`, `docs/feature-support-billing.md`
-   - **User Guides**: `docs/user-guide-support.md`
-   - **Development**: `docs/development-setup.md`
-   - **Database**: `docs/database-schema.md`
-6. Contactar al IT Support del equipo
-
----
-
-## 📜 License
-
-Este proyecto está licenciado bajo la licencia MIT - ver el archivo [LICENSE](LICENSE) para más detalles.
-
-### MIT License
-
-```
-Copyright (c) 2025 RPA Team Manager
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
----
-
-## 🤝 Contributing
-
-¡Contribuciones, issues y requests de features son bienvenidas!
-
-### Proceso de Contribución
-
-1. **Fork** el proyecto
-2. **Crear** una rama para tu feature (`git checkout -b feature/AmazingFeature`)
-3. **Commit** tus cambios (`git commit -m 'Add: AmazingFeature'`)
-4. **Push** a la rama (`git push origin feature/AmazingFeature`)
-5. **Abrir** un Pull Request
-
-### Guía de Desarrollo
-
-#### Configuración del Entorno
-```bash
-# Instalar dependencias
-cd backend && npm install
-cd frontend && npm install
-
-# Configurar variables de entorno
-cp .env.example .env
-
-# Iniciar en modo desarrollo
-npm run dev
-```
-
-#### Estándares de Código
-- **TypeScript**: Usado tanto en frontend como backend
-- **ESLint**: Para linting y formato de código
-- **Prettier**: Para formato consistente
-- **Convenciones de Commits**: Usar prefijos como `Add:`, `Fix:`, `Update:`
-
-#### Testing
-```bash
-# Ejecutar tests
-npm test
-
-# Ejecutar tests con coverage
-npm run test:coverage
-```
-
-#### Base de Datos
-```bash
-# Aplicar migraciones
-npm run db:migrate
-
-# Crear nuevas migraciones
-npm run db:create-migration <nombre>
-```
-
-### Code of Conduct
-
-Este proyecto se adhiere al [Contributor Covenant](https://www.contributor-covenant.org/). Se espera que todos los participantes respeten este código de conducta.
-
----
-
-## 🔒 Security
-
-### Política de Seguridad
-
-#### Reportar Vulnerabilidades
-
-Si encuentras una vulnerabilidad de seguridad, por favor **NO** abras un issue público. En su lugar:
-
-1. Envía un email a: `security@rpa-team-manager.local`
-2. Incluye una descripción detallada de la vulnerabilidad
-3. Proporciona pasos para reproducir el problema
-4. Espera una respuesta dentro de 48 horas
-
-#### Medidas de Seguridad Implementadas
-
-- **🔐 Rate Limiting**: Protección DDoS multinivel (General: 100 req/15min, Auth: 10 req/15min)
-- **🛡️ Input Validation**: Esquemas Zod para validación de entrada en todos los endpoints críticos
-- **🧹 Input Sanitization**: Limpieza automática contra XSS e inyección de código
-- **🔒 Security Headers**: Helmet configurado con CSP, X-Frame-Options, XSS Protection
-- **🚨 Attack Detection**: Detección automática de patrones de ataque maliciosos
-- **📝 Security Logging**: Registro detallado de violaciones y intentos de ataque
-- **🔑 JWT Security**: Validación de fortaleza de secretos para producción
-- **🔐 Password Security**: Bcrypt para hashing de contraseñas
-- **🌐 CORS**: Configuración estricta de CORS para producción
-
-#### Configuración de Producción
-
-Para un despliegue seguro en producción:
-
-```bash
-# Variables de entorno críticas
-JWT_SECRET=<strong-random-secret-min-32-chars>
-NODE_ENV=production
-CORS_ORIGIN=https://your-domain.com
-RATE_LIMIT_MAX=50
-AUTH_RATE_LIMIT_MAX=5
-```
-
-#### Versiones de Seguridad
-
-| Versión | Soporte de Seguridad |
-| ------- | -------------------- |
-| 2.8.x   | ✅ Soportada         |
-| 2.7.x   | ✅ Soportada         |
-| < 2.7   | ❌ No soportada      |
-
----
-
-**Desarrollado específicamente para equipos RPA pequeños con despliegue on-premise.**
-
-**Última actualización:** Agosto 23, 2025  
-**Estado:** Sistema completo con 9 módulos operativos + Security Hardening + Selector Mensual + Facturación Fija + Team Management + Gantt Chart Profesional + Multi-User Assignments + Enhanced ROI ✅
-
----
-
-## 🆕 Nuevas Características Principales (v2.9.0)
-
-### 💼 Sistema de Asignaciones Multi-Usuario
-
-**Gestión Profesional de Equipos por Proyecto:**
-- ✅ **Múltiples Usuarios**: Asignar varios miembros del equipo a un mismo proyecto
-- ✅ **Roles Definidos**: Diferenciación entre "Lead" (líder) y "Member" (miembro)
-- ✅ **Porcentajes de Dedicación**: Configurar % de tiempo que cada usuario dedica al proyecto (default 100%)
-- ✅ **Interface Moderna**: Multi-select con tags visuales por rol en CreateProjectModal
-- ✅ **Backward Compatibility**: Migración automática desde sistema single-user anterior
-
-**Casos de Uso Reales:**
-```
-Proyecto "Automatización Contabilidad":
-- Team Lead (Juan Pérez) - 50% dedicación - Rol: Lead
-- RPA Developer (María García) - 100% dedicación - Rol: Member  
-- RPA Developer (Carlos López) - 75% dedicación - Rol: Member
-```
-
-**APIs de Gestión de Asignaciones:**
-- `GET /api/projects/:id/assignments` - Obtener asignaciones del proyecto
-- `POST /api/projects/:id/assignments` - Crear nueva asignación
-- `DELETE /api/projects/:id/assignments/:assignmentId` - Eliminar asignación
-
-### 📊 Sistema ROI Avanzado con Costos Multi-Usuario
-
-**Cálculos Realistas de Rentabilidad:**
-- ✅ **Suma de Costos**: ROI considera salarios de TODOS los usuarios asignados
-- ✅ **Cálculo por Dedicación**: Costo proporcional al % de dedicación de cada usuario
-- ✅ **Fórmula Mejorada**: `Total Cost = Σ (User_Salary ÷ Monthly_Hours × Allocation_% × Project_Hours)`
-- ✅ **Desglose Detallado**: API devuelve breakdown de costos por usuario
-- ✅ **Recálculo Automático**: ROI se actualiza al cambiar asignaciones
-
-**Ejemplo de Cálculo Real:**
-```
-Proyecto con 100 horas estimadas:
-- Team Lead: $1,500,000 CLP/mes ÷ 176h × 50% × 100h = $426,136 CLP
-- Developer 1: $1,200,000 CLP/mes ÷ 176h × 100% × 100h = $681,818 CLP
-- Developer 2: $1,200,000 CLP/mes ÷ 176h × 75% × 100h = $511,364 CLP
-Costo Total del Proyecto: $1,619,318 CLP
-```
-
-### ⚙️ Configuración Completa de Salarios
-
-**Settings Financieros Expandidos:**
-- ✅ **Todos los Roles**: Agregada configuración de salario para Team Lead
-- ✅ **Rangos Realistas**: Placeholders actualizados para mercado chileno
-- ✅ **Auto-cálculo**: Visualización en tiempo real del costo por hora
-- ✅ **Integración Total**: Conectado directamente con sistema ROI
-
-**Configuración de Salarios por Rol:**
-- Team Lead: $1,500,000 - $2,500,000 CLP/mes
-- RPA Developer: $1,200,000 - $1,800,000 CLP/mes  
-- RPA Operations: $1,000,000 - $1,400,000 CLP/mes
-- IT Support: $800,000 - $1,200,000 CLP/mes
-
-### 🏗️ Mejoras Técnicas
-
-**Database Schema:**
-- ✅ **Nueva Tabla**: `project_assignments` con relaciones many-to-many
-- ✅ **Migración Profesional**: Sistema automático que preserva datos existentes
-- ✅ **Campos Nuevos**: user_id, project_id, role, allocation_percentage
-
-**Backend APIs:**
-- ✅ **3 Nuevos Endpoints**: Gestión completa de asignaciones
-- ✅ **Error Handling**: Validaciones robustas y mensajes descriptivos
-- ✅ **Performance**: Consultas optimizadas con JOINs eficientes
-
-**Frontend UX:**
-- ✅ **Multi-Select Moderno**: Interface intuitiva para selección de usuarios
-- ✅ **Indicadores Visuales**: Tags por rol (Lead/Member) con colores distintivos
-- ✅ **Feedback Inmediato**: Cálculos ROI actualizados en tiempo real
-
-### 📈 Impacto Empresarial
-
-**Beneficios Operacionales:**
-- **Costeo Preciso**: Proyectos reflejan costos reales del equipo completo
-- **Gestión de Recursos**: Visibilidad de asignación y carga de trabajo
-- **ROI Confiable**: Decisiones basadas en datos financieros precisos
-- **Escalabilidad**: Maneja equipos pequeños y medianos eficientemente
-
-**Casos de Uso Empresariales:**
-- Proyectos complejos que requieren múltiples especialistas
-- Asignación parcial de líderes técnicos en varios proyectos
-- Cálculo preciso de rentabilidad para licitaciones
-- Planificación de recursos y presupuestos realistas
+<p align="center">
+  Desarrollado con ❤️ para potenciar a los equipos de automatización e inteligencia artificial.
+</p>

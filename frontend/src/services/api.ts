@@ -5,6 +5,7 @@ import { ProjectHealth, ProjectBaseline } from '../types/projectHealth';
 import { ActivityLogEntry } from '../types/activity';
 import { NotificationItem } from '../types/notification';
 import { TeamCostsResponse } from '@/types/teamCosts';
+import { CostCenter, ProjectCostCenterAllocation, CostCenterBillingSummaryRow } from '@/types/costCenter';
 
 interface RequestCache {
   [key: string]: {
@@ -442,9 +443,13 @@ class ApiService {
     return response.data;
   }
 
-  async getPaymentMilestones(projectId?: number): Promise<any[]> {
-    const url = projectId ? `/billing/payment-milestones?project_id=${projectId}` : '/billing/payment-milestones';
-    const response = await this.api.get(url);
+  async getPaymentMilestones(projectId?: number, options?: { cost_center_id?: number; rpa_only?: boolean }): Promise<any[]> {
+    const params = new URLSearchParams();
+    if (projectId) params.append('project_id', projectId.toString());
+    if (options?.cost_center_id) params.append('cost_center_id', options.cost_center_id.toString());
+    if (options?.rpa_only) params.append('rpa_only', 'true');
+    const query = params.toString() ? `?${params.toString()}` : '';
+    const response = await this.api.get(`/billing/payment-milestones${query}`);
     return response.data;
   }
 
@@ -496,6 +501,71 @@ class ApiService {
       throw new Error('No se pudo generar el estado de pago');
     }
     return response.blob();
+  }
+
+  // Cost Centers endpoints (Fase 6G)
+  async getCostCenters(params?: { country?: string; is_rpa?: boolean; active_only?: boolean }): Promise<CostCenter[]> {
+    const query = new URLSearchParams();
+    if (params?.country) query.append('country', params.country);
+    if (params?.is_rpa !== undefined) query.append('is_rpa', params.is_rpa.toString());
+    if (params?.active_only !== undefined) query.append('active_only', params.active_only.toString());
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    const response = await this.api.get(`/cost-centers${queryString}`);
+    const resData = response.data;
+    if (Array.isArray(resData)) return resData;
+    if (Array.isArray(resData?.data)) return resData.data;
+    return [];
+  }
+
+  async getCostCenterById(id: number): Promise<CostCenter> {
+    const response = await this.api.get(`/cost-centers/${id}`);
+    return response.data?.data || response.data;
+  }
+
+  async createCostCenter(data: Partial<CostCenter>): Promise<CostCenter> {
+    const response = await this.api.post('/cost-centers', data);
+    return response.data?.data || response.data;
+  }
+
+  async updateCostCenter(id: number, data: Partial<CostCenter>): Promise<CostCenter> {
+    const response = await this.api.put(`/cost-centers/${id}`, data);
+    return response.data?.data || response.data;
+  }
+
+  async getProjectCostCenters(projectId: number): Promise<{
+    project_id: number;
+    sale_price: number | null;
+    currency: string;
+    total_allocated: number;
+    allocations: ProjectCostCenterAllocation[];
+  }> {
+    const response = await this.api.get(`/commercial/projects/${projectId}/cost-centers`);
+    const resData = response.data?.data || response.data;
+    return {
+      project_id: resData?.project_id || projectId,
+      sale_price: resData?.sale_price ?? null,
+      currency: resData?.currency || 'CLP',
+      total_allocated: resData?.total_allocated || 0,
+      allocations: Array.isArray(resData?.allocations) ? resData.allocations : []
+    };
+  }
+
+  async setProjectCostCenters(projectId: number, data: { allocations: any[]; quote_id?: number | null }): Promise<any> {
+    const response = await this.api.put(`/commercial/projects/${projectId}/cost-centers`, data);
+    return response.data?.data || response.data;
+  }
+
+  async getCostCenterBillingSummary(params?: { country?: string; is_rpa?: boolean; project_id?: number }): Promise<CostCenterBillingSummaryRow[]> {
+    const query = new URLSearchParams();
+    if (params?.country) query.append('country', params.country);
+    if (params?.is_rpa !== undefined) query.append('is_rpa', params.is_rpa.toString());
+    if (params?.project_id) query.append('project_id', params.project_id.toString());
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    const response = await this.api.get(`/billing/cost-center-summary${queryString}`);
+    const resData = response.data;
+    if (Array.isArray(resData)) return resData;
+    if (Array.isArray(resData?.data)) return resData.data;
+    return [];
   }
 
   // Capacity & FTE management (Fase 6F)

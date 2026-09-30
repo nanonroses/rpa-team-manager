@@ -29,6 +29,7 @@ import adminRoutes from './routes/adminRoutes';
 import notificationRoutes from './routes/notificationRoutes';
 import commercialRoutes from './routes/commercialRoutes';
 import clientRoutes from './routes/clientRoutes';
+import costCenterRoutes from './routes/costCenterRoutes';
 
 // Import database and logger
 import { db } from './database/database';
@@ -157,6 +158,8 @@ class RPATeamManagerServer {
         this.app.use('/api/notifications', notificationRoutes);
         this.app.use('/api/commercial', commercialRoutes);
         this.app.use('/api', clientRoutes);
+        this.app.use('/api', costCenterRoutes);
+        this.app.use('/api/commercial', costCenterRoutes);
 
         // API documentation route
         this.app.get('/api', (req, res) => {
